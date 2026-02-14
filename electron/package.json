@@ -28,10 +28,10 @@
                 "repo": "Augustus"
             }
         ],
-        "icon": "../icons/augustus-icon-256.png",
+        "icon": "../icons/augustus-icon-1024.png",
         "win": {
             "target": "nsis",
-            "icon": "../icons/augustus-icon-256.png"
+            "icon": "../icons/augustus-icon-512.png"
         },
         "nsis": {
             "oneClick": false,
@@ -39,7 +39,7 @@
         },
         "mac": {
             "target": "dmg",
-            "icon": "../icons/augustus-icon-256.png",
+            "icon": "../icons/augustus-icon-1024.png",
             "category": "public.app-category.developer-tools"
         },
         "linux": {

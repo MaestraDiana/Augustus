@@ -113,6 +113,7 @@ export default function AgentList() {
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingAgent, setDeletingAgent] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,6 +167,7 @@ export default function AgentList() {
 
   const handleDelete = async (mode: 'archive' | 'hard') => {
     if (!selectedAgent) return;
+    setDeletingAgent(selectedAgent);
     try {
       await api.agents.delete(selectedAgent, mode === 'hard');
       // Refresh agents list
@@ -173,6 +175,8 @@ export default function AgentList() {
       setAgents(data);
     } catch (err) {
       console.error('Failed to delete agent:', err);
+    } finally {
+      setDeletingAgent(null);
     }
   };
 
@@ -291,9 +295,20 @@ export default function AgentList() {
             {filteredAgents.map((agent) => {
               const model = agent.model_override || DEFAULT_MODEL;
               const isActive = agent.status === 'active';
+              const isDeleting = deletingAgent === agent.agent_id;
 
               return (
-                <tr key={agent.agent_id}>
+                <tr
+                  key={agent.agent_id}
+                  style={isDeleting ? {
+                    opacity: 0.35,
+                    filter: 'blur(1px)',
+                    pointerEvents: 'none',
+                    transition: 'opacity 200ms ease, filter 200ms ease',
+                  } : {
+                    transition: 'opacity 200ms ease, filter 200ms ease',
+                  }}
+                >
                   <td>
                     <div className="agent-cell">
                       <span
@@ -301,7 +316,9 @@ export default function AgentList() {
                         style={{ background: getAgentColor(agent.agent_id, agents) }}
                       />
                       <div>
-                        <div className="agent-name">{agent.agent_id}</div>
+                        <div className="agent-name">
+                          {isDeleting ? 'Deleting...' : agent.agent_id}
+                        </div>
                         <div className="agent-desc">{agent.description}</div>
                       </div>
                     </div>

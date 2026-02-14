@@ -4,7 +4,10 @@
       "Bash(magick identify:*)",
       "Bash(dir:*)",
       "Bash(del \"Z:\\\\Web Clients\\\\Machine Pareidolia\\\\Lattice Runner\\\\v2\\\\test_parse_yaml.py\")",
-      "Bash(del \"Z:\\\\Web Clients\\\\Machine Pareidolia\\\\Lattice Runner\\\\v2\\\\nul\")"
+      "Bash(del \"Z:\\\\Web Clients\\\\Machine Pareidolia\\\\Lattice Runner\\\\v2\\\\nul\")",
+      "Bash(done)",
+      "WebFetch(domain:www.electron.build)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

@@ -1,14 +1,26 @@
 const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
+
+// Auto-updater — only import if available (won't be in dev without npm install)
+let autoUpdater, log;
+try {
+    autoUpdater = require('electron-updater').autoUpdater;
+    log = require('electron-log');
+} catch (e) {
+    // Not installed in dev — that's fine
+}
 
 const DEFAULT_PORT = 8080;
 const DEV_FRONTEND_PORT = 5173;
+const UPDATE_CHECK_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 let mainWindow = null;
 let pythonProcess = null;
+let updateCheckTimer = null;
 
 function getPort() {
     return process.env.AUGUSTUS_PORT || DEFAULT_PORT;
@@ -35,11 +47,34 @@ async function startPythonBackend(port) {
         return;
     }
 
-    const pythonPath = process.env.AUGUSTUS_PYTHON || 'python';
-    pythonProcess = spawn(pythonPath, ['-m', 'augustus.main', '--port', String(port)], {
-        cwd: path.join(__dirname, '..', 'backend'),
-        stdio: ['pipe', 'pipe', 'pipe'],
-    });
+    if (app.isPackaged) {
+        // Production: look for PyInstaller frozen binary first
+        const binaryName = 'augustus' + (process.platform === 'win32' ? '.exe' : '');
+        const frozenPath = path.join(process.resourcesPath, 'backend', binaryName);
+
+        if (fs.existsSync(frozenPath)) {
+            console.log(`Starting frozen backend binary: ${frozenPath}`);
+            pythonProcess = spawn(frozenPath, ['--port', String(port)], {
+                stdio: ['pipe', 'pipe', 'pipe'],
+            });
+        } else {
+            // Fallback: use Python interpreter even in production
+            console.log(`Frozen binary not found at ${frozenPath}, falling back to Python`);
+            const pythonPath = process.env.AUGUSTUS_PYTHON || 'python';
+            pythonProcess = spawn(pythonPath, ['-m', 'augustus.main', '--port', String(port)], {
+                cwd: path.join(__dirname, '..', 'backend'),
+                stdio: ['pipe', 'pipe', 'pipe'],
+            });
+        }
+    } else {
+        // Development: always use Python interpreter
+        console.log('Starting Python backend in dev mode');
+        const pythonPath = process.env.AUGUSTUS_PYTHON || 'python';
+        pythonProcess = spawn(pythonPath, ['-m', 'augustus.main', '--port', String(port)], {
+            cwd: path.join(__dirname, '..', 'backend'),
+            stdio: ['pipe', 'pipe', 'pipe'],
+        });
+    }
 
     pythonProcess.stdout.on('data', (data) => {
         console.log(`[Python] ${data.toString().trim()}`);
@@ -123,7 +158,7 @@ function buildMenu() {
                             type: 'info',
                             title: 'About Augustus',
                             message: 'Augustus - Persistent AI Identity Research Platform',
-                            detail: 'Version 0.2.0',
+                            detail: `Version ${app.getVersion()}`,
                         });
                     },
                 },
@@ -155,7 +190,77 @@ function stopPython() {
     }
 }
 
-// IPC handlers
+// --- Auto-updater setup ---
+
+function setupAutoUpdater() {
+    if (!app.isPackaged || !autoUpdater) {
+        console.log('Auto-updater disabled (dev mode or electron-updater not available)');
+        return;
+    }
+
+    // Configure
+    autoUpdater.autoDownload = false;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    if (log) {
+        autoUpdater.logger = log;
+        autoUpdater.logger.transports.file.level = 'info';
+    }
+
+    // Forward events to renderer
+    autoUpdater.on('update-available', (info) => {
+        mainWindow?.webContents.send('update-available', { version: info.version });
+    });
+
+    autoUpdater.on('update-not-available', () => {
+        mainWindow?.webContents.send('update-not-available');
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+        mainWindow?.webContents.send('download-progress', progress);
+    });
+
+    autoUpdater.on('update-downloaded', () => {
+        mainWindow?.webContents.send('update-downloaded');
+    });
+
+    autoUpdater.on('error', (err) => {
+        mainWindow?.webContents.send('update-error', err?.message || String(err));
+    });
+
+    // Initial check
+    autoUpdater.checkForUpdates().catch((err) => {
+        console.error('Auto-update check failed:', err);
+    });
+
+    // Periodic checks
+    updateCheckTimer = setInterval(() => {
+        autoUpdater.checkForUpdates().catch((err) => {
+            console.error('Auto-update check failed:', err);
+        });
+    }, UPDATE_CHECK_INTERVAL);
+}
+
+// --- First-launch flag ---
+
+function writeFirstLaunchFlag() {
+    const metaPath = path.join(app.getPath('userData'), 'install-meta.json');
+    if (!fs.existsSync(metaPath)) {
+        const meta = {
+            firstLaunch: new Date().toISOString(),
+            version: app.getVersion(),
+        };
+        try {
+            fs.writeFileSync(metaPath, JSON.stringify(meta, null, 2), 'utf-8');
+            console.log('First-launch flag written:', metaPath);
+        } catch (err) {
+            console.error('Failed to write first-launch flag:', err);
+        }
+    }
+}
+
+// --- IPC handlers ---
+
 ipcMain.handle('get-data-dir', () => {
     return app.getPath('userData');
 });
@@ -164,9 +269,32 @@ ipcMain.handle('get-app-version', () => {
     return app.getVersion();
 });
 
+ipcMain.handle('check-for-update', () => {
+    if (autoUpdater && app.isPackaged) {
+        return autoUpdater.checkForUpdates();
+    }
+    return null;
+});
+
+ipcMain.handle('download-update', () => {
+    if (autoUpdater && app.isPackaged) {
+        return autoUpdater.downloadUpdate();
+    }
+    return null;
+});
+
+ipcMain.handle('install-update', () => {
+    if (autoUpdater && app.isPackaged) {
+        autoUpdater.quitAndInstall();
+    }
+});
+
+// --- App lifecycle ---
+
 app.on('ready', async () => {
     const port = getPort();
     buildMenu();
+    writeFirstLaunchFlag();
 
     if (!isDev) {
         await startPythonBackend(port);
@@ -183,13 +311,22 @@ app.on('ready', async () => {
     }
 
     createWindow(port);
+    setupAutoUpdater();
 });
 
 app.on('window-all-closed', () => {
+    if (updateCheckTimer) {
+        clearInterval(updateCheckTimer);
+        updateCheckTimer = null;
+    }
     stopPython();
     app.quit();
 });
 
 app.on('before-quit', () => {
+    if (updateCheckTimer) {
+        clearInterval(updateCheckTimer);
+        updateCheckTimer = null;
+    }
     stopPython();
 });

@@ -1,0 +1,83 @@
+name: Build & Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+          - os: macos-latest
+            platform: mac
+          - os: ubuntu-latest
+            platform: linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      # Install Python dependencies + PyInstaller
+      - name: Install Python dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install "pyinstaller>=6.0.0"
+
+      # Bundle Python backend with PyInstaller
+      - name: Build backend (PyInstaller)
+        run: python build_backend.py
+        working-directory: backend
+
+      # Verify PyInstaller output exists
+      - name: Verify backend build
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            test -f backend/dist/augustus/augustus.exe && echo "Backend binary found" || (echo "Backend binary NOT found!" && exit 1)
+          else
+            test -f backend/dist/augustus/augustus && echo "Backend binary found" || (echo "Backend binary NOT found!" && exit 1)
+          fi
+
+      # Build frontend (Vite)
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+      # Build Electron app
+      - name: Install Electron dependencies
+        run: npm ci
+        working-directory: electron
+
+      - name: Build and publish Electron app
+        run: npx electron-builder --publish always
+        working-directory: electron
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # macOS code signing (configure these secrets when ready):
+          # CSC_LINK: ${{ secrets.CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # Windows code signing:
+          # CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          # CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}

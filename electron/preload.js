@@ -2,8 +2,32 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('augustus', {
     platform: process.platform,
-    version: '0.2.0',
+    version: require('./package.json').version,
     isElectron: true,
     getDataDir: () => ipcRenderer.invoke('get-data-dir'),
     getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    updates: {
+        checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
+        downloadUpdate: () => ipcRenderer.invoke('download-update'),
+        installUpdate: () => ipcRenderer.invoke('install-update'),
+        onUpdateAvailable: (cb) => {
+            ipcRenderer.on('update-available', (_, info) => cb(info));
+        },
+        onUpdateNotAvailable: (cb) => {
+            ipcRenderer.on('update-not-available', () => cb());
+        },
+        onDownloadProgress: (cb) => {
+            ipcRenderer.on('download-progress', (_, progress) => cb(progress));
+        },
+        onUpdateDownloaded: (cb) => {
+            ipcRenderer.on('update-downloaded', () => cb());
+        },
+        onUpdateError: (cb) => {
+            ipcRenderer.on('update-error', (_, err) => cb(err));
+        },
+        removeAllListeners: () => {
+            ['update-available', 'update-not-available', 'download-progress', 'update-downloaded', 'update-error']
+                .forEach(ch => ipcRenderer.removeAllListeners(ch));
+        }
+    }
 });

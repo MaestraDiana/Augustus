@@ -1212,6 +1212,64 @@
 .badge-auto-approved { background: var(--accent-primary-dim); color: var(--accent-primary); display: inline-flex; align-items: center; gap: var(--space-1); padding: 3px var(--space-2); border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 13px; font-weight: 500; line-height: 1.3; }
 .badge-rejected { background: var(--accent-alert-dim); color: var(--accent-alert); display: inline-flex; align-items: center; gap: var(--space-1); padding: 3px var(--space-2); border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 13px; font-weight: 500; line-height: 1.3; }
 
+/* ---- Update Banner ---- */
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  background: var(--accent-primary-dim);
+  border-bottom: 1px solid var(--accent-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.update-banner-content {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1;
+}
+.update-banner-action {
+  background: var(--accent-primary);
+  color: var(--surface-primary);
+  border: none;
+  padding: 4px var(--space-3);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+.update-banner-action:hover { background: var(--accent-primary-hover); }
+.update-banner-dismiss {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: var(--space-1);
+  display: flex;
+  align-items: center;
+  transition: color var(--transition-fast);
+}
+.update-banner-dismiss:hover { color: var(--text-primary); }
+.update-progress-bar {
+  width: 120px;
+  height: 4px;
+  background: var(--surface-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.update-progress-fill {
+  height: 100%;
+  background: var(--accent-primary);
+  border-radius: 2px;
+  transition: width 200ms ease;
+}
+.update-progress-text { color: var(--text-secondary); }
+.update-error { color: var(--accent-alert); font-size: 12px; }
+
 /* ---- Animations ---- */
 @keyframes spin {
   from { transform: rotate(0deg); }

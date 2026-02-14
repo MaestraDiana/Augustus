@@ -1,0 +1,35 @@
+name: Update Install Count
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Count total downloads from all releases
+        run: |
+          # Query GitHub API for all releases and sum download counts
+          TOTAL=$(gh api repos/${{ github.repository }}/releases \
+            --jq '[.[].assets[].download_count] | add // 0')
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          echo "{\"count\": $TOTAL, \"updated_at\": \"$TIMESTAMP\"}" > install-counter.json
+          echo "Total downloads: $TOTAL"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add install-counter.json
+          git diff --cached --quiet || git commit -m "Update install count"
+          git push

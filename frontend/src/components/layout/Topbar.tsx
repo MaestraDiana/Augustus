@@ -1,6 +1,7 @@
 import { Bell, Sun, Moon, Activity, Play, Pause } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 import StatusChip from '../ui/StatusChip';
+import UpdateBanner from '../ui/UpdateBanner';
 import { useState, useEffect } from 'react';
 import { api } from '../../api/client';
 
@@ -78,6 +79,8 @@ export default function Topbar({ pageTitle }: TopbarProps) {
   };
 
   return (
+    <>
+    <UpdateBanner />
     <header className="topbar">
       <div className="topbar-left">
         {pageTitle && <h1 className="page-title">{pageTitle}</h1>}
@@ -131,5 +134,6 @@ export default function Topbar({ pageTitle }: TopbarProps) {
         </div>
       </div>
     </header>
+    </>
   );
 }

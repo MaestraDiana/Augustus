@@ -358,7 +358,9 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
                 >
                   <option value="">Use default (Claude Sonnet 4)</option>
                   <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                  <option value="claude-opus-4-6">Claude Opus 4</option>
+                  <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
+                  <option value="claude-opus-4-5-20251101">Claude Opus 4.5</option>
+                  <option value="claude-opus-4-6">Claude Opus 4.6</option>
                   <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
                 </select>
                 <div className="form-hint">Leave blank to use global default.</div>

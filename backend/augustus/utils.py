@@ -60,6 +60,8 @@ MODEL_ALIASES: dict[str, str] = {
     "opus": "claude-opus-4-6",
     "claude-opus": "claude-opus-4-6",
     "claude-opus-4": "claude-opus-4-6",
+    "opus-4-5": "claude-opus-4-5-20251101",
+    "claude-opus-4-5": "claude-opus-4-5-20251101",
     "haiku": "claude-haiku-4-5-20251001",
     "claude-haiku": "claude-haiku-4-5-20251001",
     "claude-haiku-35": "claude-haiku-35-20241022",

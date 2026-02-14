@@ -1458,6 +1458,7 @@ class MemoryService:
             "session_task": config.session_task,
             "close_protocol": config.close_protocol,
             "capabilities": config.capabilities,
+            "session_interval": config.session_interval,
             "basins": [
                 {
                     "name": b.name,
@@ -1548,6 +1549,7 @@ class MemoryService:
             "temperature_override",
             "max_tokens_override",
             "max_turns",
+            "session_interval",
             "identity_core",
             "session_task",
             "close_protocol",
@@ -1689,6 +1691,7 @@ class MemoryService:
             temperature_override=config_data.get("temperature_override"),
             max_tokens_override=config_data.get("max_tokens_override"),
             max_turns=config_data.get("max_turns", 8),
+            session_interval=config_data.get("session_interval", 300),
             identity_core=config_data.get("identity_core", ""),
             session_task=config_data.get("session_task", ""),
             close_protocol=config_data.get("close_protocol", ""),

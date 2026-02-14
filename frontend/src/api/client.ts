@@ -53,8 +53,9 @@ function put<T>(path: string, data?: unknown) {
   });
 }
 
-function del<T>(path: string) {
-  return request<T>(path, { method: 'DELETE' });
+function del<T>(path: string, params?: Record<string, string>) {
+  const query = params ? '?' + new URLSearchParams(params).toString() : '';
+  return request<T>(path + query, { method: 'DELETE' });
 }
 
 export const api = {
@@ -63,7 +64,8 @@ export const api = {
     get: (id: string) => get<Agent>(`/agents/${id}`),
     create: (data: AgentFormData) => post<Agent>('/agents', data),
     update: (id: string, data: Partial<AgentFormData>) => put<Agent>(`/agents/${id}`, data),
-    delete: (id: string) => del<void>(`/agents/${id}`),
+    delete: (id: string, hard: boolean = false) =>
+      del<void>(`/agents/${id}`, hard ? { hard: 'true' } : undefined),
     pause: (id: string) => post<{ agent_id: string; status: string }>(`/agents/${id}/pause`),
     resume: (id: string) => post<{ agent_id: string; status: string }>(`/agents/${id}/resume`),
     clone: (id: string) => post<Agent>(`/agents/${id}/clone`),

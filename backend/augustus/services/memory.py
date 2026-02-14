@@ -1512,8 +1512,8 @@ class MemoryService:
         return self._row_to_agent_config(row)
 
     async def list_agents(self) -> list[AgentConfig]:
-        """List all agent configurations."""
-        sql = "SELECT * FROM agents ORDER BY created_at DESC"
+        """List all agent configurations (excludes soft-deleted agents)."""
+        sql = "SELECT * FROM agents WHERE status != 'deleted' ORDER BY created_at DESC"
         rows = await self._run_sync(self.sqlite.fetch_all, sql, ())
         return [self._row_to_agent_config(r) for r in rows]
 

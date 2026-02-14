@@ -164,10 +164,10 @@ export default function AgentList() {
     setDeleteModalOpen(true);
   };
 
-  const handleDelete = async (_mode: 'archive' | 'hard') => {
+  const handleDelete = async (mode: 'archive' | 'hard') => {
     if (!selectedAgent) return;
     try {
-      await api.agents.delete(selectedAgent);
+      await api.agents.delete(selectedAgent, mode === 'hard');
       // Refresh agents list
       const data = await api.agents.list();
       setAgents(data);

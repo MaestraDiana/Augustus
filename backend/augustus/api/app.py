@@ -82,12 +82,13 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: stop orchestrator if we started it
     if orch_task is not None and container.orchestrator is not None:
-        await container.orchestrator.stop()
-        orch_task.cancel()
-        try:
-            await orch_task
-        except asyncio.CancelledError:
-            pass
+        await container.orchestrator.stop(timeout=3.0)
+        if not orch_task.done():
+            orch_task.cancel()
+            try:
+                await asyncio.wait_for(orch_task, timeout=2.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
 
     logger.info("Augustus API shutting down")
 

@@ -116,8 +116,8 @@ class Orchestrator:
         finally:
             self._running = False
 
-    async def stop(self) -> None:
-        """Graceful shutdown."""
+    async def stop(self, timeout: float = 5.0) -> None:
+        """Graceful shutdown with timeout to prevent hanging."""
         logger.info("Orchestrator stopping")
         self._running = False
         self._status = OrchestratorStatus.PAUSED
@@ -126,9 +126,18 @@ class Orchestrator:
         for aid, task in self._tasks.items():
             task.cancel()
 
-        # Wait for all to finish
+        # Wait for all to finish, but don't hang forever
         if self._tasks:
-            await asyncio.gather(*self._tasks.values(), return_exceptions=True)
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._tasks.values(), return_exceptions=True),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Orchestrator stop timed out after %.1fs — %d tasks still running",
+                    timeout, len(self._tasks),
+                )
 
         self._tasks.clear()
         self._active_sessions.clear()

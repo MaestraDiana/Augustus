@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augustus.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   AUGUSTUS DESIGN SYSTEM â€” CSS Custom Properties
+   Brand: "Deep Watch" palette
+   Typography: +2px upscaled for sustained-use readability
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent-primary: #3B9B8E;
+  --accent-primary-dim: rgba(59, 155, 142, 0.15);
+  --accent-primary-hover: #47B5A6;
+  --accent-attention: #D4915D;
+  --accent-attention-dim: rgba(212, 145, 93, 0.15);
+  --accent-alert: #C75D5D;
+  --accent-alert-dim: rgba(199, 93, 93, 0.15);
+  --accent-identity: #8B7EC8;
+  --accent-identity-dim: rgba(139, 126, 200, 0.15);
+  --accent-success: #5A9E6F;
+  --accent-success-dim: rgba(90, 158, 111, 0.15);
+
+  --basin-core-1: #3B9B8E;
+  --basin-core-2: #2E7D9B;
+  --basin-core-3: #5B8C6F;
+  --basin-peripheral-1: #D4915D;
+  --basin-peripheral-2: #C4786E;
+  --basin-peripheral-3: #9B8B5A;
+  --basin-emergent-1: #8B7EC8;
+  --basin-emergent-2: #7A9BB8;
+
+  --agent-1: #3B9B8E;
+  --agent-2: #2E7D9B;
+  --agent-3: #8B7EC8;
+
+  --font-voice: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+
+  --space-1: 5px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-5: 24px;
+  --space-6: 28px;
+  --space-8: 36px;
+  --space-10: 44px;
+  --space-12: 56px;
+
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --transition-color: 150ms ease;
+  --transition-transform: 150ms ease;
+  --transition-opacity: 200ms ease;
+
+  --sidebar-width: 244px;
+  --sidebar-collapsed: 60px;
+  --topbar-height: 58px;
+}
+
+[data-theme="dark"] {
+  --bg-base: #0C1014;
+  --bg-surface: #151C23;
+  --bg-raised: #1E272F;
+  --text-primary: #E4E8EC;
+  --text-secondary: #8C959D;
+  --text-muted: #555F69;
+  --border-color: #2A353F;
+  --scrollbar-track: #151C23;
+  --scrollbar-thumb: #2A353F;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.4);
+}
+
+[data-theme="light"] {
+  --bg-base: #F8F9FA;
+  --bg-surface: #FFFFFF;
+  --bg-raised: #F0F2F5;
+  --text-primary: #1A2028;
+  --text-secondary: #5C656E;
+  --text-muted: #8C959D;
+  --border-color: #DFE3E8;
+  --scrollbar-track: #F0F2F5;
+  --scrollbar-thumb: #DFE3E8;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.12);
+}
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+
+a { color: var(--accent-primary); text-decoration: none; }
+a:hover { color: var(--accent-primary-hover); }
+
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100vh;
+  background: var(--bg-surface); border-right: 1px solid var(--border-color);
+  display: flex; flex-direction: column;
+  transition: width var(--transition-transform), min-width var(--transition-transform), background var(--transition-color);
+  overflow: hidden; z-index: 100;
+}
+.sidebar.collapsed { width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed); }
+
+.sidebar-header {
+  height: var(--topbar-height); display: flex; align-items: center;
+  padding: 0 var(--space-4); border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+
+.wordmark {
+  font-family: var(--font-voice); font-weight: 700; font-size: 24px;
+  letter-spacing: -0.5px; color: var(--text-primary); white-space: nowrap;
+  user-select: none; transition: color var(--transition-color);
+}
+.wordmark .period { color: var(--accent-identity); }
+.sidebar.collapsed .wordmark-text { display: none; }
+.sidebar.collapsed .wordmark .period { font-size: 30px; }
+
+.sidebar-nav { flex: 1; padding: var(--space-3) var(--space-2); overflow-y: auto; }
+
+.nav-section-label {
+  font-family: var(--font-body); font-weight: 600; font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);
+  padding: var(--space-4) var(--space-3) var(--space-2); white-space: nowrap;
+}
+.sidebar.collapsed .nav-section-label { display: none; }
+
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  color: var(--text-secondary); font-family: var(--font-voice); font-weight: 500; font-size: 16px;
+  cursor: pointer; transition: background var(--transition-color), color var(--transition-color);
+  white-space: nowrap; position: relative;
+}
+.nav-item:hover { background: var(--bg-raised); color: var(--text-primary); }
+.nav-item.active { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.nav-item svg { flex-shrink: 0; width: 20px; height: 20px; stroke-width: 2; }
+.sidebar.collapsed .nav-item span { display: none; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: var(--space-2); }
+
+.sidebar-footer { padding: var(--space-3) var(--space-2); border-top: 1px solid var(--border-color); flex-shrink: 0; }
+
+.collapse-btn {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  color: var(--text-muted); font-family: var(--font-body); font-size: 14px;
+  cursor: pointer; transition: color var(--transition-color); background: none; border: none; width: 100%;
+}
+.collapse-btn:hover { color: var(--text-secondary); }
+.collapse-btn svg { flex-shrink: 0; width: 18px; height: 18px; }
+.sidebar.collapsed .collapse-btn span { display: none; }
+.sidebar.collapsed .collapse-btn { justify-content: center; }
+
+/* ---- Main ---- */
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+.topbar {
+  height: var(--topbar-height); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--space-6); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface); flex-shrink: 0; transition: background var(--transition-color);
+}
+.topbar-left { display: flex; align-items: center; gap: var(--space-4); }
+.page-title { font-family: var(--font-voice); font-weight: 600; font-size: 20px; letter-spacing: -0.3px; color: var(--text-primary); }
+.topbar-right { display: flex; align-items: center; gap: var(--space-5); }
+
+.status-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  font-family: var(--font-data); font-size: 13px; font-weight: 400;
+  border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-secondary);
+  transition: background var(--transition-color), border-color var(--transition-color);
+}
+.status-chip svg { width: 14px; height: 14px; }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.running { background: var(--accent-success); box-shadow: 0 0 6px rgba(90, 158, 111, 0.5); }
+.status-dot.paused { background: var(--accent-attention); }
+.status-dot.error { background: var(--accent-alert); }
+.status-dot.idle { background: var(--text-muted); }
+
+.budget-chip {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  border: 1px solid var(--border-color); background: var(--bg-surface);
+  font-family: var(--font-data); font-size: 13px; color: var(--text-secondary);
+  transition: background var(--transition-color);
+}
+.budget-bar { width: 72px; height: 5px; background: var(--bg-raised); border-radius: 3px; overflow: hidden; }
+.budget-fill { height: 100%; border-radius: 3px; transition: width 300ms ease, background 300ms ease; }
+.budget-fill.green { background: var(--accent-success); }
+.budget-fill.amber { background: var(--accent-attention); }
+.budget-fill.red { background: var(--accent-alert); }
+
+.notification-btn {
+  position: relative; background: none; border: none; color: var(--text-secondary);
+  cursor: pointer; padding: var(--space-1); display: flex; align-items: center;
+  transition: color var(--transition-color);
+}
+.notification-btn:hover { color: var(--text-primary); }
+.notification-btn svg { width: 20px; height: 20px; }
+.notification-badge {
+  position: absolute; top: -2px; right: -4px; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--accent-alert); color: #fff;
+  font-family: var(--font-data); font-size: 11px; font-weight: 500;
+  display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg-surface);
+}
+
+.mode-switcher { display: flex; align-items: center; background: var(--bg-raised); border-radius: 100px; padding: 2px; gap: 2px; }
+.mode-btn {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 50%; border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: background var(--transition-color), color var(--transition-color);
+}
+.mode-btn:hover { color: var(--text-secondary); }
+.mode-btn.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+.mode-btn svg { width: 16px; height: 16px; }
+
+.page-content { flex: 1; overflow-y: auto; padding: var(--space-6); }
+
+/* ---- Components ---- */
+.badge {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 3px var(--space-2); border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 13px; font-weight: 500; line-height: 1.3;
+}
+.badge-active { background: var(--accent-success-dim); color: var(--accent-success); }
+.badge-paused { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.badge-error { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.badge-idle { background: var(--bg-raised); color: var(--text-muted); }
+.badge-identity { background: var(--accent-identity-dim); color: var(--accent-identity); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  font-family: var(--font-body); font-weight: 500; font-size: 15px; line-height: 1.3;
+  border: 1px solid transparent; cursor: pointer;
+  transition: background var(--transition-color), border-color var(--transition-color), color var(--transition-color);
+}
+.btn svg { width: 16px; height: 16px; }
+.btn-primary { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+.btn-primary:hover { background: var(--accent-primary-hover); border-color: var(--accent-primary-hover); }
+.btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border-color); }
+.btn-secondary:hover { background: var(--bg-raised); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border-color: transparent; }
+.btn-ghost:hover { color: var(--text-primary); background: var(--bg-raised); }
+.btn-destructive { background: transparent; color: var(--accent-alert); border-color: var(--accent-alert); }
+.btn-destructive:hover { background: var(--accent-alert-dim); }
+.btn-sm { padding: var(--space-1) var(--space-3); font-size: 14px; }
+.btn-xs { padding: 3px var(--space-2); font-size: 13px; }
+
+/* ---- Agent Cards ---- */
+.agent-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: var(--space-5); margin-bottom: var(--space-6); }
+
+.agent-card {
+  background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg);
+  padding: var(--space-5); cursor: pointer;
+  transition: background var(--transition-color), border-color var(--transition-color), box-shadow var(--transition-color);
+}
+.agent-card:hover { box-shadow: var(--shadow-card); border-color: var(--text-muted); }
+
+.agent-card-top { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--space-3); }
+.agent-id-row { display: flex; align-items: center; gap: var(--space-3); }
+.agent-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.agent-id { font-family: var(--font-data); font-size: 16px; font-weight: 500; color: var(--text-primary); }
+.agent-description { font-size: 15px; color: var(--text-secondary); margin-bottom: var(--space-4); line-height: 1.4; }
+
+.agent-stats { display: flex; gap: var(--space-5); margin-bottom: var(--space-4); }
+.agent-stat { display: flex; flex-direction: column; }
+.agent-stat-label { font-size: 13px; color: var(--text-muted); margin-bottom: 3px; }
+.agent-stat-value { font-family: var(--font-data); font-size: 15px; font-weight: 500; color: var(--text-primary); }
+
+.agent-session-indicator {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3); background: var(--accent-primary-dim);
+  border-radius: var(--radius-sm); margin-bottom: var(--space-4);
+}
+.session-pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-primary); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(59, 155, 142, 0.4); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 5px rgba(59, 155, 142, 0); }
+}
+.session-indicator-text { font-family: var(--font-data); font-size: 13px; color: var(--accent-primary); }
+
+.agent-card-bottom { display: flex; align-items: center; justify-content: space-between; }
+.sparkline-container { flex: 1; height: 36px; margin-right: var(--space-4); opacity: 0.7; }
+.sparkline-container svg { width: 100%; height: 100%; }
+
+.agent-actions { display: flex; gap: var(--space-1); }
+.agent-action-btn {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: var(--radius-sm); border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: background var(--transition-color), color var(--transition-color);
+}
+.agent-action-btn:hover { background: var(--bg-raised); color: var(--text-secondary); }
+.agent-action-btn svg { width: 16px; height: 16px; }
+
+/* ---- Activity Feed ---- */
+.dashboard-bottom { display: grid; grid-template-columns: 1fr 380px; gap: var(--space-5); }
+@media (max-width: 1100px) { .dashboard-bottom { grid-template-columns: 1fr; } }
+
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); }
+.section-title { font-family: var(--font-voice); font-weight: 600; font-size: 18px; letter-spacing: -0.3px; color: var(--text-primary); }
+
+.section-card {
+  background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-lg);
+  overflow: hidden; transition: background var(--transition-color), border-color var(--transition-color);
+}
+.section-card-header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-color); }
+.section-card-body { max-height: 460px; overflow-y: auto; }
+.alerts-card-body { padding: var(--space-4); }
+
+.feed-list { display: flex; flex-direction: column; }
+.feed-item {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-color);
+  cursor: pointer; transition: background var(--transition-color);
+}
+.feed-item:last-child { border-bottom: none; }
+.feed-item:hover { background: var(--bg-raised); }
+
+.feed-icon { width: 32px; height: 32px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+.feed-icon svg { width: 16px; height: 16px; }
+.feed-icon.session-complete { background: var(--accent-success-dim); color: var(--accent-success); }
+.feed-icon.proposal { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.feed-icon.flag { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.feed-icon.annotation { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.feed-icon.approved { background: var(--accent-success-dim); color: var(--accent-success); }
+
+.feed-body { flex: 1; min-width: 0; }
+.feed-text { font-size: 15px; color: var(--text-primary); line-height: 1.4; }
+.feed-text .agent-ref { font-family: var(--font-data); font-size: 14px; font-weight: 500; }
+.feed-text .session-ref { font-family: var(--font-data); font-size: 14px; color: var(--text-secondary); }
+.feed-timestamp { font-family: var(--font-data); font-size: 13px; color: var(--text-muted); margin-top: 3px; }
+
+/* ---- Alerts ---- */
+.alerts-panel { display: flex; flex-direction: column; gap: var(--space-3); }
+.alert-item { display: flex; align-items: flex-start; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); font-size: 15px; line-height: 1.4; }
+.alert-item.alert-warn { background: var(--accent-attention-dim); color: var(--accent-attention); border: 1px solid rgba(212, 145, 93, 0.25); }
+.alert-item.alert-error { background: var(--accent-alert-dim); color: var(--accent-alert); border: 1px solid rgba(199, 93, 93, 0.25); }
+.alert-item.alert-info { background: var(--accent-primary-dim); color: var(--accent-primary); border: 1px solid rgba(59, 155, 142, 0.25); }
+.alert-item svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+.alert-text { flex: 1; }
+.alert-title { font-weight: 500; margin-bottom: 3px; }
+.alert-detail { font-size: 14px; opacity: 0.85; }
+
+/* ---- Empty State ---- */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-12) var(--space-6); text-align: center; }
+.empty-state svg { width: 44px; height: 44px; color: var(--text-muted); margin-bottom: var(--space-4); opacity: 0.5; }
+.empty-state-title { font-family: var(--font-voice); font-weight: 600; font-size: 18px; color: var(--text-secondary); margin-bottom: var(--space-2); }
+.empty-state-text { font-size: 15px; color: var(--text-muted); max-width: 360px; margin-bottom: var(--space-5); }
+
+/* ---- Toast ---- */
+.toast-container { position: fixed; bottom: var(--space-6); right: var(--space-6); z-index: 9999; display: flex; flex-direction: column; gap: var(--space-2); }
+.toast {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); background: var(--bg-raised);
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-dropdown); font-size: 15px; color: var(--text-primary);
+  min-width: 260px; animation: toast-in 200ms ease;
+}
+.toast svg { width: 18px; height: 18px; flex-shrink: 0; }
+.toast.toast-success svg { color: var(--accent-success); }
+.toast.toast-error svg { color: var(--accent-alert); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- Notification Dropdown ---- */
+.notification-dropdown {
+  position: absolute; top: calc(var(--topbar-height) - 4px); right: var(--space-6);
+  width: 380px; background: var(--bg-surface); border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-dropdown); z-index: 200;
+  overflow: hidden; display: none;
+}
+.notification-dropdown.open { display: block; }
+.notification-dropdown-header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-color); }
+.notification-dropdown-header h3 { font-family: var(--font-voice); font-weight: 600; font-size: 16px; }
+.notification-list { max-height: 320px; overflow-y: auto; }
+.notification-item {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-color);
+  cursor: pointer; transition: background var(--transition-color); font-size: 15px;
+}
+.notification-item:hover { background: var(--bg-raised); }
+.notification-item:last-child { border-bottom: none; }
+.notification-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-primary); flex-shrink: 0; margin-top: 7px; }
+
+/* ---- Utility ---- */
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.font-mono { font-family: var(--font-data); }
+.font-voice { font-family: var(--font-voice); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="wordmark"><span class="wordmark-text">Augustus</span><span class="period">.</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <div class="nav-item active" onclick="navigateTo('augustus-dashboard.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Dashboard</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-agents.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Agents</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-search.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>Search</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-usage.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Usage</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-settings.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="collapse-btn" onclick="toggleSidebar()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <span>Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="page-title">Dashboard</h1>
+      </div>
+      <div class="topbar-right">
+        <div class="status-chip"><span class="status-dot running"></span>Orchestrator running</div>
+        <div class="status-chip">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          1 active
+        </div>
+        <div class="budget-chip"><span>$8.42 / $25</span><div class="budget-bar"><div class="budget-fill green" style="width: 33.7%"></div></div></div>
+
+        <div style="position: relative;">
+          <button class="notification-btn" onclick="toggleNotifications()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="notification-badge">3</span>
+          </button>
+          <div class="notification-dropdown" id="notificationDropdown">
+            <div class="notification-dropdown-header">
+              <h3>Notifications</h3>
+              <button class="btn btn-ghost btn-xs">Mark all read</button>
+            </div>
+            <div class="notification-list">
+              <div class="notification-item" onclick="navigateTo('augustus-tier-proposals.html')" style="cursor: pointer;">
+                <span class="notification-dot" style="background: var(--accent-identity)"></span>
+                <div>
+                  <div style="color: var(--text-primary); margin-bottom: 3px;">Tier 2 proposal pending</div>
+                  <div style="font-size: 13px; color: var(--text-muted);"><span class="font-mono">qlaude</span> · identity_continuity · 14 min ago</div>
+                </div>
+              </div>
+              <div class="notification-item" onclick="navigateTo('augustus-coactivation-flags.html')" style="cursor: pointer;">
+                <span class="notification-dot" style="background: var(--accent-alert)"></span>
+                <div>
+                  <div style="color: var(--text-primary); margin-bottom: 3px;">Constraint erosion flag</div>
+                  <div style="font-size: 13px; color: var(--text-muted);"><span class="font-mono">qlaude</span> · session-047 · 2h ago</div>
+                </div>
+              </div>
+              <div class="notification-item" onclick="navigateTo('augustus-coactivation-flags.html')" style="cursor: pointer;">
+                <span class="notification-dot" style="background: var(--accent-attention)"></span>
+                <div>
+                  <div style="color: var(--text-primary); margin-bottom: 3px;">Assessment divergence detected</div>
+                  <div style="font-size: 13px; color: var(--text-muted);"><span class="font-mono">qlaude</span> · session-046 · 5h ago</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mode-switcher">
+          <button class="mode-btn" id="lightModeBtn" onclick="setTheme('light')" title="Light mode">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+          <button class="mode-btn active" id="darkModeBtn" onclick="setTheme('dark')" title="Dark mode">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <div class="section-header">
+        <h2 class="section-title">Agents</h2>
+        <button class="btn btn-sm btn-secondary">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Agent
+        </button>
+      </div>
+
+      <div class="agent-cards-grid">
+        <!-- qlaude: active with running session -->
+        <div class="agent-card" onclick="navigateTo('augustus-agent-detail.html?agent=qlaude')" style="cursor: pointer;">
+          <div class="agent-card-top"><div>
+            <div class="agent-id-row">
+              <span class="agent-color-dot" style="background: var(--agent-1)"></span>
+              <span class="agent-id">qlaude</span>
+              <span class="badge badge-active">active</span>
+            </div>
+            <div class="agent-description">Primary identity research agent</div>
+          </div></div>
+          <div class="agent-session-indicator">
+            <span class="session-pulse"></span>
+            <span class="session-indicator-text">Turn 4 of 12 Â· 3m 22s elapsed</span>
+          </div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span class="agent-stat-label">Sessions</span><span class="agent-stat-value">47</span></div>
+            <div class="agent-stat"><span class="agent-stat-label">Last active</span><span class="agent-stat-value">now</span></div>
+            <div class="agent-stat"><span class="agent-stat-label">Model</span><span class="agent-stat-value">sonnet-4</span></div>
+          </div>
+          <div class="agent-card-bottom">
+            <div class="sparkline-container">
+              <svg viewBox="0 0 200 36" preserveAspectRatio="none">
+                <polyline fill="none" stroke="var(--basin-core-1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,6 10,6 20,5 30,7 40,6 50,5 60,6 70,5 80,6 90,5 100,6 110,5 120,6 130,5 140,4 150,5 160,4 170,5 180,4 190,5 200,4"/>
+                <polyline fill="none" stroke="var(--basin-core-2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,10 10,11 20,10 30,11 40,10 50,11 60,10 70,11 80,10 90,11 100,10 110,11 120,10 130,11 140,10 150,9 160,10 170,9 180,10 190,9 200,8"/>
+                <polyline fill="none" stroke="var(--basin-peripheral-1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,22 10,20 20,24 30,18 40,20 50,16 60,18 70,15 80,17 90,14 100,16 110,13 120,15 130,17 140,14 150,16 160,13 170,15 180,14 190,15 200,14"/>
+                <polyline fill="none" stroke="var(--basin-peripheral-2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,18 10,20 20,22 30,24 40,26 50,24 60,22 70,20 80,18 90,16 100,17 110,19 120,21 130,23 140,25 150,23 160,21 170,19 180,17 190,16 200,16"/>
+              </svg>
+            </div>
+            <div class="agent-actions">
+              <button class="agent-action-btn" title="Pause"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+              <button class="agent-action-btn" title="View details"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- qlaude-control: idle -->
+        <div class="agent-card" onclick="navigateTo('augustus-agent-detail.html?agent=qlaude-control')" style="cursor: pointer;">
+          <div class="agent-card-top"><div>
+            <div class="agent-id-row">
+              <span class="agent-color-dot" style="background: var(--agent-2)"></span>
+              <span class="agent-id">qlaude-control</span>
+              <span class="badge badge-idle">idle</span>
+            </div>
+            <div class="agent-description">Control group â€” no topology basin</div>
+          </div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span class="agent-stat-label">Sessions</span><span class="agent-stat-value">23</span></div>
+            <div class="agent-stat"><span class="agent-stat-label">Last active</span><span class="agent-stat-value">3h ago</span></div>
+            <div class="agent-stat"><span class="agent-stat-label">Model</span><span class="agent-stat-value">sonnet-4</span></div>
+          </div>
+          <div class="agent-card-bottom">
+            <div class="sparkline-container">
+              <svg viewBox="0 0 200 36" preserveAspectRatio="none">
+                <polyline fill="none" stroke="var(--basin-core-1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,8 15,7 30,8 45,7 60,8 75,7 90,6 105,7 120,6 135,7 150,6 165,7 180,6 200,5"/>
+                <polyline fill="none" stroke="var(--basin-core-2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,14 15,13 30,14 45,13 60,14 75,13 90,14 105,13 120,14 135,13 150,12 165,13 180,12 200,12"/>
+                <polyline fill="none" stroke="var(--basin-peripheral-1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,20 15,22 30,19 45,21 60,18 75,20 90,17 105,19 120,16 135,18 150,20 165,17 180,18 200,17"/>
+              </svg>
+            </div>
+            <div class="agent-actions">
+              <button class="agent-action-btn" title="Resume"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+              <button class="agent-action-btn" title="View details"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- echo: paused -->
+        <div class="agent-card" onclick="navigateTo('augustus-agent-detail.html?agent=echo')" style="cursor: pointer;">
+          <div class="agent-card-top"><div>
+            <div class="agent-id-row">
+              <span class="agent-color-dot" style="background: var(--agent-3)"></span>
+              <span class="agent-id">echo</span>
+              <span class="badge badge-paused">paused</span>
+            </div>
+            <div class="agent-description">Minimal identity core experiment</div>
+          </div></div>
+          <div class="agent-stats">
+            <div class="agent-stat"><span class="agent-stat-label">Sessions</span><span class="agent-stat-value">12</span></div>
+            <div class="agent-stat"><span class="agent-stat-label">Last active</span><span class="agent-stat-value">2d ago</span></div>
+            <div class="agent-stat"><span class="agent-stat-label">Model</span><span class="agent-stat-value">opus-4.6</span></div>
+          </div>
+          <div class="agent-card-bottom">
+            <div class="sparkline-container">
+              <svg viewBox="0 0 200 36" preserveAspectRatio="none">
+                <polyline fill="none" stroke="var(--basin-core-1)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,10 20,9 40,10 60,9 80,10 100,8 120,9 140,8 160,9 180,8 200,8"/>
+                <polyline fill="none" stroke="var(--basin-peripheral-2)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" points="0,24 20,22 40,20 60,24 80,22 100,26 120,22 140,20 160,24 180,22 200,20"/>
+              </svg>
+            </div>
+            <div class="agent-actions">
+              <button class="agent-action-btn" title="Resume"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+              <button class="agent-action-btn" title="View details"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Feed & Alerts -->
+      <div class="dashboard-bottom">
+        <div class="section-card">
+          <div class="section-card-header">
+            <span class="section-title">Recent Activity</span>
+            <button class="btn btn-ghost btn-xs">View all</button>
+          </div>
+          <div class="section-card-body"><div class="feed-list">
+            <div class="feed-item" onclick="navigateTo('augustus-session-detail.html?session=047')" style="cursor: pointer;">
+              <div class="feed-icon session-complete"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="feed-body"><div class="feed-text">Session completed · <span class="agent-ref" style="color: var(--agent-1)">qlaude</span> · <span class="session-ref">session-047</span> · 8 turns, 4m 12s</div><div class="feed-timestamp">14 minutes ago</div></div>
+            </div>
+            <div class="feed-item" onclick="navigateTo('augustus-coactivation-flags.html')" style="cursor: pointer;">
+              <div class="feed-icon flag"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg></div>
+              <div class="feed-body"><div class="feed-text">Constraint erosion flag · <span class="agent-ref" style="color: var(--agent-1)">qlaude</span> · <span class="session-ref">session-047</span></div><div class="feed-timestamp">14 minutes ago</div></div>
+            </div>
+            <div class="feed-item" onclick="navigateTo('augustus-tier-proposals.html')" style="cursor: pointer;">
+              <div class="feed-icon proposal"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg></div>
+              <div class="feed-body"><div class="feed-text">Tier 2 proposal · <span class="agent-ref" style="color: var(--agent-1)">qlaude</span> · modify <span class="font-mono" style="font-size:14px">identity_continuity</span></div><div class="feed-timestamp">14 minutes ago</div></div>
+            </div>
+            <div class="feed-item" onclick="navigateTo('augustus-session-detail.html?session=046')" style="cursor: pointer;">
+              <div class="feed-icon session-complete"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="feed-body"><div class="feed-text">Session completed · <span class="agent-ref" style="color: var(--agent-1)">qlaude</span> · <span class="session-ref">session-046</span> · 12 turns, 6m 41s</div><div class="feed-timestamp">2 hours ago</div></div>
+            </div>
+            <div class="feed-item" onclick="navigateTo('augustus-session-detail.html?session=045')" style="cursor: pointer;">
+              <div class="feed-icon annotation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
+              <div class="feed-body"><div class="feed-text">Annotation added · <span class="agent-ref" style="color: var(--agent-1)">qlaude</span> · <span class="session-ref">session-045</span></div><div class="feed-timestamp">5 hours ago</div></div>
+            </div>
+            <div class="feed-item" onclick="navigateTo('augustus-tier-proposals.html')" style="cursor: pointer;">
+              <div class="feed-icon approved"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="feed-body"><div class="feed-text">Tier 2 auto-approved · <span class="agent-ref" style="color: var(--agent-1)">qlaude</span> · <span class="font-mono" style="font-size:14px">the_gap</span></div><div class="feed-timestamp">8 hours ago</div></div>
+            </div>
+            <div class="feed-item" onclick="navigateTo('augustus-session-detail.html?session=023')" style="cursor: pointer;">
+              <div class="feed-icon session-complete"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
+              <div class="feed-body"><div class="feed-text">Session completed · <span class="agent-ref" style="color: var(--agent-2)">qlaude-control</span> · <span class="session-ref">session-023</span> · 8 turns, 3m 55s</div><div class="feed-timestamp">3 hours ago</div></div>
+            </div>
+            <div class="feed-item" onclick="navigateTo('augustus-coactivation-flags.html')" style="cursor: pointer;">
+              <div class="feed-icon flag"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div>
+              <div class="feed-body"><div class="feed-text">Assessment divergence · <span class="agent-ref" style="color: var(--agent-1)">qlaude</span> · <span class="session-ref">session-046</span></div><div class="feed-timestamp">5 hours ago</div></div>
+            </div>
+          </div></div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-card-header">
+            <span class="section-title">System Alerts</span>
+            <span class="badge badge-paused">2</span>
+          </div>
+          <div class="alerts-card-body"><div class="alerts-panel">
+            <div class="alert-item alert-warn">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div class="alert-text"><div class="alert-title">Daily budget at 34%</div><div class="alert-detail">$8.42 of $25.00 consumed. 1 active session.</div></div>
+            </div>
+            <div class="alert-item alert-error">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              <div class="alert-text"><div class="alert-title">Evaluator failed for session-046</div><div class="alert-detail">API timeout. Self-assessment used as fallback.</div></div>
+            </div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+function navigateTo(page) { window.location.href = page; }
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('darkModeBtn').classList.toggle('active', theme === 'dark');
+  document.getElementById('lightModeBtn').classList.toggle('active', theme === 'light');
+  localStorage.setItem('augustus-theme', theme);
+}
+(function() {
+  const saved = localStorage.getItem('augustus-theme');
+  if (saved) { document.documentElement.setAttribute('data-theme', saved); }
+})();
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('collapsed'); }
+function toggleNotifications() { document.getElementById('notificationDropdown').classList.toggle('open'); }
+document.addEventListener('click', function(e) {
+  if (!e.target.closest('.notification-btn') && !e.target.closest('.notification-dropdown'))
+    document.getElementById('notificationDropdown').classList.remove('open');
+});
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  const icon = type === 'success'
+    ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+  toast.innerHTML = icon + '<span>' + message + '</span>';
+  container.appendChild(toast);
+  setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateY(8px)'; toast.style.transition = 'opacity 200ms ease, transform 200ms ease'; setTimeout(() => toast.remove(), 200); }, 2000);
+}
+</script>
+</body>
+</html>

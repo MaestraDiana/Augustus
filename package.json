@@ -1,0 +1,31 @@
+{
+  "name": "augustus",
+  "version": "0.2.0",
+  "description": "Augustus - Persistent AI Identity Research Platform",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:electron\"",
+    "dev:backend": "cd backend && uvicorn augustus.api.app:app --reload --port 8080",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:electron": "cd electron && npm run dev",
+    "build": "npm run build:frontend && npm run build:electron",
+    "build:frontend": "cd frontend && npm run build",
+    "build:electron": "cd electron && npm run build",
+    "start": "cd electron && electron .",
+    "test": "cd backend && pytest -xvs",
+    "test:unit": "cd backend && pytest tests/unit/ -xvs",
+    "test:integration": "cd backend && pytest tests/integration/ -xvs"
+  },
+  "keywords": [
+    "ai",
+    "research",
+    "identity",
+    "claude",
+    "anthropic"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

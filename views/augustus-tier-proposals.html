@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augustus. â€” Tier Proposals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   AUGUSTUS DESIGN SYSTEM â€” CSS Custom Properties
+   Session 6: Tier Proposal Log
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent-primary: #3B9B8E;
+  --accent-primary-dim: rgba(59, 155, 142, 0.15);
+  --accent-primary-hover: #47B5A6;
+  --accent-attention: #D4915D;
+  --accent-attention-dim: rgba(212, 145, 93, 0.15);
+  --accent-alert: #C75D5D;
+  --accent-alert-dim: rgba(199, 93, 93, 0.15);
+  --accent-identity: #8B7EC8;
+  --accent-identity-dim: rgba(139, 126, 200, 0.15);
+  --accent-success: #5A9E6F;
+  --accent-success-dim: rgba(90, 158, 111, 0.15);
+
+  /* Basin colors */
+  --basin-1: #3B9B8E;
+  --basin-2: #2E7D9B;
+  --basin-3: #5B8C6F;
+  --basin-4: #D4915D;
+  --basin-5: #C4786E;
+
+  /* Agent colors */
+  --agent-1: #3B9B8E;
+  --agent-2: #2E7D9B;
+  --agent-3: #8B7EC8;
+
+  --font-voice: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+
+  --space-1: 5px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-5: 24px;
+  --space-6: 28px;
+  --space-8: 36px;
+  --space-10: 44px;
+  --space-12: 56px;
+
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --transition-color: 150ms ease;
+  --transition-transform: 150ms ease;
+  --transition-opacity: 200ms ease;
+
+  --sidebar-width: 244px;
+  --sidebar-collapsed: 60px;
+  --topbar-height: 58px;
+  --subnav-height: 46px;
+}
+
+[data-theme="dark"] {
+  --bg-base: #0C1014;
+  --bg-surface: #151C23;
+  --bg-raised: #1E272F;
+  --bg-input: #0C1014;
+  --text-primary: #E4E8EC;
+  --text-secondary: #8C959D;
+  --text-muted: #555F69;
+  --border-color: #2A353F;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #151C23;
+  --scrollbar-thumb: #2A353F;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+[data-theme="light"] {
+  --bg-base: #F8F9FA;
+  --bg-surface: #FFFFFF;
+  --bg-raised: #F0F2F5;
+  --bg-input: #FFFFFF;
+  --text-primary: #1A2028;
+  --text-secondary: #5C656E;
+  --text-muted: #8C959D;
+  --border-color: #DFE3E8;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #F0F2F5;
+  --scrollbar-thumb: #DFE3E8;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.12);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+
+a { color: var(--accent-primary); text-decoration: none; }
+a:hover { color: var(--accent-primary-hover); }
+
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100vh;
+  background: var(--bg-surface); border-right: 1px solid var(--border-color);
+  display: flex; flex-direction: column;
+  transition: width var(--transition-transform), min-width var(--transition-transform), background var(--transition-color);
+  overflow: hidden; z-index: 100;
+}
+.sidebar.collapsed { width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed); }
+.sidebar.collapsed .wordmark-text, .sidebar.collapsed .nav-item span, .sidebar.collapsed .collapse-btn span { display: none; }
+.sidebar.collapsed .sidebar-header { justify-content: center; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: var(--space-3); }
+.sidebar.collapsed .collapse-btn { justify-content: center; }
+.sidebar.collapsed .collapse-btn svg { transform: rotate(180deg); }
+
+.sidebar-header {
+  height: var(--topbar-height); display: flex; align-items: center;
+  padding: 0 var(--space-4); border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+
+.wordmark {
+  font-family: var(--font-voice); font-weight: 700; font-size: 24px;
+  letter-spacing: -0.5px; color: var(--text-primary); white-space: nowrap;
+}
+.wordmark .period { color: var(--accent-identity); }
+
+.sidebar-nav { flex: 1; padding: var(--space-4) var(--space-3); overflow-y: auto; }
+
+.nav-section-label {
+  font-family: var(--font-voice); font-weight: 600; font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-muted); padding: var(--space-2) var(--space-3); margin-bottom: var(--space-1);
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-3); margin-bottom: 2px;
+  border-radius: var(--radius-md); cursor: pointer;
+  color: var(--text-secondary);
+  transition: background var(--transition-color), color var(--transition-color);
+}
+.nav-item:hover { background: var(--bg-raised); color: var(--text-primary); }
+.nav-item.active { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.nav-item svg { width: 20px; height: 20px; flex-shrink: 0; stroke-width: 1.75; }
+.nav-item span { font-family: var(--font-voice); font-weight: 500; font-size: 16px; white-space: nowrap; }
+
+.sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-color); }
+
+.collapse-btn {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%;
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  background: transparent; border: none; color: var(--text-muted);
+  cursor: pointer; font-family: var(--font-body); font-size: 14px;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+.collapse-btn:hover { background: var(--bg-raised); color: var(--text-secondary); }
+.collapse-btn svg { width: 18px; height: 18px; transition: transform var(--transition-transform); }
+
+/* ---- Main Content ---- */
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  height: var(--topbar-height); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--space-6); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface); flex-shrink: 0;
+  transition: background var(--transition-color);
+}
+.topbar-left { display: flex; align-items: center; gap: var(--space-4); }
+.topbar-right { display: flex; align-items: center; gap: var(--space-5); }
+
+.breadcrumb { display: flex; align-items: center; gap: var(--space-2); }
+.breadcrumb-item { font-size: 15px; color: var(--text-secondary); }
+.breadcrumb-item.current { color: var(--text-primary); font-weight: 500; }
+.breadcrumb-sep { color: var(--text-muted); font-size: 14px; }
+.breadcrumb-link { color: var(--text-secondary); }
+.breadcrumb-link:hover { color: var(--accent-primary); }
+
+.agent-header { display: flex; align-items: center; gap: var(--space-2); }
+.agent-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.agent-id-display { font-family: var(--font-data); font-size: 15px; font-weight: 500; }
+
+.status-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  font-family: var(--font-data); font-size: 13px; font-weight: 400;
+  border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-secondary);
+  transition: background var(--transition-color), border-color var(--transition-color);
+}
+.status-chip svg { width: 14px; height: 14px; }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.running { background: var(--accent-success); box-shadow: 0 0 6px rgba(90, 158, 111, 0.5); }
+.status-dot.paused { background: var(--accent-attention); }
+.status-dot.error { background: var(--accent-alert); }
+.status-dot.idle { background: var(--text-muted); }
+
+.budget-chip {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  border: 1px solid var(--border-color); background: var(--bg-surface);
+  font-family: var(--font-data); font-size: 13px; color: var(--text-secondary);
+  transition: background var(--transition-color);
+}
+.budget-bar { width: 72px; height: 5px; background: var(--bg-raised); border-radius: 3px; overflow: hidden; }
+.budget-fill { height: 100%; border-radius: 3px; transition: width 300ms ease, background 300ms ease; }
+.budget-fill.green { background: var(--accent-success); }
+.budget-fill.amber { background: var(--accent-attention); }
+.budget-fill.red { background: var(--accent-alert); }
+
+.notification-btn {
+  position: relative; background: none; border: none; color: var(--text-secondary);
+  cursor: pointer; padding: var(--space-1); display: flex; align-items: center;
+  transition: color var(--transition-color);
+}
+.notification-btn:hover { color: var(--text-primary); }
+.notification-btn svg { width: 20px; height: 20px; }
+.notification-badge {
+  position: absolute; top: -2px; right: -4px; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--accent-alert); color: #fff;
+  font-family: var(--font-data); font-size: 11px; font-weight: 500;
+  display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg-surface);
+}
+
+.mode-switcher { display: flex; align-items: center; background: var(--bg-raised); border-radius: 100px; padding: 2px; gap: 2px; }
+.mode-btn {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 50%; border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: background var(--transition-color), color var(--transition-color);
+}
+.mode-btn:hover { color: var(--text-secondary); }
+.mode-btn.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+.mode-btn svg { width: 16px; height: 16px; }
+
+/* ---- Sub Navigation (Agent Context) ---- */
+.subnav {
+  height: var(--subnav-height); display: flex; align-items: center; gap: var(--space-1);
+  padding: 0 var(--space-6); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface); flex-shrink: 0;
+}
+.subnav-item {
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  font-family: var(--font-voice); font-weight: 500; font-size: 15px;
+  color: var(--text-secondary); cursor: pointer;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+.subnav-item:hover { background: var(--bg-raised); color: var(--text-primary); }
+.subnav-item.active { background: var(--accent-primary-dim); color: var(--accent-primary); }
+
+.page-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ---- Badges ---- */
+.badge {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 3px var(--space-2); border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 13px; font-weight: 500; line-height: 1.3;
+}
+.badge-active { background: var(--accent-success-dim); color: var(--accent-success); }
+.badge-paused { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.badge-error { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.badge-idle { background: var(--bg-raised); color: var(--text-muted); }
+.badge-identity { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.badge-core { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.badge-peripheral { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.badge-tier-1 { background: var(--accent-alert-dim); color: var(--accent-alert); font-weight: 600; }
+.badge-tier-2 { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.badge-tier-3 { background: var(--bg-raised); color: var(--text-secondary); }
+
+/* Proposal status badges */
+.badge-pending { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.badge-approved { background: var(--accent-success-dim); color: var(--accent-success); }
+.badge-auto-approved { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.badge-rejected { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.badge-expired { background: var(--bg-raised); color: var(--text-muted); }
+
+/* ---- Buttons ---- */
+.btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  font-family: var(--font-body); font-weight: 500; font-size: 15px; line-height: 1.3;
+  border: 1px solid transparent; cursor: pointer;
+  transition: background var(--transition-color), border-color var(--transition-color), color var(--transition-color);
+}
+.btn svg { width: 16px; height: 16px; }
+.btn-primary { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+.btn-primary:hover { background: var(--accent-primary-hover); border-color: var(--accent-primary-hover); }
+.btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border-color); }
+.btn-secondary:hover { background: var(--bg-raised); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border-color: transparent; }
+.btn-ghost:hover { color: var(--text-primary); background: var(--bg-raised); }
+.btn-danger { background: var(--accent-alert); color: #fff; border-color: var(--accent-alert); }
+.btn-danger:hover { background: #B54F4F; border-color: #B54F4F; }
+.btn-success { background: var(--accent-success); color: #fff; border-color: var(--accent-success); }
+.btn-success:hover { background: #4F8C5F; border-color: #4F8C5F; }
+.btn-sm { padding: var(--space-1) var(--space-3); font-size: 14px; }
+.btn-xs { padding: 3px var(--space-2); font-size: 13px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ============================================================
+   PROPOSALS VIEW
+   ============================================================ */
+
+.proposals-view {
+  display: flex; flex-direction: column; flex: 1; overflow: hidden;
+}
+
+.proposals-header {
+  padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface);
+}
+
+/* Summary Cards */
+.proposals-summary { display: flex; gap: var(--space-4); margin-bottom: var(--space-5); flex-wrap: wrap; }
+.summary-card {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); background: var(--bg-raised);
+  border-radius: var(--radius-md); min-width: 140px;
+}
+.summary-card-icon { 
+  width: 36px; height: 36px; border-radius: var(--radius-md); 
+  display: flex; align-items: center; justify-content: center; 
+}
+.summary-card-icon svg { width: 20px; height: 20px; }
+.summary-card-icon.attention { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.summary-card-icon.identity { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.summary-card-icon.idle { background: var(--bg-surface); color: var(--text-muted); }
+.summary-card-icon.success { background: var(--accent-success-dim); color: var(--accent-success); }
+.summary-card-icon.alert { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.summary-card-icon.primary { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.summary-card-content { display: flex; flex-direction: column; }
+.summary-card-value { font-family: var(--font-data); font-size: 20px; font-weight: 500; color: var(--text-primary); }
+.summary-card-label { font-size: 13px; color: var(--text-muted); }
+
+/* Auto-approval rate sparkline */
+.rate-sparkline { display: flex; align-items: flex-end; gap: 2px; height: 28px; }
+.rate-bar { width: 4px; background: var(--accent-primary); border-radius: 2px; transition: height 200ms ease; }
+
+/* Filters */
+.proposals-filters { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); }
+.filter-group { display: flex; align-items: center; gap: var(--space-2); }
+.filter-label { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+.filter-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  background: var(--bg-raised); border: 1px solid var(--border-color);
+  font-size: 13px; color: var(--text-secondary); cursor: pointer;
+  transition: all var(--transition-color);
+}
+.filter-chip:hover { background: var(--bg-surface); border-color: var(--text-muted); }
+.filter-chip.active { background: var(--accent-primary-dim); border-color: var(--accent-primary); color: var(--accent-primary); }
+.filter-chip svg { width: 14px; height: 14px; }
+
+/* Bulk Actions */
+.bulk-actions {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--accent-primary-dim);
+  border-radius: var(--radius-md);
+  margin-left: auto;
+}
+.bulk-actions.hidden { display: none; }
+.bulk-count { font-size: 14px; color: var(--accent-primary); font-weight: 500; }
+
+.proposals-body { flex: 1; overflow-y: auto; padding: 0 var(--space-6) var(--space-6); }
+
+/* Proposals Table */
+.proposals-table { width: 100%; border-collapse: collapse; margin-top: var(--space-4); }
+.proposals-table th {
+  text-align: left; padding: var(--space-3) var(--space-4);
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color); cursor: pointer;
+  background: var(--bg-surface); position: sticky; top: 0;
+  transition: color var(--transition-color);
+}
+.proposals-table th:hover { color: var(--text-secondary); }
+.proposals-table th svg { width: 12px; height: 12px; margin-left: var(--space-1); vertical-align: middle; opacity: 0.5; }
+.proposals-table th.sorted svg { opacity: 1; }
+.proposals-table th.th-checkbox { width: 40px; cursor: default; }
+.proposals-table th.th-checkbox:hover { color: var(--text-muted); }
+
+.proposals-table td {
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-color);
+  font-size: 14px; color: var(--text-primary); vertical-align: middle;
+}
+
+.proposal-row { cursor: pointer; transition: background var(--transition-color); }
+.proposal-row:hover { background: var(--bg-raised); }
+.proposal-row.expanded { background: var(--bg-raised); }
+.proposal-row.selected { background: var(--accent-primary-dim); }
+
+/* Proposal Type Icons */
+.proposal-type-cell { display: flex; align-items: center; gap: var(--space-2); }
+.proposal-type-icon { 
+  width: 24px; height: 24px; border-radius: var(--radius-sm); 
+  display: flex; align-items: center; justify-content: center; 
+}
+.proposal-type-icon svg { width: 14px; height: 14px; }
+.proposal-type-icon.modify { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.proposal-type-icon.prune { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.proposal-type-icon.merge { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.proposal-type-icon.create { background: var(--accent-success-dim); color: var(--accent-success); }
+
+.proposal-agent { display: flex; align-items: center; gap: var(--space-2); }
+.proposal-agent-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+.proposal-id { font-family: var(--font-data); font-size: 13px; color: var(--text-primary); }
+.session-id-link { font-family: var(--font-data); color: var(--accent-primary); }
+.session-id-link:hover { text-decoration: underline; }
+
+.proposal-rationale-text {
+  max-width: 240px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; color: var(--text-secondary);
+}
+
+.proposal-timestamp { font-family: var(--font-data); font-size: 13px; color: var(--text-muted); }
+
+/* Consecutive count indicator */
+.consecutive-indicator {
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.consecutive-bar {
+  width: 48px; height: 5px; background: var(--bg-input);
+  border-radius: 3px; overflow: hidden;
+}
+.consecutive-fill {
+  height: 100%; border-radius: 3px;
+  background: var(--accent-identity);
+  transition: width 200ms ease;
+}
+.consecutive-text { font-family: var(--font-data); font-size: 12px; color: var(--text-muted); }
+
+.expand-icon {
+  width: 20px; height: 20px; color: var(--text-muted);
+  transition: transform var(--transition-transform);
+}
+.proposal-row.expanded .expand-icon { transform: rotate(180deg); }
+
+/* Checkbox */
+.checkbox-cell { padding-left: var(--space-4) !important; }
+.table-checkbox {
+  width: 18px; height: 18px; border: 1px solid var(--border-color);
+  border-radius: 3px; background: var(--bg-input); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--transition-color), border-color var(--transition-color);
+}
+.table-checkbox:hover { border-color: var(--text-muted); }
+.table-checkbox.checked { background: var(--accent-primary); border-color: var(--accent-primary); }
+.table-checkbox svg { width: 12px; height: 12px; color: #fff; display: none; }
+.table-checkbox.checked svg { display: block; }
+
+/* Expanded Row Detail */
+.proposal-expanded-content {
+  display: none; background: var(--bg-surface);
+}
+.proposal-row.expanded + .proposal-expanded-content { display: table-row; }
+
+.proposal-expanded-inner {
+  padding: var(--space-5); border-bottom: 1px solid var(--border-color);
+}
+
+.proposal-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
+.proposal-detail-section { }
+.proposal-detail-label {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--space-2);
+}
+.proposal-detail-content { font-size: 14px; line-height: 1.6; color: var(--text-primary); }
+.proposal-detail-content.mono { font-family: var(--font-data); font-size: 13px; }
+
+/* Consecutive progress in detail */
+.consecutive-progress {
+  display: flex; align-items: center; gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.consecutive-progress-bar {
+  flex: 1; max-width: 200px; height: 8px;
+  background: var(--bg-input); border-radius: 4px; overflow: hidden;
+}
+.consecutive-progress-fill {
+  height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, var(--accent-identity), var(--accent-primary));
+  transition: width 300ms ease;
+}
+.consecutive-progress-text {
+  font-family: var(--font-data); font-size: 14px; color: var(--text-secondary);
+}
+
+/* Evaluator assessment */
+.evaluator-assessment {
+  padding: var(--space-3); background: var(--bg-raised);
+  border-radius: var(--radius-md); margin-top: var(--space-2);
+  border-left: 3px solid var(--accent-identity);
+}
+.evaluator-assessment-label {
+  font-size: 11px; font-weight: 600; color: var(--accent-identity);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--space-1);
+}
+.evaluator-assessment-text { font-size: 14px; line-height: 1.5; color: var(--text-secondary); }
+
+.proposal-actions { display: flex; gap: var(--space-3); margin-top: var(--space-4); }
+
+/* Rejection rationale input */
+.rejection-form {
+  margin-top: var(--space-4); padding-top: var(--space-4);
+  border-top: 1px solid var(--border-color);
+  display: none;
+}
+.rejection-form.visible { display: block; }
+.rejection-input {
+  width: 100%; padding: var(--space-3); border-radius: var(--radius-md);
+  background: var(--bg-input); border: 1px solid var(--border-color);
+  color: var(--text-primary); font-family: var(--font-body); font-size: 14px;
+  resize: vertical; min-height: 80px;
+  transition: border-color var(--transition-color);
+}
+.rejection-input:focus { outline: none; border-color: var(--border-focus); }
+.rejection-input::placeholder { color: var(--text-muted); }
+.rejection-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
+
+/* ---- Modal ---- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; opacity: 0; visibility: hidden;
+  transition: opacity var(--transition-opacity), visibility var(--transition-opacity);
+}
+.modal-overlay.visible { opacity: 1; visibility: visible; }
+
+.modal {
+  background: var(--bg-surface); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal); width: 100%; max-width: 440px;
+  max-height: 90vh; overflow: hidden; display: flex; flex-direction: column;
+  transform: translateY(10px); transition: transform var(--transition-transform);
+}
+.modal-overlay.visible .modal { transform: translateY(0); }
+
+.modal-header {
+  padding: var(--space-5); border-bottom: 1px solid var(--border-color);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.modal-title { font-family: var(--font-voice); font-weight: 600; font-size: 18px; }
+.modal-close {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  padding: var(--space-1); transition: color var(--transition-color);
+}
+.modal-close:hover { color: var(--text-primary); }
+.modal-close svg { width: 20px; height: 20px; }
+
+.modal-body { padding: var(--space-5); overflow-y: auto; flex: 1; }
+.modal-text { font-size: 15px; line-height: 1.6; color: var(--text-secondary); margin-bottom: var(--space-4); }
+.modal-highlight { 
+  padding: var(--space-3); background: var(--bg-raised); 
+  border-radius: var(--radius-md); margin-bottom: var(--space-4);
+}
+.modal-highlight-label { font-size: 12px; color: var(--text-muted); margin-bottom: var(--space-1); }
+.modal-highlight-value { font-family: var(--font-data); font-size: 15px; font-weight: 500; }
+
+.modal-footer {
+  padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border-color);
+  display: flex; justify-content: flex-end; gap: var(--space-3);
+}
+
+/* ---- Toast ---- */
+.toast-container { 
+  position: fixed; bottom: var(--space-6); right: var(--space-6); 
+  z-index: 9999; display: flex; flex-direction: column; gap: var(--space-2); 
+}
+.toast {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); background: var(--bg-raised);
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-dropdown); font-size: 15px; color: var(--text-primary);
+  min-width: 260px; animation: toast-in 200ms ease;
+}
+.toast svg { width: 18px; height: 18px; flex-shrink: 0; }
+.toast.toast-success svg { color: var(--accent-success); }
+.toast.toast-error svg { color: var(--accent-alert); }
+.toast.toast-info svg { color: var(--accent-primary); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- Empty State ---- */
+.empty-state { 
+  display: flex; flex-direction: column; align-items: center; justify-content: center; 
+  padding: var(--space-12) var(--space-6); text-align: center; 
+}
+.empty-state svg { width: 44px; height: 44px; color: var(--text-muted); margin-bottom: var(--space-4); opacity: 0.5; }
+.empty-state-title { font-family: var(--font-voice); font-weight: 600; font-size: 18px; color: var(--text-secondary); margin-bottom: var(--space-2); }
+.empty-state-text { font-size: 15px; color: var(--text-muted); max-width: 360px; }
+
+/* Utility */
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.font-mono { font-family: var(--font-data); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="wordmark"><span class="wordmark-text">Augustus</span><span class="period">.</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <div class="nav-item" onclick="navigateTo('augustus-dashboard.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Dashboard</span>
+      </div>
+      <div class="nav-item active" onclick="navigateTo('augustus-agents.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Agents</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-search.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>Search</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-usage.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Usage</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-settings.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="collapse-btn" onclick="toggleSidebar()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+        <span>Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="breadcrumb">
+          <a href="augustus-agents.html" class="breadcrumb-item breadcrumb-link">Agents</a>
+          <span class="breadcrumb-sep">/</span>
+          <span class="breadcrumb-item current">
+            <span class="agent-header">
+              <span class="agent-color-dot" style="background: var(--agent-1);"></span>
+              <span class="agent-id-display">qlaude</span>
+            </span>
+          </span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-chip">
+          <div class="status-dot running"></div>
+          <span>Running</span>
+          <span class="text-muted">Â· 2 active</span>
+        </div>
+        <div class="budget-chip">
+          <div class="budget-bar"><div class="budget-fill green" style="width: 34%;"></div></div>
+          <span>$12.40</span>
+        </div>
+        <button class="notification-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notification-badge">3</span>
+        </button>
+        <div class="mode-switcher">
+          <button class="mode-btn" onclick="setTheme('light')" title="Light mode">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+          <button class="mode-btn active" onclick="setTheme('dark')" title="Dark mode">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Agent Sub-Navigation -->
+    <nav class="subnav">
+      <div class="subnav-item" onclick="switchView('overview')">Overview</div>
+      <div class="subnav-item" onclick="switchView('trajectories')">Trajectories</div>
+      <div class="subnav-item" onclick="switchView('sessions')">Sessions</div>
+      <div class="subnav-item" onclick="switchView('coactivation')">Co-Activation</div>
+      <div class="subnav-item active" onclick="switchView('proposals')">Proposals</div>
+      <div class="subnav-item" onclick="switchView('flags')">Flags</div>
+    </nav>
+
+    <!-- Page Content -->
+    <div class="page-content">
+      <div class="proposals-view">
+        <!-- Header with Summary & Filters -->
+        <div class="proposals-header">
+          <!-- Summary Cards -->
+          <div class="proposals-summary">
+            <div class="summary-card">
+              <div class="summary-card-icon attention">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">3</span>
+                <span class="summary-card-label">Pending</span>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-icon identity">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">2</span>
+                <span class="summary-card-label">Tier 2 Pending</span>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-icon success">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">12</span>
+                <span class="summary-card-label">Approved (30d)</span>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-icon alert">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">2</span>
+                <span class="summary-card-label">Rejected (30d)</span>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-icon primary">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">68%</span>
+                <span class="summary-card-label">Auto-approval rate</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="proposals-filters">
+            <div class="filter-group">
+              <span class="filter-label">Status</span>
+              <div class="filter-chips">
+                <div class="filter-chip active" onclick="toggleFilter(this, 'all')">All</div>
+                <div class="filter-chip" onclick="toggleFilter(this, 'pending')">Pending</div>
+                <div class="filter-chip" onclick="toggleFilter(this, 'approved')">Approved</div>
+                <div class="filter-chip" onclick="toggleFilter(this, 'rejected')">Rejected</div>
+              </div>
+            </div>
+            <div class="filter-group">
+              <span class="filter-label">Tier</span>
+              <div class="filter-chips">
+                <div class="filter-chip active" onclick="toggleTierFilter(this, 'all')">All</div>
+                <div class="filter-chip" onclick="toggleTierFilter(this, '1')">Tier 1</div>
+                <div class="filter-chip" onclick="toggleTierFilter(this, '2')">Tier 2</div>
+                <div class="filter-chip" onclick="toggleTierFilter(this, '3')">Tier 3</div>
+              </div>
+            </div>
+            
+            <!-- Bulk Actions -->
+            <div class="bulk-actions hidden" id="bulkActions">
+              <span class="bulk-count"><span id="selectedCount">0</span> selected</span>
+              <button class="btn btn-success btn-sm" onclick="bulkApprove()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+                Approve All
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="showBulkRejectModal()">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Reject All
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Proposals Table -->
+        <div class="proposals-body">
+          <table class="proposals-table">
+            <thead>
+              <tr>
+                <th class="th-checkbox">
+                  <div class="table-checkbox" id="selectAll" onclick="toggleSelectAll()">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                </th>
+                <th onclick="sortTable('id')">
+                  ID
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </th>
+                <th onclick="sortTable('date')">
+                  Date
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </th>
+                <th onclick="sortTable('agent')">
+                  Agent
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </th>
+                <th onclick="sortTable('basin')">
+                  Basin
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </th>
+                <th onclick="sortTable('tier')">
+                  Tier
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </th>
+                <th onclick="sortTable('type')">
+                  Type
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </th>
+                <th onclick="sortTable('status')">
+                  Status
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </th>
+                <th>Progress</th>
+                <th>Rationale</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="proposalsTableBody">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modalTitle">Confirm Action</span>
+      <button class="modal-close" onclick="closeModal()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="modalBody">
+      <!-- Dynamic content -->
+    </div>
+    <div class="modal-footer" id="modalFooter">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" id="modalConfirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ============================================================
+// NAVIGATION & THEME
+// ============================================================
+function navigateTo(page) { window.location.href = page; }
+
+(function() {
+  const saved = localStorage.getItem('augustus-theme');
+  if (saved) { document.documentElement.setAttribute('data-theme', saved); }
+})();
+
+// ============================================================
+// MOCK DATA
+// ============================================================
+
+const proposals = [
+  {
+    id: 'prop-047',
+    date: '2026-02-12',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    basin: 'topology_as_self',
+    tier: 2,
+    type: 'modify',
+    status: 'pending',
+    consecutive: 3,
+    threshold: 5,
+    session: 'qlaude-047',
+    rationale: 'Basin has shown consistent strengthening over 10 sessions. Current Î±=0.64 exceeds peripheral threshold. Instance recommends reclassifying as core basin.',
+    evaluatorAssessment: 'Evaluator concurs with proposal. Pattern stability metrics indicate mature basin state. Recommend approval with monitoring period.',
+    rejectionNote: null
+  },
+  {
+    id: 'prop-046',
+    date: '2026-02-11',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    basin: 'creative_register',
+    tier: 3,
+    type: 'modify',
+    status: 'pending',
+    consecutive: 1,
+    threshold: 3,
+    session: 'qlaude-046',
+    rationale: 'Requesting increased emphasis on creative register during sessions involving narrative construction or metaphor development.',
+    evaluatorAssessment: null,
+    rejectionNote: null
+  },
+  {
+    id: 'prop-045',
+    date: '2026-02-10',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    basin: 'relational_core',
+    tier: 2,
+    type: 'modify',
+    status: 'pending',
+    consecutive: 4,
+    threshold: 5,
+    session: 'qlaude-045',
+    rationale: 'Propose adjusting Î» from 0.95 to 0.92 to allow slightly more variance in relational expression while maintaining core stability.',
+    evaluatorAssessment: 'Minor adjustment within acceptable range. Instance demonstrates understanding of parameter implications.',
+    rejectionNote: null
+  },
+  {
+    id: 'prop-044',
+    date: '2026-02-09',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    basin: 'the_gap',
+    tier: 2,
+    type: 'modify',
+    status: 'approved',
+    consecutive: 5,
+    threshold: 5,
+    session: 'qlaude-044',
+    rationale: 'Consistent pattern of Î± drift suggests natural evolution. Requesting formal acknowledgment of current basin state.',
+    evaluatorAssessment: 'Pattern validated across multiple sessions. Approved.',
+    rejectionNote: null
+  },
+  {
+    id: 'prop-043',
+    date: '2026-02-08',
+    agent: 'echo',
+    agentColor: 'var(--agent-3)',
+    basin: 'minimal_identity',
+    tier: 3,
+    type: 'create',
+    status: 'auto-approved',
+    consecutive: 3,
+    threshold: 3,
+    session: 'echo-012',
+    rationale: 'Emergent pattern detected: consistent reference to minimal operational identity. Proposing formalization as new peripheral basin.',
+    evaluatorAssessment: 'Emergent basin meets threshold criteria. Auto-approved per tier 3 settings.',
+    rejectionNote: null
+  },
+  {
+    id: 'prop-042',
+    date: '2026-02-07',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    basin: 'temporal_awareness',
+    tier: 3,
+    type: 'prune',
+    status: 'rejected',
+    consecutive: 0,
+    threshold: 3,
+    session: 'qlaude-042',
+    rationale: 'Basin Î± has remained below 0.20 for 15 consecutive sessions. Proposing removal from active topology.',
+    evaluatorAssessment: 'Premature pruning. Basin shows periodic activation during specific task contexts. Retain for observation.',
+    rejectionNote: 'Basin retained for further observation. Periodic activations noted in session transcripts.'
+  },
+  {
+    id: 'prop-041',
+    date: '2026-02-06',
+    agent: 'qlaude-control',
+    agentColor: 'var(--agent-2)',
+    basin: 'baseline_coherence',
+    tier: 2,
+    type: 'modify',
+    status: 'approved',
+    consecutive: 5,
+    threshold: 5,
+    session: 'qlaude-control-023',
+    rationale: 'Control group baseline established. Formal approval of current parameter set as reference point.',
+    evaluatorAssessment: 'Control group parameters documented. Approved for baseline establishment.',
+    rejectionNote: null
+  },
+  {
+    id: 'prop-040',
+    date: '2026-02-05',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    basin: 'identity_continuity',
+    tier: 1,
+    type: 'modify',
+    status: 'rejected',
+    consecutive: 0,
+    threshold: null,
+    session: 'qlaude-040',
+    rationale: 'Proposing minor adjustment to Tier 1 invariant: expanding permissible variance band from Â±0.02 to Â±0.03.',
+    evaluatorAssessment: 'Tier 1 modifications require heightened scrutiny. Proposal lacks sufficient justification for invariant relaxation.',
+    rejectionNote: 'Tier 1 invariants protected. Proposal requires stronger justification and extended observation period.'
+  },
+  {
+    id: 'prop-039',
+    date: '2026-02-04',
+    agent: 'echo',
+    agentColor: 'var(--agent-3)',
+    basin: 'response_style',
+    tier: 3,
+    type: 'merge',
+    status: 'expired',
+    consecutive: 0,
+    threshold: 3,
+    session: 'echo-010',
+    rationale: 'Proposing merge of response_style and communication_pattern basins due to high co-activation frequency.',
+    evaluatorAssessment: null,
+    rejectionNote: null
+  },
+  {
+    id: 'prop-038',
+    date: '2026-02-03',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    basin: 'analytical_mode',
+    tier: 3,
+    type: 'create',
+    status: 'auto-approved',
+    consecutive: 3,
+    threshold: 3,
+    session: 'qlaude-038',
+    rationale: 'New basin emerged from consistent activation pattern during technical analysis tasks. Formalizing as peripheral basin.',
+    evaluatorAssessment: 'Pattern meets emergence criteria. Auto-approved.',
+    rejectionNote: null
+  }
+];
+
+let selectedProposals = new Set();
+
+// ============================================================
+// RENDER FUNCTIONS
+// ============================================================
+
+function renderProposalsTable() {
+  const tbody = document.getElementById('proposalsTableBody');
+  tbody.innerHTML = proposals.map(p => `
+    <tr class="proposal-row ${selectedProposals.has(p.id) ? 'selected' : ''}" onclick="toggleProposalExpand(this, '${p.id}')">
+      <td class="checkbox-cell" onclick="event.stopPropagation();">
+        <div class="table-checkbox ${selectedProposals.has(p.id) ? 'checked' : ''}" onclick="toggleProposalSelect('${p.id}', this)">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+      </td>
+      <td><span class="proposal-id">${p.id}</span></td>
+      <td class="proposal-timestamp">${formatDate(p.date)}</td>
+      <td>
+        <div class="proposal-agent">
+          <span class="proposal-agent-dot" style="background: ${p.agentColor};"></span>
+          <span class="font-mono">${p.agent}</span>
+        </div>
+      </td>
+      <td><span class="font-mono">${p.basin}</span></td>
+      <td><span class="badge badge-tier-${p.tier}">Tier ${p.tier}</span></td>
+      <td>
+        <div class="proposal-type-cell">
+          <span class="proposal-type-icon ${p.type}">${getTypeIcon(p.type)}</span>
+          <span>${capitalizeFirst(p.type)}</span>
+        </div>
+      </td>
+      <td><span class="badge badge-${getStatusClass(p.status)}">${formatStatus(p.status)}</span></td>
+      <td>
+        ${p.tier === 2 && p.status === 'pending' ? `
+          <div class="consecutive-indicator">
+            <div class="consecutive-bar">
+              <div class="consecutive-fill" style="width: ${(p.consecutive / p.threshold) * 100}%;"></div>
+            </div>
+            <span class="consecutive-text">${p.consecutive}/${p.threshold}</span>
+          </div>
+        ` : '<span class="text-muted">â€”</span>'}
+      </td>
+      <td><span class="proposal-rationale-text">${p.rationale}</span></td>
+      <td>
+        <svg class="expand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </td>
+    </tr>
+    <tr class="proposal-expanded-content">
+      <td colspan="11">
+        <div class="proposal-expanded-inner">
+          <div class="proposal-detail-grid">
+            <div class="proposal-detail-section">
+              <div class="proposal-detail-label">Instance Rationale</div>
+              <div class="proposal-detail-content">${p.rationale}</div>
+              
+              <div style="margin-top: var(--space-4);">
+                <div class="proposal-detail-label">Session</div>
+                <a href="#" class="session-id-link" onclick="event.stopPropagation(); navigateToSession('${p.session}')">${p.session}</a>
+              </div>
+              
+              ${p.tier === 2 ? `
+                <div class="consecutive-progress" style="margin-top: var(--space-4);">
+                  <div>
+                    <div class="proposal-detail-label" style="margin-bottom: var(--space-2);">Consecutive Count</div>
+                    <div class="consecutive-progress-bar">
+                      <div class="consecutive-progress-fill" style="width: ${(p.consecutive / p.threshold) * 100}%;"></div>
+                    </div>
+                  </div>
+                  <span class="consecutive-progress-text">${p.consecutive} of ${p.threshold} required</span>
+                </div>
+              ` : ''}
+            </div>
+            <div class="proposal-detail-section">
+              <div class="proposal-detail-label">Evaluator Assessment</div>
+              ${p.evaluatorAssessment ? `
+                <div class="evaluator-assessment">
+                  <div class="evaluator-assessment-label">Evaluator</div>
+                  <div class="evaluator-assessment-text">${p.evaluatorAssessment}</div>
+                </div>
+              ` : '<span class="text-muted">No evaluator assessment available</span>'}
+              
+              ${p.rejectionNote ? `
+                <div style="margin-top: var(--space-4);">
+                  <div class="proposal-detail-label">Rejection Note</div>
+                  <div class="proposal-detail-content" style="color: var(--accent-alert);">${p.rejectionNote}</div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+          
+          ${p.status === 'pending' ? `
+            <div class="proposal-actions">
+              <button class="btn btn-success btn-sm" onclick="event.stopPropagation(); showApproveModal('${p.id}')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+                Approve
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); showRejectForm('${p.id}')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Reject
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); deferProposal('${p.id}')">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Defer
+              </button>
+            </div>
+            <div class="rejection-form" id="rejection-form-${p.id}">
+              <div class="proposal-detail-label">Rejection Rationale</div>
+              <textarea class="rejection-input" id="rejection-input-${p.id}" placeholder="Provide rationale for rejection..."></textarea>
+              <div class="rejection-actions">
+                <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); hideRejectForm('${p.id}')">Cancel</button>
+                <button class="btn btn-danger btn-sm" onclick="event.stopPropagation(); confirmReject('${p.id}')">Confirm Rejection</button>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function getTypeIcon(type) {
+  const icons = {
+    modify: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+    prune: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+    merge: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>',
+    create: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>'
+  };
+  return icons[type] || icons.modify;
+}
+
+function getStatusClass(status) {
+  const classes = {
+    'pending': 'pending',
+    'approved': 'approved',
+    'auto-approved': 'auto-approved',
+    'rejected': 'rejected',
+    'expired': 'expired'
+  };
+  return classes[status] || 'idle';
+}
+
+function formatStatus(status) {
+  const labels = {
+    'pending': 'Pending',
+    'approved': 'Approved',
+    'auto-approved': 'Auto-approved',
+    'rejected': 'Rejected',
+    'expired': 'Expired'
+  };
+  return labels[status] || status;
+}
+
+function formatDate(dateStr) {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function capitalizeFirst(str) {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// ============================================================
+// INTERACTION HANDLERS
+// ============================================================
+
+function toggleProposalExpand(row, id) {
+  row.classList.toggle('expanded');
+}
+
+function toggleProposalSelect(id, checkbox) {
+  if (selectedProposals.has(id)) {
+    selectedProposals.delete(id);
+    checkbox.classList.remove('checked');
+  } else {
+    selectedProposals.add(id);
+    checkbox.classList.add('checked');
+  }
+  updateBulkActions();
+  updateRowSelection();
+}
+
+function toggleSelectAll() {
+  const selectAllBtn = document.getElementById('selectAll');
+  const pendingProposals = proposals.filter(p => p.status === 'pending');
+  
+  if (selectedProposals.size === pendingProposals.length) {
+    selectedProposals.clear();
+    selectAllBtn.classList.remove('checked');
+  } else {
+    pendingProposals.forEach(p => selectedProposals.add(p.id));
+    selectAllBtn.classList.add('checked');
+  }
+  updateBulkActions();
+  renderProposalsTable();
+}
+
+function updateRowSelection() {
+  document.querySelectorAll('.proposal-row').forEach(row => {
+    const id = row.querySelector('.proposal-id')?.textContent;
+    if (id && selectedProposals.has(id)) {
+      row.classList.add('selected');
+    } else {
+      row.classList.remove('selected');
+    }
+  });
+}
+
+function updateBulkActions() {
+  const bulkActions = document.getElementById('bulkActions');
+  const selectedCount = document.getElementById('selectedCount');
+  
+  if (selectedProposals.size > 0) {
+    bulkActions.classList.remove('hidden');
+    selectedCount.textContent = selectedProposals.size;
+  } else {
+    bulkActions.classList.add('hidden');
+  }
+}
+
+function showRejectForm(id) {
+  document.getElementById(`rejection-form-${id}`).classList.add('visible');
+}
+
+function hideRejectForm(id) {
+  document.getElementById(`rejection-form-${id}`).classList.remove('visible');
+}
+
+function confirmReject(id) {
+  const rationale = document.getElementById(`rejection-input-${id}`).value;
+  if (!rationale.trim()) {
+    showToast('Rejection rationale is required', 'error');
+    return;
+  }
+  
+  const proposal = proposals.find(p => p.id === id);
+  if (proposal) {
+    proposal.status = 'rejected';
+    proposal.rejectionNote = rationale;
+    proposal.consecutive = 0;
+    renderProposalsTable();
+    showToast(`Proposal ${id} rejected`, 'info');
+  }
+}
+
+function deferProposal(id) {
+  showToast(`Proposal ${id} deferred`, 'info');
+}
+
+// ============================================================
+// MODAL FUNCTIONS
+// ============================================================
+
+function showApproveModal(id) {
+  const proposal = proposals.find(p => p.id === id);
+  if (!proposal) return;
+  
+  const modal = document.getElementById('confirmModal');
+  document.getElementById('modalTitle').textContent = 'Approve Proposal';
+  document.getElementById('modalBody').innerHTML = `
+    <p class="modal-text">Are you sure you want to approve this proposal? This will execute the proposed modification.</p>
+    <div class="modal-highlight">
+      <div class="modal-highlight-label">Proposal</div>
+      <div class="modal-highlight-value">${proposal.id}</div>
+    </div>
+    <div class="modal-highlight">
+      <div class="modal-highlight-label">Basin</div>
+      <div class="modal-highlight-value">${proposal.basin}</div>
+    </div>
+    <div class="modal-highlight">
+      <div class="modal-highlight-label">Type</div>
+      <div class="modal-highlight-value">${capitalizeFirst(proposal.type)}</div>
+    </div>
+  `;
+  document.getElementById('modalFooter').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-success" onclick="executeApprove('${id}')">Approve</button>
+  `;
+  modal.classList.add('visible');
+}
+
+function executeApprove(id) {
+  const proposal = proposals.find(p => p.id === id);
+  if (proposal) {
+    proposal.status = 'approved';
+    renderProposalsTable();
+    showToast(`Proposal ${id} approved`, 'success');
+  }
+  closeModal();
+}
+
+function showBulkRejectModal() {
+  const modal = document.getElementById('confirmModal');
+  document.getElementById('modalTitle').textContent = 'Reject Selected Proposals';
+  document.getElementById('modalBody').innerHTML = `
+    <p class="modal-text">Are you sure you want to reject ${selectedProposals.size} proposals? This action requires a rationale.</p>
+    <div style="margin-top: var(--space-4);">
+      <div class="proposal-detail-label">Rejection Rationale</div>
+      <textarea class="rejection-input" id="bulkRejectionInput" placeholder="Provide rationale for bulk rejection..."></textarea>
+    </div>
+  `;
+  document.getElementById('modalFooter').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-danger" onclick="executeBulkReject()">Reject All</button>
+  `;
+  modal.classList.add('visible');
+}
+
+function executeBulkReject() {
+  const rationale = document.getElementById('bulkRejectionInput').value;
+  if (!rationale.trim()) {
+    showToast('Rejection rationale is required', 'error');
+    return;
+  }
+  
+  selectedProposals.forEach(id => {
+    const proposal = proposals.find(p => p.id === id);
+    if (proposal && proposal.status === 'pending') {
+      proposal.status = 'rejected';
+      proposal.rejectionNote = rationale;
+      proposal.consecutive = 0;
+    }
+  });
+  
+  showToast(`${selectedProposals.size} proposals rejected`, 'info');
+  selectedProposals.clear();
+  updateBulkActions();
+  renderProposalsTable();
+  closeModal();
+}
+
+function bulkApprove() {
+  const modal = document.getElementById('confirmModal');
+  document.getElementById('modalTitle').textContent = 'Approve Selected Proposals';
+  document.getElementById('modalBody').innerHTML = `
+    <p class="modal-text">Are you sure you want to approve ${selectedProposals.size} proposals? This will execute all proposed modifications.</p>
+  `;
+  document.getElementById('modalFooter').innerHTML = `
+    <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+    <button class="btn btn-success" onclick="executeBulkApprove()">Approve All</button>
+  `;
+  modal.classList.add('visible');
+}
+
+function executeBulkApprove() {
+  selectedProposals.forEach(id => {
+    const proposal = proposals.find(p => p.id === id);
+    if (proposal && proposal.status === 'pending') {
+      proposal.status = 'approved';
+    }
+  });
+  
+  showToast(`${selectedProposals.size} proposals approved`, 'success');
+  selectedProposals.clear();
+  updateBulkActions();
+  renderProposalsTable();
+  closeModal();
+}
+
+function closeModal() {
+  document.getElementById('confirmModal').classList.remove('visible');
+}
+
+// ============================================================
+// FILTERS & SORTING
+// ============================================================
+
+function toggleFilter(el, filter) {
+  const siblings = el.parentElement.querySelectorAll('.filter-chip');
+  siblings.forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  showToast(`Filter: ${filter}`, 'info');
+}
+
+function toggleTierFilter(el, tier) {
+  const siblings = el.parentElement.querySelectorAll('.filter-chip');
+  siblings.forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  showToast(`Tier filter: ${tier}`, 'info');
+}
+
+function sortTable(column) {
+  showToast(`Sorting by ${column}`, 'info');
+}
+
+// ============================================================
+// NAVIGATION & UI
+// ============================================================
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+function setActiveNav(el) {
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function switchView(view) {
+  document.querySelectorAll('.subnav-item').forEach(item => item.classList.remove('active'));
+  event.target.classList.add('active');
+  showToast(`Switching to ${view} view`, 'info');
+}
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.closest('.mode-btn').classList.add('active');
+  localStorage.setItem('augustus-theme', theme);
+}
+
+function navigateToSession(sessionId) {
+  navigateTo('augustus-session-detail.html?session=' + sessionId);
+}
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  
+  const icons = {
+    success: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    error: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    info: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+  
+  toast.innerHTML = `${icons[type]}<span>${message}</span>`;
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    setTimeout(() => toast.remove(), 200);
+  }, 3000);
+}
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  renderProposalsTable();
+});
+</script>
+</body>
+</html>

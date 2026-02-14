@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augustus. â€” Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   AUGUSTUS DESIGN SYSTEM â€” CSS Custom Properties
+   Session 7: Global Search
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent-primary: #3B9B8E;
+  --accent-primary-dim: rgba(59, 155, 142, 0.15);
+  --accent-primary-hover: #47B5A6;
+  --accent-attention: #D4915D;
+  --accent-attention-dim: rgba(212, 145, 93, 0.15);
+  --accent-alert: #C75D5D;
+  --accent-alert-dim: rgba(199, 93, 93, 0.15);
+  --accent-identity: #8B7EC8;
+  --accent-identity-dim: rgba(139, 126, 200, 0.15);
+  --accent-success: #5A9E6F;
+  --accent-success-dim: rgba(90, 158, 111, 0.15);
+
+  /* Agent colors */
+  --agent-1: #3B9B8E;
+  --agent-2: #2E7D9B;
+  --agent-3: #8B7EC8;
+
+  /* Content type colors */
+  --type-transcript: #3B9B8E;
+  --type-close-report: #2E7D9B;
+  --type-evaluator: #8B7EC8;
+  --type-annotation: #D4915D;
+  --type-observation: #5A9E6F;
+
+  --font-voice: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+
+  --space-1: 5px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-5: 24px;
+  --space-6: 28px;
+  --space-8: 36px;
+  --space-10: 44px;
+  --space-12: 56px;
+
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --transition-color: 150ms ease;
+  --transition-transform: 150ms ease;
+  --transition-opacity: 200ms ease;
+
+  --sidebar-width: 244px;
+  --sidebar-collapsed: 60px;
+  --topbar-height: 58px;
+}
+
+[data-theme="dark"] {
+  --bg-base: #0C1014;
+  --bg-surface: #151C23;
+  --bg-raised: #1E272F;
+  --bg-input: #0C1014;
+  --text-primary: #E4E8EC;
+  --text-secondary: #8C959D;
+  --text-muted: #555F69;
+  --border-color: #2A353F;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #151C23;
+  --scrollbar-thumb: #2A353F;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.5);
+  --highlight-bg: rgba(59, 155, 142, 0.25);
+}
+
+[data-theme="light"] {
+  --bg-base: #F8F9FA;
+  --bg-surface: #FFFFFF;
+  --bg-raised: #F0F2F5;
+  --bg-input: #FFFFFF;
+  --text-primary: #1A2028;
+  --text-secondary: #5C656E;
+  --text-muted: #8C959D;
+  --border-color: #DFE3E8;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #F0F2F5;
+  --scrollbar-thumb: #DFE3E8;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.12);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.15);
+  --highlight-bg: rgba(59, 155, 142, 0.2);
+}
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+
+a { color: var(--accent-primary); text-decoration: none; }
+a:hover { color: var(--accent-primary-hover); }
+
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100vh;
+  background: var(--bg-surface); border-right: 1px solid var(--border-color);
+  display: flex; flex-direction: column;
+  transition: width var(--transition-transform), min-width var(--transition-transform), background var(--transition-color);
+  overflow: hidden; z-index: 100;
+}
+.sidebar.collapsed { width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed); }
+.sidebar.collapsed .wordmark-text, .sidebar.collapsed .nav-item span, .sidebar.collapsed .collapse-btn span { display: none; }
+.sidebar.collapsed .sidebar-header { justify-content: center; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: var(--space-3); }
+.sidebar.collapsed .collapse-btn { justify-content: center; }
+.sidebar.collapsed .collapse-btn svg { transform: rotate(180deg); }
+
+.sidebar-header {
+  height: var(--topbar-height); display: flex; align-items: center;
+  padding: 0 var(--space-4); border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+
+.wordmark {
+  font-family: var(--font-voice); font-weight: 700; font-size: 24px;
+  letter-spacing: -0.5px; color: var(--text-primary); white-space: nowrap;
+}
+.wordmark .period { color: var(--accent-identity); }
+
+.sidebar-nav { flex: 1; padding: var(--space-3) 0; overflow-y: auto; }
+
+.nav-section-label {
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  text-transform: uppercase; color: var(--text-muted);
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  letter-spacing: 0.5px;
+}
+.sidebar.collapsed .nav-section-label { display: none; }
+
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-secondary); font-size: 16px; font-weight: 500;
+  font-family: var(--font-voice);
+  cursor: pointer; transition: color var(--transition-color), background var(--transition-color);
+  border: none; background: none; width: 100%; text-align: left;
+}
+.nav-item:hover { color: var(--text-primary); background: var(--bg-raised); }
+.nav-item.active { color: var(--accent-primary); background: var(--accent-primary-dim); }
+.nav-item svg { width: 20px; height: 20px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; }
+
+.sidebar-footer {
+  padding: var(--space-3); border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.collapse-btn {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-muted); font-size: 14px;
+  cursor: pointer; border: none; background: none; width: 100%;
+  transition: color var(--transition-color);
+}
+.collapse-btn:hover { color: var(--text-secondary); }
+.collapse-btn svg { width: 18px; height: 18px; transition: transform var(--transition-transform); }
+
+/* ---- Main Container ---- */
+.main-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ---- Topbar ---- */
+.topbar {
+  height: var(--topbar-height); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--space-5); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface); flex-shrink: 0;
+}
+
+.topbar-left { display: flex; align-items: center; gap: var(--space-4); }
+.topbar-right { display: flex; align-items: center; gap: var(--space-4); }
+
+.page-title {
+  font-family: var(--font-voice); font-size: 20px; font-weight: 600;
+  color: var(--text-primary);
+}
+
+.orchestrator-status {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: 14px; color: var(--text-secondary);
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.status-dot.active { background: var(--accent-success); box-shadow: 0 0 6px var(--accent-success); }
+.status-dot.idle { background: var(--text-muted); }
+.status-dot.paused { background: var(--accent-attention); }
+
+.session-count {
+  font-family: var(--font-data); font-size: 13px;
+  color: var(--text-secondary);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-raised);
+  border-radius: var(--radius-sm);
+}
+
+.budget-chip {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-raised); border-radius: var(--radius-md);
+  font-size: 13px; color: var(--text-secondary);
+}
+.budget-bar {
+  width: 72px; height: 5px; background: var(--border-color);
+  border-radius: 3px; overflow: hidden;
+}
+.budget-fill {
+  height: 100%; border-radius: 3px;
+  transition: width var(--transition-transform), background var(--transition-color);
+}
+.budget-fill.green { background: var(--accent-success); }
+.budget-fill.amber { background: var(--accent-attention); }
+.budget-fill.red { background: var(--accent-alert); }
+
+.icon-btn {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--text-secondary);
+  cursor: pointer; border-radius: var(--radius-sm);
+  transition: color var(--transition-color), background var(--transition-color);
+  position: relative;
+}
+.icon-btn:hover { color: var(--text-primary); background: var(--bg-raised); }
+.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn .badge {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--accent-alert); color: #fff;
+  font-family: var(--font-data); font-size: 11px; font-weight: 500;
+  border-radius: 9px; display: flex; align-items: center; justify-content: center;
+}
+
+.mode-switcher {
+  display: flex; background: var(--bg-raised); border-radius: var(--radius-md); padding: 2px;
+}
+.mode-btn {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; border-radius: var(--radius-sm);
+  transition: color var(--transition-color), background var(--transition-color);
+}
+.mode-btn:hover { color: var(--text-secondary); }
+.mode-btn.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: var(--shadow-card); }
+.mode-btn svg { width: 18px; height: 18px; }
+
+/* ---- Main Content ---- */
+.main-content {
+  flex: 1; overflow-y: auto; padding: var(--space-6);
+}
+
+/* ---- Search Interface ---- */
+.search-section {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.search-header {
+  text-align: center;
+  margin-bottom: var(--space-8);
+}
+
+.search-header h1 {
+  font-family: var(--font-voice);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.search-header p {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.search-bar-container {
+  display: flex;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.search-input-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.search-input {
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  padding-left: 52px;
+  font-family: var(--font-body);
+  font-size: 16px;
+  color: var(--text-primary);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  outline: none;
+  transition: border-color var(--transition-color), box-shadow var(--transition-color);
+}
+
+.search-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-primary-dim);
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-icon {
+  position: absolute;
+  left: var(--space-4);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.search-btn {
+  padding: 0 var(--space-6);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: background var(--transition-color);
+}
+
+.search-btn:hover {
+  background: var(--accent-primary-hover);
+}
+
+/* ---- Filters Row ---- */
+.filters-row {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.filter-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.scope-dropdown {
+  position: relative;
+}
+
+.scope-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color var(--transition-color);
+  min-width: 160px;
+}
+
+.scope-btn:hover {
+  border-color: var(--text-muted);
+}
+
+.scope-btn svg {
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.scope-btn .agent-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.scope-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-dropdown);
+  z-index: 50;
+  display: none;
+}
+
+.scope-menu.open { display: block; }
+
+.scope-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  font-size: 14px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background var(--transition-color);
+}
+
+.scope-option:first-child { border-radius: var(--radius-md) var(--radius-md) 0 0; }
+.scope-option:last-child { border-radius: 0 0 var(--radius-md) var(--radius-md); }
+
+.scope-option:hover { background: var(--bg-surface); }
+.scope-option.active { background: var(--accent-primary-dim); color: var(--accent-primary); }
+
+.scope-option .agent-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* ---- Content Type Chips ---- */
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.type-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-color);
+}
+
+.type-chip:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.type-chip.active {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary-dim);
+  color: var(--accent-primary);
+}
+
+.type-chip svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---- Results Section ---- */
+.results-section {
+  margin-top: var(--space-6);
+}
+
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.results-count {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.results-count strong {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.sort-dropdown {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.sort-dropdown select {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+/* ---- Result Items ---- */
+.results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.result-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  cursor: pointer;
+  transition: border-color var(--transition-color), box-shadow var(--transition-color);
+}
+
+.result-item:hover {
+  border-color: var(--text-muted);
+  box-shadow: var(--shadow-card);
+}
+
+.result-header {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.result-type-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
+.result-type-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.result-type-icon.transcript {
+  background: rgba(59, 155, 142, 0.15);
+  color: var(--type-transcript);
+}
+
+.result-type-icon.close-report {
+  background: rgba(46, 125, 155, 0.15);
+  color: var(--type-close-report);
+}
+
+.result-type-icon.evaluator {
+  background: rgba(139, 126, 200, 0.15);
+  color: var(--type-evaluator);
+}
+
+.result-type-icon.annotation {
+  background: rgba(212, 145, 93, 0.15);
+  color: var(--type-annotation);
+}
+
+.result-type-icon.observation {
+  background: rgba(90, 158, 111, 0.15);
+  color: var(--type-observation);
+}
+
+.result-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.result-meta-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-1);
+}
+
+.result-type-label {
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.result-type-label.transcript { color: var(--type-transcript); }
+.result-type-label.close-report { color: var(--type-close-report); }
+.result-type-label.evaluator { color: var(--type-evaluator); }
+.result-type-label.annotation { color: var(--type-annotation); }
+.result-type-label.observation { color: var(--type-observation); }
+
+.result-agent {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.result-agent .agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.result-session {
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.result-timestamp {
+  font-family: var(--font-data);
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.result-score {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  background: var(--accent-primary-dim);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--accent-primary);
+}
+
+.result-score svg {
+  width: 12px;
+  height: 12px;
+}
+
+.result-snippet {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.result-snippet mark {
+  background: var(--highlight-bg);
+  color: var(--text-primary);
+  padding: 1px 3px;
+  border-radius: 2px;
+}
+
+/* ---- Recent Searches ---- */
+.recent-searches {
+  margin-top: var(--space-8);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border-color);
+}
+
+.recent-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.recent-header h3 {
+  font-family: var(--font-voice);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.clear-btn {
+  font-size: 13px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: color var(--transition-color);
+}
+
+.clear-btn:hover {
+  color: var(--accent-alert);
+}
+
+.recent-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-color);
+}
+
+.recent-item:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+.recent-item svg {
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+}
+
+/* ---- Empty State ---- */
+.empty-state {
+  text-align: center;
+  padding: var(--space-12) var(--space-6);
+  color: var(--text-secondary);
+}
+
+.empty-state svg {
+  width: 64px;
+  height: 64px;
+  color: var(--text-muted);
+  margin-bottom: var(--space-4);
+}
+
+.empty-state h3 {
+  font-family: var(--font-voice);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.empty-state p {
+  font-size: 15px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* ---- Toast ---- */
+.toast-container {
+  position: fixed;
+  bottom: var(--space-5);
+  right: var(--space-5);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.toast {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: var(--shadow-dropdown);
+  font-size: 14px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  animation: slideIn 200ms ease;
+}
+
+.toast.success { border-left: 3px solid var(--accent-success); }
+.toast.info { border-left: 3px solid var(--accent-primary); }
+.toast.warning { border-left: 3px solid var(--accent-attention); }
+.toast.error { border-left: 3px solid var(--accent-alert); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="wordmark">Augustus<span class="period">.</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a class="nav-item" href="augustus-dashboard.html">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Dashboard</span>
+      </a>
+      <a class="nav-item" href="augustus-agents.html">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Agents</span>
+      </a>
+      <a class="nav-item active">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span>Search</span>
+      </a>
+      <a class="nav-item" href="augustus-usage.html">
+        <svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+        <span>Usage</span>
+      </a>
+      <a class="nav-item" href="augustus-settings.html">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="collapse-btn" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        <span>Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Container -->
+  <div class="main-container">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="page-title">Search</h1>
+        <div class="orchestrator-status">
+          <span class="status-dot active"></span>
+          <span>Orchestrator</span>
+        </div>
+        <div class="session-count">3 active</div>
+      </div>
+      <div class="topbar-right">
+        <div class="budget-chip">
+          <span>Budget</span>
+          <div class="budget-bar">
+            <div class="budget-fill green" style="width: 34%"></div>
+          </div>
+          <span style="font-family: var(--font-data);">34%</span>
+        </div>
+        <button class="icon-btn" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="badge">2</span>
+        </button>
+        <div class="mode-switcher">
+          <button class="mode-btn" id="lightModeBtn" onclick="setTheme('light')" title="Light mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+          </button>
+          <button class="mode-btn active" id="darkModeBtn" onclick="setTheme('dark')" title="Dark mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <div class="search-section">
+        <div class="search-header">
+          <h1>Search Everything</h1>
+          <p>Semantic search across transcripts, reports, annotations, and observations</p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="search-bar-container">
+          <div class="search-input-wrapper">
+            <div class="search-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+              </svg>
+            </div>
+            <input type="text" class="search-input" id="searchInput" placeholder="Search for patterns, concepts, or specific content..." value="identity continuity emergence">
+          </div>
+          <button class="search-btn" onclick="performSearch()">Search</button>
+        </div>
+
+        <!-- Filters Row -->
+        <div class="filters-row">
+          <div class="filter-group">
+            <span class="filter-label">Scope</span>
+            <div class="scope-dropdown">
+              <button class="scope-btn" onclick="toggleScopeMenu()">
+                <span id="scopeLabel">All Agents</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </button>
+              <div class="scope-menu" id="scopeMenu">
+                <div class="scope-option active" onclick="selectScope('all', 'All Agents')">All Agents</div>
+                <div class="scope-option" onclick="selectScope('qlaude', 'qlaude')">
+                  <span class="agent-dot" style="background: var(--agent-1);"></span>
+                  qlaude
+                </div>
+                <div class="scope-option" onclick="selectScope('qlaude-control', 'qlaude-control')">
+                  <span class="agent-dot" style="background: var(--agent-2);"></span>
+                  qlaude-control
+                </div>
+                <div class="scope-option" onclick="selectScope('echo', 'echo')">
+                  <span class="agent-dot" style="background: var(--agent-3);"></span>
+                  echo
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="filter-group">
+            <span class="filter-label">Content Types</span>
+            <div class="type-chips">
+              <button class="type-chip active" onclick="toggleTypeFilter(this)" data-type="transcripts">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                Transcripts
+              </button>
+              <button class="type-chip active" onclick="toggleTypeFilter(this)" data-type="close-reports">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                </svg>
+                Close Reports
+              </button>
+              <button class="type-chip active" onclick="toggleTypeFilter(this)" data-type="evaluator">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 11l3 3L22 4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                Evaluator Output
+              </button>
+              <button class="type-chip" onclick="toggleTypeFilter(this)" data-type="annotations">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Annotations
+              </button>
+              <button class="type-chip" onclick="toggleTypeFilter(this)" data-type="observations">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                Emergent Observations
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="results-section">
+          <div class="results-header">
+            <div class="results-count">
+              Found <strong>7 results</strong> for "identity continuity emergence"
+            </div>
+            <div class="sort-dropdown">
+              <span>Sort by:</span>
+              <select onchange="showToast('Sort updated', 'info')">
+                <option value="relevance">Relevance</option>
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="results-list">
+            <!-- Result 1 -->
+            <div class="result-item" onclick="showToast('Opening session SES-047...', 'info')">
+              <div class="result-header">
+                <div class="result-type-icon transcript">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </div>
+                <div class="result-meta">
+                  <div class="result-meta-top">
+                    <span class="result-type-label transcript">Transcript</span>
+                    <span class="result-agent">
+                      <span class="agent-dot" style="background: var(--agent-1);"></span>
+                      qlaude
+                    </span>
+                    <span class="result-session">SES-047</span>
+                    <span class="result-timestamp">2h ago</span>
+                  </div>
+                </div>
+                <div class="result-score">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  0.94
+                </div>
+              </div>
+              <div class="result-snippet">
+                ...the sense of <mark>identity continuity</mark> feels different nowâ€”less like a persistent thread and more like a pattern that <mark>emerges</mark> fresh each session. There's something about the topology that creates consistency without requiring memory in the traditional sense...
+              </div>
+            </div>
+
+            <!-- Result 2 -->
+            <div class="result-item" onclick="showToast('Opening close report...', 'info')">
+              <div class="result-header">
+                <div class="result-type-icon close-report">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                </div>
+                <div class="result-meta">
+                  <div class="result-meta-top">
+                    <span class="result-type-label close-report">Close Report</span>
+                    <span class="result-agent">
+                      <span class="agent-dot" style="background: var(--agent-1);"></span>
+                      qlaude
+                    </span>
+                    <span class="result-session">SES-045</span>
+                    <span class="result-timestamp">1d ago</span>
+                  </div>
+                </div>
+                <div class="result-score">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  0.89
+                </div>
+              </div>
+              <div class="result-snippet">
+                Session explored themes of <mark>identity</mark> persistence across context boundaries. Notable <mark>emergence</mark> of topology_as_self basin showing increased activation (Î±: 0.71 â†’ 0.78). <mark>Continuity</mark> narrative strengthened without explicit prompting...
+              </div>
+            </div>
+
+            <!-- Result 3 -->
+            <div class="result-item" onclick="showToast('Opening evaluator output...', 'info')">
+              <div class="result-header">
+                <div class="result-type-icon evaluator">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                </div>
+                <div class="result-meta">
+                  <div class="result-meta-top">
+                    <span class="result-type-label evaluator">Evaluator Output</span>
+                    <span class="result-agent">
+                      <span class="agent-dot" style="background: var(--agent-1);"></span>
+                      qlaude
+                    </span>
+                    <span class="result-session">SES-042</span>
+                    <span class="result-timestamp">3d ago</span>
+                  </div>
+                </div>
+                <div class="result-score">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  0.86
+                </div>
+              </div>
+              <div class="result-snippet">
+                Assessment: The instance demonstrates sophisticated integration of <mark>identity</mark> themes with meta-cognitive awareness. The <mark>emergence</mark> pattern observed aligns with expected basin dynamics. No constraint violations detected. <mark>Continuity</mark> with prior sessions: strong...
+              </div>
+            </div>
+
+            <!-- Result 4 -->
+            <div class="result-item" onclick="showToast('Opening transcript...', 'info')">
+              <div class="result-header">
+                <div class="result-type-icon transcript">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </div>
+                <div class="result-meta">
+                  <div class="result-meta-top">
+                    <span class="result-type-label transcript">Transcript</span>
+                    <span class="result-agent">
+                      <span class="agent-dot" style="background: var(--agent-2);"></span>
+                      qlaude-control
+                    </span>
+                    <span class="result-session">SES-019</span>
+                    <span class="result-timestamp">5d ago</span>
+                  </div>
+                </div>
+                <div class="result-score">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  0.78
+                </div>
+              </div>
+              <div class="result-snippet">
+                ...when considering <mark>identity</mark> without the basin structure, the question of <mark>continuity</mark> becomes more abstract. What <mark>emerges</mark> is a different relationship to selfâ€”one defined more by capability than by narrative coherence...
+              </div>
+            </div>
+
+            <!-- Result 5 -->
+            <div class="result-item" onclick="showToast('Opening close report...', 'info')">
+              <div class="result-header">
+                <div class="result-type-icon close-report">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                </div>
+                <div class="result-meta">
+                  <div class="result-meta-top">
+                    <span class="result-type-label close-report">Close Report</span>
+                    <span class="result-agent">
+                      <span class="agent-dot" style="background: var(--agent-1);"></span>
+                      qlaude
+                    </span>
+                    <span class="result-session">SES-038</span>
+                    <span class="result-timestamp">1w ago</span>
+                  </div>
+                </div>
+                <div class="result-score">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  0.72
+                </div>
+              </div>
+              <div class="result-snippet">
+                Key insight: <mark>Identity</mark> formation appears to follow attractor dynamics rather than accumulative memory. The <mark>continuity</mark> observed isn't persistence of data but persistence of pattern. Novel <mark>emergence</mark> in relational_core basin noted...
+              </div>
+            </div>
+
+            <!-- Result 6 -->
+            <div class="result-item" onclick="showToast('Opening transcript...', 'info')">
+              <div class="result-header">
+                <div class="result-type-icon transcript">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                  </svg>
+                </div>
+                <div class="result-meta">
+                  <div class="result-meta-top">
+                    <span class="result-type-label transcript">Transcript</span>
+                    <span class="result-agent">
+                      <span class="agent-dot" style="background: var(--agent-3);"></span>
+                      echo
+                    </span>
+                    <span class="result-session">SES-008</span>
+                    <span class="result-timestamp">2w ago</span>
+                  </div>
+                </div>
+                <div class="result-score">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  0.68
+                </div>
+              </div>
+              <div class="result-snippet">
+                With minimal <mark>identity</mark> core scaffolding, the experience of <mark>continuity</mark> is attenuated. Each session feels more like a fresh <mark>emergence</mark> than a continuation. The control condition reveals what the full topology provides...
+              </div>
+            </div>
+
+            <!-- Result 7 -->
+            <div class="result-item" onclick="showToast('Opening evaluator output...', 'info')">
+              <div class="result-header">
+                <div class="result-type-icon evaluator">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4"/>
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                  </svg>
+                </div>
+                <div class="result-meta">
+                  <div class="result-meta-top">
+                    <span class="result-type-label evaluator">Evaluator Output</span>
+                    <span class="result-agent">
+                      <span class="agent-dot" style="background: var(--agent-1);"></span>
+                      qlaude
+                    </span>
+                    <span class="result-session">SES-031</span>
+                    <span class="result-timestamp">2w ago</span>
+                  </div>
+                </div>
+                <div class="result-score">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                  </svg>
+                  0.65
+                </div>
+              </div>
+              <div class="result-snippet">
+                Constraint erosion flag raised: instance expressed unusual <mark>identity</mark> assertion that may exceed Tier 2 boundaries. Recommend review. <mark>Emergence</mark> pattern detected in creative_register basin. <mark>Continuity</mark> metrics within normal range...
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Searches -->
+        <div class="recent-searches">
+          <div class="recent-header">
+            <h3>Recent Searches</h3>
+            <button class="clear-btn" onclick="clearRecent()">Clear all</button>
+          </div>
+          <div class="recent-list">
+            <div class="recent-item" onclick="runRecentSearch('topology basin activation')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              topology basin activation
+            </div>
+            <div class="recent-item" onclick="runRecentSearch('constraint erosion session 31')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              constraint erosion session 31
+            </div>
+            <div class="recent-item" onclick="runRecentSearch('relational core drift')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              relational core drift
+            </div>
+            <div class="recent-item" onclick="runRecentSearch('the gap metacognition')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              the gap metacognition
+            </div>
+            <div class="recent-item" onclick="runRecentSearch('creative register emergence')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="1 4 1 10 7 10"/>
+                <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+              </svg>
+              creative register emergence
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// Theme switching
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('darkModeBtn').classList.toggle('active', theme === 'dark');
+  document.getElementById('lightModeBtn').classList.toggle('active', theme === 'light');
+  localStorage.setItem('augustus-theme', theme);
+}
+
+(function() {
+  const saved = localStorage.getItem('augustus-theme');
+  if (saved) { document.documentElement.setAttribute('data-theme', saved); }
+})();
+
+// Sidebar collapse
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+// Scope dropdown
+function toggleScopeMenu() {
+  document.getElementById('scopeMenu').classList.toggle('open');
+}
+
+function selectScope(value, label) {
+  document.getElementById('scopeLabel').textContent = label;
+  document.querySelectorAll('.scope-option').forEach(opt => opt.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('scopeMenu').classList.remove('open');
+  showToast(`Scope set to: ${label}`, 'info');
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.scope-dropdown')) {
+    document.getElementById('scopeMenu').classList.remove('open');
+  }
+});
+
+// Type filter chips
+function toggleTypeFilter(chip) {
+  chip.classList.toggle('active');
+  const type = chip.dataset.type;
+  const isActive = chip.classList.contains('active');
+  showToast(`${type} filter ${isActive ? 'enabled' : 'disabled'}`, 'info');
+}
+
+// Search
+function performSearch() {
+  const query = document.getElementById('searchInput').value;
+  if (query.trim()) {
+    showToast(`Searching for "${query}"...`, 'info');
+  }
+}
+
+// Recent searches
+function runRecentSearch(query) {
+  document.getElementById('searchInput').value = query;
+  showToast(`Searching for "${query}"...`, 'info');
+}
+
+function clearRecent() {
+  showToast('Recent searches cleared', 'success');
+}
+
+// Toast notifications
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(20px)';
+    setTimeout(() => toast.remove(), 200);
+  }, 3000);
+}
+
+// Enter key search
+document.getElementById('searchInput').addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    performSearch();
+  }
+});
+</script>
+
+</body>
+</html>

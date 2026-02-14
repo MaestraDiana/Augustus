@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(magick identify:*)",
+      "Bash(dir:*)",
+      "Bash(del \"Z:\\\\Web Clients\\\\Machine Pareidolia\\\\Lattice Runner\\\\v2\\\\test_parse_yaml.py\")",
+      "Bash(del \"Z:\\\\Web Clients\\\\Machine Pareidolia\\\\Lattice Runner\\\\v2\\\\nul\")"
+    ]
+  }
+}

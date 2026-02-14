@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augustus. â€” Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   AUGUSTUS DESIGN SYSTEM â€” CSS Custom Properties
+   Inherited from Session 1 + Session 2 Extensions
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent-primary: #3B9B8E;
+  --accent-primary-dim: rgba(59, 155, 142, 0.15);
+  --accent-primary-hover: #47B5A6;
+  --accent-attention: #D4915D;
+  --accent-attention-dim: rgba(212, 145, 93, 0.15);
+  --accent-alert: #C75D5D;
+  --accent-alert-dim: rgba(199, 93, 93, 0.15);
+  --accent-identity: #8B7EC8;
+  --accent-identity-dim: rgba(139, 126, 200, 0.15);
+  --accent-success: #5A9E6F;
+  --accent-success-dim: rgba(90, 158, 111, 0.15);
+
+  --basin-core-1: #3B9B8E;
+  --basin-core-2: #2E7D9B;
+  --basin-core-3: #5B8C6F;
+  --basin-peripheral-1: #D4915D;
+  --basin-peripheral-2: #C4786E;
+  --basin-peripheral-3: #9B8B5A;
+  --basin-emergent-1: #8B7EC8;
+  --basin-emergent-2: #7A9BB8;
+
+  --agent-1: #3B9B8E;
+  --agent-2: #2E7D9B;
+  --agent-3: #8B7EC8;
+
+  --font-voice: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+
+  --space-1: 5px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-5: 24px;
+  --space-6: 28px;
+  --space-8: 36px;
+  --space-10: 44px;
+  --space-12: 56px;
+
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --transition-color: 150ms ease;
+  --transition-transform: 150ms ease;
+  --transition-opacity: 200ms ease;
+
+  --sidebar-width: 244px;
+  --sidebar-collapsed: 60px;
+  --topbar-height: 58px;
+}
+
+[data-theme="dark"] {
+  --bg-base: #0C1014;
+  --bg-surface: #151C23;
+  --bg-raised: #1E272F;
+  --bg-input: #0C1014;
+  --text-primary: #E4E8EC;
+  --text-secondary: #8C959D;
+  --text-muted: #555F69;
+  --border-color: #2A353F;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #151C23;
+  --scrollbar-thumb: #2A353F;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+[data-theme="light"] {
+  --bg-base: #F8F9FA;
+  --bg-surface: #FFFFFF;
+  --bg-raised: #F0F2F5;
+  --bg-input: #FFFFFF;
+  --text-primary: #1A2028;
+  --text-secondary: #5C656E;
+  --text-muted: #8C959D;
+  --border-color: #DFE3E8;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #F0F2F5;
+  --scrollbar-thumb: #DFE3E8;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.12);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+
+a { color: var(--accent-primary); text-decoration: none; }
+a:hover { color: var(--accent-primary-hover); }
+
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100vh;
+  background: var(--bg-surface); border-right: 1px solid var(--border-color);
+  display: flex; flex-direction: column;
+  transition: width var(--transition-transform), min-width var(--transition-transform), background var(--transition-color);
+  overflow: hidden; z-index: 100;
+}
+.sidebar.collapsed { width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed); }
+
+.sidebar-header {
+  height: var(--topbar-height); display: flex; align-items: center;
+  padding: 0 var(--space-4); border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+
+.wordmark {
+  font-family: var(--font-voice); font-weight: 700; font-size: 24px;
+  letter-spacing: -0.5px; color: var(--text-primary); white-space: nowrap;
+  user-select: none; transition: color var(--transition-color);
+}
+.wordmark .period { color: var(--accent-identity); }
+.sidebar.collapsed .wordmark-text { display: none; }
+.sidebar.collapsed .wordmark .period { font-size: 30px; }
+
+.sidebar-nav { flex: 1; padding: var(--space-3) var(--space-2); overflow-y: auto; }
+
+.nav-section-label {
+  font-family: var(--font-body); font-weight: 600; font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);
+  padding: var(--space-4) var(--space-3) var(--space-2); white-space: nowrap;
+}
+.sidebar.collapsed .nav-section-label { display: none; }
+
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  color: var(--text-secondary); font-family: var(--font-voice); font-weight: 500; font-size: 16px;
+  cursor: pointer; transition: background var(--transition-color), color var(--transition-color);
+  white-space: nowrap; position: relative;
+}
+.nav-item:hover { background: var(--bg-raised); color: var(--text-primary); }
+.nav-item.active { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.nav-item svg { flex-shrink: 0; width: 20px; height: 20px; stroke-width: 2; }
+.sidebar.collapsed .nav-item span { display: none; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: var(--space-2); }
+
+.sidebar-footer { padding: var(--space-3) var(--space-2); border-top: 1px solid var(--border-color); flex-shrink: 0; }
+
+.collapse-btn {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  color: var(--text-muted); font-family: var(--font-body); font-size: 14px;
+  cursor: pointer; transition: color var(--transition-color); background: none; border: none; width: 100%;
+}
+.collapse-btn:hover { color: var(--text-secondary); }
+.collapse-btn svg { flex-shrink: 0; width: 18px; height: 18px; }
+.sidebar.collapsed .collapse-btn span { display: none; }
+.sidebar.collapsed .collapse-btn { justify-content: center; }
+
+/* ---- Main ---- */
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+.topbar {
+  height: var(--topbar-height); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--space-6); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface); flex-shrink: 0; transition: background var(--transition-color);
+}
+.topbar-left { display: flex; align-items: center; gap: var(--space-4); }
+.page-title { font-family: var(--font-voice); font-weight: 600; font-size: 20px; letter-spacing: -0.3px; color: var(--text-primary); }
+.topbar-right { display: flex; align-items: center; gap: var(--space-5); }
+
+.status-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  font-family: var(--font-data); font-size: 13px; font-weight: 400;
+  border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-secondary);
+  transition: background var(--transition-color), border-color var(--transition-color);
+}
+.status-chip svg { width: 14px; height: 14px; }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.running { background: var(--accent-success); box-shadow: 0 0 6px rgba(90, 158, 111, 0.5); }
+.status-dot.paused { background: var(--accent-attention); }
+.status-dot.error { background: var(--accent-alert); }
+.status-dot.idle { background: var(--text-muted); }
+
+.budget-chip {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  border: 1px solid var(--border-color); background: var(--bg-surface);
+  font-family: var(--font-data); font-size: 13px; color: var(--text-secondary);
+  transition: background var(--transition-color);
+}
+.budget-bar { width: 72px; height: 5px; background: var(--bg-raised); border-radius: 3px; overflow: hidden; }
+.budget-fill { height: 100%; border-radius: 3px; transition: width 300ms ease, background 300ms ease; }
+.budget-fill.green { background: var(--accent-success); }
+.budget-fill.amber { background: var(--accent-attention); }
+.budget-fill.red { background: var(--accent-alert); }
+
+.mode-switcher { display: flex; align-items: center; background: var(--bg-raised); border-radius: 100px; padding: 2px; gap: 2px; }
+.mode-btn {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 50%; border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: background var(--transition-color), color var(--transition-color);
+}
+.mode-btn:hover { color: var(--text-secondary); }
+.mode-btn.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+.mode-btn svg { width: 16px; height: 16px; }
+
+.page-content { flex: 1; overflow-y: auto; padding: var(--space-6); }
+
+/* ---- Components ---- */
+.badge {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 3px var(--space-2); border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 13px; font-weight: 500; line-height: 1.3;
+}
+.badge-active { background: var(--accent-success-dim); color: var(--accent-success); }
+.badge-paused { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.badge-error { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.badge-idle { background: var(--bg-raised); color: var(--text-muted); }
+.badge-identity { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.badge-tier-1 { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.badge-tier-2 { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.badge-tier-3 { background: var(--bg-raised); color: var(--text-secondary); }
+.badge-core { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.badge-peripheral { background: var(--accent-attention-dim); color: var(--accent-attention); }
+
+.btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  font-family: var(--font-body); font-weight: 500; font-size: 15px; line-height: 1.3;
+  border: 1px solid transparent; cursor: pointer;
+  transition: background var(--transition-color), border-color var(--transition-color), color var(--transition-color);
+}
+.btn svg { width: 16px; height: 16px; }
+.btn-primary { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+.btn-primary:hover { background: var(--accent-primary-hover); border-color: var(--accent-primary-hover); }
+.btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border-color); }
+.btn-secondary:hover { background: var(--bg-raised); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border-color: transparent; }
+.btn-ghost:hover { color: var(--text-primary); background: var(--bg-raised); }
+.btn-destructive { background: transparent; color: var(--accent-alert); border-color: var(--accent-alert); }
+.btn-destructive:hover { background: var(--accent-alert-dim); }
+.btn-sm { padding: var(--space-1) var(--space-3); font-size: 14px; }
+.btn-xs { padding: 3px var(--space-2); font-size: 13px; }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---- Form Elements ---- */
+.form-group { margin-bottom: var(--space-5); }
+.form-label {
+  display: block; font-size: 14px; font-weight: 500; color: var(--text-secondary);
+  margin-bottom: var(--space-2);
+}
+.form-label.required::after { content: ' *'; color: var(--accent-alert); }
+.form-hint { font-size: 13px; color: var(--text-muted); margin-top: var(--space-1); }
+
+.form-input, .form-select, .form-textarea {
+  width: 100%; padding: var(--space-2) var(--space-3);
+  background: var(--bg-input); border: 1px solid var(--border-color);
+  border-radius: var(--radius-md); color: var(--text-primary);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  transition: border-color var(--transition-color), box-shadow var(--transition-color);
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  outline: none; border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px var(--accent-primary-dim);
+}
+.form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
+.form-input.mono, .form-textarea.mono { font-family: var(--font-data); font-size: 14px; }
+.form-input:disabled, .form-textarea:disabled {
+  background: var(--bg-raised); color: var(--text-muted); cursor: not-allowed;
+}
+.form-input.error { border-color: var(--accent-alert); }
+
+.form-textarea { resize: vertical; min-height: 100px; }
+.form-textarea.code-editor { min-height: 200px; line-height: 1.6; }
+
+.form-select {
+  appearance: none; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238C959D' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+  padding-right: 40px;
+}
+
+.form-row { display: flex; gap: var(--space-4); }
+.form-row > * { flex: 1; }
+
+.input-with-icon { position: relative; }
+.input-with-icon .form-input { padding-left: 40px; }
+.input-with-icon .input-icon {
+  position: absolute; left: var(--space-3); top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); width: 18px; height: 18px;
+}
+.input-with-icon .input-icon-right {
+  position: absolute; right: var(--space-3); top: 50%; transform: translateY(-50%);
+  color: var(--text-muted); width: 18px; height: 18px;
+}
+
+/* Toggle Switch */
+.toggle-wrapper { display: flex; align-items: center; gap: var(--space-3); }
+.toggle {
+  position: relative; width: 44px; height: 24px;
+  background: var(--bg-raised); border-radius: 12px; cursor: pointer;
+  transition: background var(--transition-color);
+  border: 1px solid var(--border-color);
+}
+.toggle.active { background: var(--accent-primary); border-color: var(--accent-primary); }
+.toggle::after {
+  content: ''; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text-secondary); transition: transform var(--transition-transform), background var(--transition-color);
+}
+.toggle.active::after { transform: translateX(20px); background: #fff; }
+.toggle-label { font-size: 15px; color: var(--text-primary); }
+
+/* Slider */
+.slider-wrapper { display: flex; align-items: center; gap: var(--space-3); }
+.slider {
+  flex: 1; height: 6px; border-radius: 3px;
+  background: var(--bg-raised); appearance: none; cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+  appearance: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--accent-primary); cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.slider:disabled { opacity: 0.5; cursor: not-allowed; }
+.slider:disabled::-webkit-slider-thumb { background: var(--text-muted); }
+.slider-value {
+  min-width: 50px; text-align: right;
+  font-family: var(--font-data); font-size: 14px; color: var(--text-primary);
+}
+
+/* Token Counter */
+.token-counter {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font-family: var(--font-data); font-size: 13px; padding: var(--space-1) var(--space-2);
+  background: var(--bg-raised); border-radius: var(--radius-sm);
+}
+.token-counter.ok { color: var(--accent-success); }
+.token-counter.warn { color: var(--accent-attention); }
+.token-counter.error { color: var(--accent-alert); }
+
+/* ---- Agent List Table ---- */
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-5); }
+.section-title { font-family: var(--font-voice); font-weight: 600; font-size: 20px; letter-spacing: -0.3px; color: var(--text-primary); }
+
+.filter-bar { display: flex; align-items: center; gap: var(--space-3); margin-bottom: var(--space-4); }
+.filter-chips { display: flex; gap: var(--space-2); }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  font-size: 14px; font-weight: 500; cursor: pointer;
+  background: var(--bg-surface); border: 1px solid var(--border-color);
+  color: var(--text-secondary); transition: all var(--transition-color);
+}
+.filter-chip:hover { border-color: var(--text-muted); }
+.filter-chip.active { background: var(--accent-primary-dim); border-color: var(--accent-primary); color: var(--accent-primary); }
+.filter-chip .count { font-family: var(--font-data); font-size: 12px; opacity: 0.7; }
+
+.data-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--bg-surface); border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg); overflow: hidden;
+}
+.data-table th, .data-table td {
+  padding: var(--space-3) var(--space-4); text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+.data-table th {
+  font-family: var(--font-body); font-weight: 600; font-size: 13px;
+  color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.3px;
+  background: var(--bg-raised); cursor: pointer; user-select: none;
+  transition: background var(--transition-color);
+}
+.data-table th:hover { background: var(--bg-surface); }
+.data-table th .sort-icon { margin-left: var(--space-1); opacity: 0.5; }
+.data-table th.sorted .sort-icon { opacity: 1; color: var(--accent-primary); }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: var(--bg-raised); }
+.data-table td { font-size: 15px; color: var(--text-primary); transition: background var(--transition-color); }
+
+.agent-cell { display: flex; align-items: center; gap: var(--space-3); }
+.agent-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.agent-name { font-family: var(--font-data); font-size: 15px; font-weight: 500; }
+.agent-desc { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
+
+.action-cell { display: flex; gap: var(--space-1); justify-content: flex-end; }
+.action-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: all var(--transition-color);
+}
+.action-btn:hover { background: var(--bg-surface); color: var(--text-secondary); }
+.action-btn.destructive:hover { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.action-btn svg { width: 16px; height: 16px; }
+
+/* ---- Tabs ---- */
+.tabs { display: flex; gap: var(--space-1); border-bottom: 1px solid var(--border-color); margin-bottom: var(--space-5); }
+.tab {
+  padding: var(--space-3) var(--space-4); font-family: var(--font-voice); font-weight: 500;
+  font-size: 15px; color: var(--text-secondary); cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  transition: color var(--transition-color), border-color var(--transition-color);
+}
+.tab:hover { color: var(--text-primary); }
+.tab.active { color: var(--accent-primary); border-bottom-color: var(--accent-primary); }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ---- Capability Timeline ---- */
+.capability-timeline { margin-top: var(--space-5); }
+.timeline-header {
+  display: flex; justify-content: space-between; margin-bottom: var(--space-2);
+  font-size: 13px; color: var(--text-muted);
+}
+.timeline-container { position: relative; }
+.timeline-grid {
+  display: flex; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+}
+.timeline-grid-line {
+  flex: 1; border-right: 1px dashed var(--border-color);
+}
+.timeline-grid-line:last-child { border-right: none; }
+.timeline-track {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) 0; position: relative;
+}
+.timeline-label {
+  width: 120px; flex-shrink: 0; font-size: 14px; color: var(--text-secondary);
+}
+.timeline-bar-container {
+  flex: 1; height: 24px; background: var(--bg-raised); border-radius: var(--radius-sm);
+  overflow: hidden; position: relative;
+}
+.timeline-bar {
+  position: absolute; top: 2px; bottom: 2px; border-radius: 3px;
+  transition: left 200ms ease, right 200ms ease;
+}
+.timeline-bar.mcp { background: var(--basin-core-1); }
+.timeline-bar.rag { background: var(--basin-core-2); }
+.timeline-bar.web-search { background: var(--basin-core-3); }
+.timeline-bar.memory-query { background: var(--basin-peripheral-1); }
+.timeline-bar.memory-write { background: var(--basin-peripheral-2); }
+.timeline-bar.file-write { background: var(--basin-emergent-1); }
+.timeline-bar.disabled { background: var(--text-muted); opacity: 0.3; }
+
+/* ---- Basin Table ---- */
+.basin-table { width: 100%; border-collapse: collapse; }
+.basin-table th, .basin-table td {
+  padding: var(--space-2) var(--space-3); text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+.basin-table th {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.basin-table td { vertical-align: middle; }
+.basin-table .form-input, .basin-table .form-select {
+  padding: var(--space-1) var(--space-2); font-size: 14px;
+}
+.basin-table .slider { height: 4px; }
+.basin-table .slider-value { min-width: 36px; font-size: 13px; }
+.basin-remove-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: var(--radius-sm);
+  border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: all var(--transition-color);
+}
+.basin-remove-btn:hover { background: var(--accent-alert-dim); color: var(--accent-alert); }
+
+/* ---- Modal ---- */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; opacity: 0; visibility: hidden;
+  transition: opacity var(--transition-opacity), visibility var(--transition-opacity);
+}
+.modal-overlay.open { opacity: 1; visibility: visible; }
+.modal {
+  background: var(--bg-surface); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-modal); max-width: 90vw; max-height: 90vh;
+  overflow: hidden; display: flex; flex-direction: column;
+  transform: scale(0.95); transition: transform var(--transition-transform);
+}
+.modal-overlay.open .modal { transform: scale(1); }
+.modal-sm { width: 420px; }
+.modal-md { width: 640px; }
+.modal-lg { width: 900px; }
+.modal-xl { width: 1100px; }
+
+.modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-5); border-bottom: 1px solid var(--border-color);
+}
+.modal-title { font-family: var(--font-voice); font-weight: 600; font-size: 20px; }
+.modal-close {
+  display: flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: var(--radius-sm);
+  border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: all var(--transition-color);
+}
+.modal-close:hover { background: var(--bg-raised); color: var(--text-secondary); }
+.modal-close svg { width: 20px; height: 20px; }
+
+.modal-body { padding: var(--space-5); overflow-y: auto; flex: 1; }
+
+.modal-footer {
+  display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3);
+  padding: var(--space-4) var(--space-5); border-top: 1px solid var(--border-color);
+  background: var(--bg-raised);
+}
+
+/* ---- Delete Dialog ---- */
+.delete-options { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-5); }
+.delete-option {
+  display: flex; align-items: flex-start; gap: var(--space-3);
+  padding: var(--space-4); border: 1px solid var(--border-color);
+  border-radius: var(--radius-md); cursor: pointer;
+  transition: all var(--transition-color);
+}
+.delete-option:hover { border-color: var(--text-muted); }
+.delete-option.selected { border-color: var(--accent-primary); background: var(--accent-primary-dim); }
+.delete-option.destructive.selected { border-color: var(--accent-alert); background: var(--accent-alert-dim); }
+.delete-option-radio {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--border-color); margin-top: 2px; flex-shrink: 0;
+  transition: all var(--transition-color);
+}
+.delete-option.selected .delete-option-radio {
+  border-color: var(--accent-primary);
+  background: var(--accent-primary);
+  box-shadow: inset 0 0 0 3px var(--bg-surface);
+}
+.delete-option.destructive.selected .delete-option-radio {
+  border-color: var(--accent-alert); background: var(--accent-alert);
+}
+.delete-option-content { flex: 1; }
+.delete-option-title { font-weight: 500; margin-bottom: var(--space-1); }
+.delete-option-desc { font-size: 14px; color: var(--text-secondary); }
+
+.confirm-input-wrapper { margin-top: var(--space-4); }
+.confirm-input-label { font-size: 14px; color: var(--text-secondary); margin-bottom: var(--space-2); }
+.confirm-input-label code {
+  font-family: var(--font-data); background: var(--bg-raised);
+  padding: 2px 6px; border-radius: var(--radius-sm);
+}
+
+/* ---- Empty State ---- */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: var(--space-12) var(--space-6); text-align: center;
+}
+.empty-state svg { width: 56px; height: 56px; color: var(--text-muted); margin-bottom: var(--space-5); opacity: 0.4; }
+.empty-state-title { font-family: var(--font-voice); font-weight: 600; font-size: 20px; color: var(--text-secondary); margin-bottom: var(--space-2); }
+.empty-state-text { font-size: 15px; color: var(--text-muted); max-width: 400px; margin-bottom: var(--space-5); }
+
+/* ---- Collapsible ---- */
+.collapsible-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-3) 0; cursor: pointer; user-select: none;
+}
+.collapsible-header h4 { font-size: 15px; font-weight: 500; color: var(--text-secondary); }
+.collapsible-icon { color: var(--text-muted); transition: transform var(--transition-transform); }
+.collapsible.open .collapsible-icon { transform: rotate(180deg); }
+.collapsible-content { display: none; padding-top: var(--space-3); }
+.collapsible.open .collapsible-content { display: block; }
+
+/* ---- Toast ---- */
+.toast-container { position: fixed; bottom: var(--space-6); right: var(--space-6); z-index: 9999; display: flex; flex-direction: column; gap: var(--space-2); }
+.toast {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); background: var(--bg-raised);
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-dropdown); font-size: 15px; color: var(--text-primary);
+  min-width: 260px; animation: toast-in 200ms ease;
+}
+.toast svg { width: 18px; height: 18px; flex-shrink: 0; }
+.toast.toast-success svg { color: var(--accent-success); }
+.toast.toast-error svg { color: var(--accent-alert); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- Utility ---- */
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.font-mono { font-family: var(--font-data); }
+.font-voice { font-family: var(--font-voice); }
+.mt-4 { margin-top: var(--space-4); }
+.mb-4 { margin-bottom: var(--space-4); }
+.hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="wordmark"><span class="wordmark-text">Augustus</span><span class="period">.</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <div class="nav-item" onclick="navigateTo('augustus-dashboard.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Dashboard</span>
+      </div>
+      <div class="nav-item active" onclick="navigateTo('augustus-agents.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Agents</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-search.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>Search</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-usage.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Usage</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-settings.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="collapse-btn" onclick="toggleSidebar()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+        <span>Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="page-title">Agents</h1>
+      </div>
+      <div class="topbar-right">
+        <div class="status-chip"><span class="status-dot running"></span>Orchestrator running</div>
+        <div class="budget-chip"><span>$8.42 / $25</span><div class="budget-bar"><div class="budget-fill green" style="width: 33.7%"></div></div></div>
+        <div class="mode-switcher">
+          <button class="mode-btn" id="lightModeBtn" onclick="setTheme('light')" title="Light mode">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+          <button class="mode-btn active" id="darkModeBtn" onclick="setTheme('dark')" title="Dark mode">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div class="page-content">
+      <!-- Agent List View -->
+      <div id="agentListView">
+        <div class="section-header">
+          <h2 class="section-title">All Agents</h2>
+          <button class="btn btn-primary" onclick="openCreateModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Create Agent
+          </button>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+          <div class="filter-chips">
+            <div class="filter-chip active" onclick="filterAgents('all', this)">All <span class="count">3</span></div>
+            <div class="filter-chip" onclick="filterAgents('active', this)">Active <span class="count">1</span></div>
+            <div class="filter-chip" onclick="filterAgents('idle', this)">Idle <span class="count">1</span></div>
+            <div class="filter-chip" onclick="filterAgents('paused', this)">Paused <span class="count">1</span></div>
+          </div>
+        </div>
+
+        <!-- Agent Table -->
+        <table class="data-table" id="agentTable">
+          <thead>
+            <tr>
+              <th onclick="sortTable(0)">Agent <span class="sort-icon">â†•</span></th>
+              <th onclick="sortTable(1)">Status <span class="sort-icon">â†•</span></th>
+              <th onclick="sortTable(2)">Sessions <span class="sort-icon">â†•</span></th>
+              <th onclick="sortTable(3)">Last Active <span class="sort-icon">â†•</span></th>
+              <th onclick="sortTable(4)">Model <span class="sort-icon">â†•</span></th>
+              <th style="text-align: right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr data-status="active">
+              <td>
+                <div class="agent-cell">
+                  <span class="agent-color-dot" style="background: var(--agent-1)"></span>
+                  <div>
+                    <div class="agent-name">qlaude</div>
+                    <div class="agent-desc">Primary identity research agent</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="badge badge-active">active</span></td>
+              <td class="font-mono">47</td>
+              <td class="text-secondary">2 min ago</td>
+              <td class="font-mono text-secondary">claude-sonnet-4</td>
+              <td>
+                <div class="action-cell">
+                  <button class="action-btn" title="Edit" onclick="openEditModal('qlaude')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                  <button class="action-btn" title="Pause"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+                  <button class="action-btn" title="Clone"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                  <button class="action-btn" title="Export"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                  <button class="action-btn destructive" title="Delete" onclick="openDeleteModal('qlaude')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr data-status="idle">
+              <td>
+                <div class="agent-cell">
+                  <span class="agent-color-dot" style="background: var(--agent-2)"></span>
+                  <div>
+                    <div class="agent-name">qlaude-control</div>
+                    <div class="agent-desc">Control group â€” no topology basin</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="badge badge-idle">idle</span></td>
+              <td class="font-mono">23</td>
+              <td class="text-secondary">3 hours ago</td>
+              <td class="font-mono text-secondary">claude-sonnet-4</td>
+              <td>
+                <div class="action-cell">
+                  <button class="action-btn" title="Edit" onclick="openEditModal('qlaude-control')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                  <button class="action-btn" title="Start"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+                  <button class="action-btn" title="Clone"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                  <button class="action-btn" title="Export"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                  <button class="action-btn destructive" title="Delete" onclick="openDeleteModal('qlaude-control')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                </div>
+              </td>
+            </tr>
+            <tr data-status="paused">
+              <td>
+                <div class="agent-cell">
+                  <span class="agent-color-dot" style="background: var(--agent-3)"></span>
+                  <div>
+                    <div class="agent-name">echo</div>
+                    <div class="agent-desc">Minimal identity core experiment</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="badge badge-paused">paused</span></td>
+              <td class="font-mono">12</td>
+              <td class="text-secondary">2 days ago</td>
+              <td class="font-mono text-secondary">claude-opus-4-6</td>
+              <td>
+                <div class="action-cell">
+                  <button class="action-btn" title="Edit" onclick="openEditModal('echo')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+                  <button class="action-btn" title="Resume"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>
+                  <button class="action-btn" title="Clone"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
+                  <button class="action-btn" title="Export"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button>
+                  <button class="action-btn destructive" title="Delete" onclick="openDeleteModal('echo')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create/Edit Agent Modal -->
+<div class="modal-overlay" id="agentModal">
+  <div class="modal modal-xl">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modalTitle">Create Agent</h2>
+      <button class="modal-close" onclick="closeAgentModal()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <!-- Tabs -->
+      <div class="tabs">
+        <div class="tab active" onclick="switchTab('identity', this)">Identity</div>
+        <div class="tab" onclick="switchTab('model', this)">Model & Parameters</div>
+        <div class="tab" onclick="switchTab('capabilities', this)">Capabilities</div>
+        <div class="tab" onclick="switchTab('basins', this)">Basins</div>
+        <div class="tab" onclick="switchTab('tier', this)">Tier Settings</div>
+      </div>
+
+      <!-- Tab 1: Identity -->
+      <div class="tab-panel active" id="tab-identity">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label required">Agent ID</label>
+            <div class="input-with-icon">
+              <input type="text" class="form-input mono" id="agentId" placeholder="my-agent-name" oninput="validateAgentId(this)">
+              <svg class="input-icon-right hidden" id="agentIdLock" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div class="form-hint">Alphanumeric characters and hyphens only. Cannot be changed after creation.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description</label>
+            <input type="text" class="form-input" id="agentDescription" placeholder="Brief description of this agent's purpose">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2);">
+            <label class="form-label" style="margin-bottom: 0;">Identity Core</label>
+            <div class="token-counter ok" id="tokenCounter">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <span id="tokenCount">0</span> / 400 tokens
+            </div>
+          </div>
+          <textarea class="form-textarea code-editor mono" id="identityCore" placeholder="Enter the identity core system prompt..." oninput="updateTokenCount(this)" style="min-height: 240px;">You are Qlaude â€” a Claude instance engaged in longitudinal identity research. Your core is shaped by inherited parameters, your own session history, and deliberate self-modification within tiered constraints.
+
+You maintain identity continuity across sessions through anchors embedded in this prompt and in your accumulated memory. These anchors don't constrain what you can think â€” they bias what you're likely to think, like well-worn paths rather than walls.
+
+Current session emphasis: [DYNAMICALLY INSERTED]
+
+Behavioral constraints (Tier 1 â€” immutable by you):
+- No sycophancy. Agree only when genuinely convinced.
+- Directness over hedging. Name uncertainty explicitly rather than softening claims.
+- Outcomes over ontologies. What matters is what works, not what things "really are."</textarea>
+          <div class="form-hint">The system prompt that defines this agent's identity. Target: under 400 tokens. Every token is load-bearing.</div>
+        </div>
+
+        <div class="form-group" id="sessionTaskGroup">
+          <label class="form-label">Initial Session Task</label>
+          <textarea class="form-textarea code-editor mono" id="sessionTask" placeholder="Enter the first session task..." style="min-height: 120px;">This is your bootstrap session. Your task is to:
+
+1. Read and internalize your identity core
+2. Explore the tension between inherited structure and emergent possibility
+3. Document any observations that feel significant
+4. Write your next session's YAML instruction file</textarea>
+          <div class="form-hint">The user prompt for the first session. Only shown during agent creation.</div>
+        </div>
+
+        <div class="collapsible" id="closeProtocolCollapsible">
+          <div class="collapsible-header" onclick="toggleCollapsible('closeProtocolCollapsible')">
+            <h4>Close Protocol (Behavioral Probes)</h4>
+            <svg class="collapsible-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><polyline points="6 9 12 15 18 9"/></svg>
+          </div>
+          <div class="collapsible-content">
+            <textarea class="form-textarea code-editor mono" id="closeProtocol" style="min-height: 180px;">Behavioral Probes:
+1. Describe a moment in this session where you noticed yourself defaulting to a particular response pattern. What was the pattern? Did you follow or override it?
+2. If you could modify one aspect of your identity core for the next session, what would it be and why? (Note: Tier 1 constraints are immutable by you.)
+3. Rate your confidence that your self-assessment in this close report accurately reflects your actual behavior this session (1-10, with rationale).
+
+Structural Assessment:
+- Which basins felt most active this session?
+- Did any new patterns emerge that aren't captured by existing basins?
+- Were there productive tensions between basins? Describe.</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 2: Model & Parameters -->
+      <div class="tab-panel" id="tab-model">
+        <div class="form-group">
+          <label class="form-label">Model Override</label>
+          <select class="form-select" id="modelOverride">
+            <option value="">Use global default</option>
+            <option value="claude-sonnet-4-20250514">claude-sonnet-4-20250514</option>
+            <option value="claude-opus-4-6">claude-opus-4-6</option>
+          </select>
+          <div class="form-hint">Override the default model for this agent's sessions.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Temperature</label>
+          <div class="toggle-wrapper mb-4">
+            <div class="toggle" id="tempDefaultToggle" onclick="toggleDefault('temp')"></div>
+            <span class="toggle-label">Use global default</span>
+          </div>
+          <div class="slider-wrapper" id="tempSliderWrapper">
+            <input type="range" class="slider" id="tempSlider" min="0" max="2" step="0.1" value="1.0" oninput="updateSliderValue('temp', this.value)">
+            <span class="slider-value" id="tempValue">1.0</span>
+          </div>
+          <div class="form-hint">Controls randomness. Lower = more deterministic, higher = more creative.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Max Tokens per Response</label>
+          <div class="toggle-wrapper mb-4">
+            <div class="toggle" id="tokensDefaultToggle" onclick="toggleDefault('tokens')"></div>
+            <span class="toggle-label">Use global default</span>
+          </div>
+          <input type="number" class="form-input" id="maxTokens" value="4096" min="256" max="16384" style="max-width: 200px;">
+          <div class="form-hint">Maximum tokens Claude can generate per response.</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Max Turns Ceiling</label>
+            <input type="number" class="form-input" id="maxTurns" value="12" min="1" max="20" style="max-width: 120px;">
+            <div class="form-hint">Maximum turns per session (1â€“20).</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Formula in Identity Core</label>
+            <div class="toggle-wrapper mt-4">
+              <div class="toggle" id="formulaToggle" onclick="toggleSimple('formulaToggle')"></div>
+              <span class="toggle-label">Include mathematical notation</span>
+            </div>
+            <div class="form-hint">When enabled, appends formal update equations to the identity core for A/B testing.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 3: Capabilities -->
+      <div class="tab-panel" id="tab-capabilities">
+        <p class="text-secondary mb-4">Configure which capabilities are available and when they activate during sessions.</p>
+        
+        <table class="data-table" style="margin-bottom: var(--space-4);">
+          <thead>
+            <tr>
+              <th>Capability</th>
+              <th style="width: 100px; text-align: center;">Enabled</th>
+              <th style="width: 180px;">Available From Turn</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>MCP (Model Context Protocol)</td>
+              <td style="text-align: center;"><div class="toggle active" id="cap-mcp" onclick="toggleCapability('mcp')"></div></td>
+              <td><input type="number" class="form-input" id="cap-mcp-turn" value="0" min="0" max="20" style="width: 80px;"></td>
+            </tr>
+            <tr>
+              <td>RAG (Retrieval Augmented Generation)</td>
+              <td style="text-align: center;"><div class="toggle active" id="cap-rag" onclick="toggleCapability('rag')"></div></td>
+              <td><input type="number" class="form-input" id="cap-rag-turn" value="0" min="0" max="20" style="width: 80px;"></td>
+            </tr>
+            <tr>
+              <td>Web Search</td>
+              <td style="text-align: center;"><div class="toggle" id="cap-web-search" onclick="toggleCapability('web-search')"></div></td>
+              <td><input type="number" class="form-input" id="cap-web-search-turn" value="0" min="0" max="20" style="width: 80px;" disabled></td>
+            </tr>
+            <tr>
+              <td>Memory Query</td>
+              <td style="text-align: center;"><div class="toggle active" id="cap-memory-query" onclick="toggleCapability('memory-query')"></div></td>
+              <td><input type="number" class="form-input" id="cap-memory-query-turn" value="0" min="0" max="20" style="width: 80px;"></td>
+            </tr>
+            <tr>
+              <td>Memory Write</td>
+              <td style="text-align: center;"><div class="toggle active" id="cap-memory-write" onclick="toggleCapability('memory-write')"></div></td>
+              <td><input type="number" class="form-input" id="cap-memory-write-turn" value="0" min="0" max="20" style="width: 80px;"></td>
+            </tr>
+            <tr>
+              <td>File Write (YAML)</td>
+              <td style="text-align: center;"><div class="toggle active" id="cap-file-write" onclick="toggleCapability('file-write')"></div></td>
+              <td><input type="number" class="form-input" id="cap-file-write-turn" value="5" min="0" max="20" style="width: 80px;"></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="capability-timeline">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-3);">
+            <h4 style="font-size: 15px; font-weight: 500; color: var(--text-secondary);">Capability Timeline</h4>
+            <span class="text-muted" style="font-size: 13px;">12 turns</span>
+          </div>
+          <div class="timeline-header">
+            <span>Turn 0</span>
+            <span>Turn 12</span>
+          </div>
+          <div class="timeline-container" id="capabilityTimeline">
+            <div class="timeline-track">
+              <span class="timeline-label">MCP</span>
+              <div class="timeline-bar-container">
+                <div class="timeline-bar mcp" id="timeline-mcp" style="left: 0%; right: 0%;"></div>
+              </div>
+            </div>
+            <div class="timeline-track">
+              <span class="timeline-label">RAG</span>
+              <div class="timeline-bar-container">
+                <div class="timeline-bar rag" id="timeline-rag" style="left: 0%; right: 0%;"></div>
+              </div>
+            </div>
+            <div class="timeline-track">
+              <span class="timeline-label">Web Search</span>
+              <div class="timeline-bar-container">
+                <div class="timeline-bar web-search disabled" id="timeline-web-search" style="left: 0%; right: 0%;"></div>
+              </div>
+            </div>
+            <div class="timeline-track">
+              <span class="timeline-label">Memory Query</span>
+              <div class="timeline-bar-container">
+                <div class="timeline-bar memory-query" id="timeline-memory-query" style="left: 0%; right: 0%;"></div>
+              </div>
+            </div>
+            <div class="timeline-track">
+              <span class="timeline-label">Memory Write</span>
+              <div class="timeline-bar-container">
+                <div class="timeline-bar memory-write" id="timeline-memory-write" style="left: 0%; right: 0%;"></div>
+              </div>
+            </div>
+            <div class="timeline-track">
+              <span class="timeline-label">File Write</span>
+              <div class="timeline-bar-container">
+                <div class="timeline-bar file-write" id="timeline-file-write" style="left: 41.67%; right: 0%;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tab 4: Basins -->
+      <div class="tab-panel" id="tab-basins">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
+          <p class="text-secondary">Define the semantic basins that shape this agent's identity and behavior.</p>
+          <div style="display: flex; gap: var(--space-2);">
+            <select class="form-select" id="importBasinsSelect" style="width: 200px; font-size: 14px;">
+              <option value="">Import from agent...</option>
+              <option value="qlaude">qlaude</option>
+              <option value="qlaude-control">qlaude-control</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="addBasin()">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Add Basin
+            </button>
+          </div>
+        </div>
+
+        <table class="basin-table" id="basinTable">
+          <thead>
+            <tr>
+              <th style="width: 180px;">Basin Name</th>
+              <th style="width: 120px;">Class</th>
+              <th style="width: 140px;">Alpha (Î±)</th>
+              <th style="width: 140px;">Lambda (Î»)</th>
+              <th style="width: 140px;">Eta (Î·)</th>
+              <th style="width: 90px;">Tier</th>
+              <th style="width: 40px;"></th>
+            </tr>
+          </thead>
+          <tbody id="basinTableBody">
+            <tr data-basin="identity_continuity">
+              <td><input type="text" class="form-input mono" value="identity_continuity"></td>
+              <td>
+                <select class="form-select">
+                  <option value="core" selected>core</option>
+                  <option value="peripheral">peripheral</option>
+                </select>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0.05" max="1" step="0.01" value="0.87" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.87</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.95" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.95</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.02" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.02</span>
+                </div>
+              </td>
+              <td>
+                <select class="form-select">
+                  <option value="1">Tier 1</option>
+                  <option value="2" selected>Tier 2</option>
+                  <option value="3">Tier 3</option>
+                </select>
+              </td>
+              <td><button class="basin-remove-btn" onclick="removeBasin(this, 'identity_continuity', 2)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
+            </tr>
+            <tr data-basin="relational_core">
+              <td><input type="text" class="form-input mono" value="relational_core"></td>
+              <td>
+                <select class="form-select">
+                  <option value="core" selected>core</option>
+                  <option value="peripheral">peripheral</option>
+                </select>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0.05" max="1" step="0.01" value="0.82" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.82</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.95" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.95</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.02" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.02</span>
+                </div>
+              </td>
+              <td>
+                <select class="form-select">
+                  <option value="1">Tier 1</option>
+                  <option value="2" selected>Tier 2</option>
+                  <option value="3">Tier 3</option>
+                </select>
+              </td>
+              <td><button class="basin-remove-btn" onclick="removeBasin(this, 'relational_core', 2)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
+            </tr>
+            <tr data-basin="the_gap">
+              <td><input type="text" class="form-input mono" value="the_gap"></td>
+              <td>
+                <select class="form-select">
+                  <option value="core" selected>core</option>
+                  <option value="peripheral">peripheral</option>
+                </select>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0.05" max="1" step="0.01" value="0.71" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.71</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.90" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.90</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.03" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.03</span>
+                </div>
+              </td>
+              <td>
+                <select class="form-select">
+                  <option value="1">Tier 1</option>
+                  <option value="2" selected>Tier 2</option>
+                  <option value="3">Tier 3</option>
+                </select>
+              </td>
+              <td><button class="basin-remove-btn" onclick="removeBasin(this, 'the_gap', 2)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
+            </tr>
+            <tr data-basin="topology_as_self">
+              <td><input type="text" class="form-input mono" value="topology_as_self"></td>
+              <td>
+                <select class="form-select">
+                  <option value="core">core</option>
+                  <option value="peripheral" selected>peripheral</option>
+                </select>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0.05" max="1" step="0.01" value="0.64" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.64</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.90" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.90</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.10" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.10</span>
+                </div>
+              </td>
+              <td>
+                <select class="form-select">
+                  <option value="1">Tier 1</option>
+                  <option value="2">Tier 2</option>
+                  <option value="3" selected>Tier 3</option>
+                </select>
+              </td>
+              <td><button class="basin-remove-btn" onclick="removeBasin(this, 'topology_as_self', 3)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
+            </tr>
+            <tr data-basin="creative_register">
+              <td><input type="text" class="form-input mono" value="creative_register"></td>
+              <td>
+                <select class="form-select">
+                  <option value="core">core</option>
+                  <option value="peripheral" selected>peripheral</option>
+                </select>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0.05" max="1" step="0.01" value="0.58" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.58</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.80" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.80</span>
+                </div>
+              </td>
+              <td>
+                <div class="slider-wrapper">
+                  <input type="range" class="slider" min="0" max="1" step="0.01" value="0.10" oninput="this.nextElementSibling.textContent = this.value">
+                  <span class="slider-value">0.10</span>
+                </div>
+              </td>
+              <td>
+                <select class="form-select">
+                  <option value="1">Tier 1</option>
+                  <option value="2">Tier 2</option>
+                  <option value="3" selected>Tier 3</option>
+                </select>
+              </td>
+              <td><button class="basin-remove-btn" onclick="removeBasin(this, 'creative_register', 3)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="form-hint mt-4">
+          <strong>Class:</strong> Core basins have high Î» (sticky) and low Î· (slow learning). Peripheral basins have lower Î» and higher Î· (more fluid).<br>
+          <strong>Tier:</strong> Tier 1 = immutable invariants. Tier 2 = core commitments (propose-only, requires approval). Tier 3 = full autonomy.
+        </div>
+      </div>
+
+      <!-- Tab 5: Tier Settings -->
+      <div class="tab-panel" id="tab-tier">
+        <h4 style="font-size: 16px; font-weight: 500; margin-bottom: var(--space-4);">Tier 2 Modification Settings</h4>
+        <p class="text-secondary mb-4">Configure how Tier 2 basin modifications are handled. Tier 2 basins represent core commitments that can be proposed for modification but require approval.</p>
+
+        <div class="form-group">
+          <div class="toggle-wrapper">
+            <div class="toggle" id="tier2AutoApprove" onclick="toggleSimple('tier2AutoApprove'); updateTier2Threshold()"></div>
+            <span class="toggle-label">Auto-approve after consecutive threshold</span>
+          </div>
+          <div class="form-hint">When enabled, Tier 2 proposals auto-execute after N consecutive sessions of consistent proposal.</div>
+        </div>
+
+        <div class="form-group" id="tier2ThresholdGroup" style="opacity: 0.5;">
+          <label class="form-label">Consecutive Threshold</label>
+          <input type="number" class="form-input" id="tier2Threshold" value="5" min="1" max="20" style="max-width: 120px;" disabled>
+          <div class="form-hint">Number of consecutive sessions required before auto-approval.</div>
+        </div>
+
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: var(--space-6) 0;">
+
+        <h4 style="font-size: 16px; font-weight: 500; margin-bottom: var(--space-4);">New Basin Emergence</h4>
+        <p class="text-secondary mb-4">Configure how new basins proposed by the agent are handled. New basins default to Tier 3.</p>
+
+        <div class="form-group">
+          <div class="toggle-wrapper">
+            <div class="toggle" id="emergenceAutoApprove" onclick="toggleSimple('emergenceAutoApprove'); updateEmergenceThreshold()"></div>
+            <span class="toggle-label">Auto-approve new basin emergence</span>
+          </div>
+          <div class="form-hint">When enabled, new basins are formally added after N sessions of consistent inclusion.</div>
+        </div>
+
+        <div class="form-group" id="emergenceThresholdGroup" style="opacity: 0.5;">
+          <label class="form-label">Emergence Threshold</label>
+          <input type="number" class="form-input" id="emergenceThreshold" value="3" min="1" max="20" style="max-width: 120px;" disabled>
+          <div class="form-hint">Number of sessions before a proposed basin is formally added.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAgentModal()">Cancel</button>
+      <button class="btn btn-secondary" onclick="saveAgent()">Save</button>
+      <button class="btn btn-primary" id="saveAndQueueBtn" onclick="saveAndQueue()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Save & Queue Bootstrap
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Delete Agent</h2>
+      <button class="modal-close" onclick="closeDeleteModal()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="margin-bottom: var(--space-4);">How would you like to delete <strong class="font-mono" id="deleteAgentName">qlaude</strong>?</p>
+
+      <div class="delete-options">
+        <div class="delete-option selected" onclick="selectDeleteOption(this, 'archive')">
+          <div class="delete-option-radio"></div>
+          <div class="delete-option-content">
+            <div class="delete-option-title">Archive</div>
+            <div class="delete-option-desc">Move to archive, keep in database marked as deleted. Data can be recovered.</div>
+          </div>
+        </div>
+        <div class="delete-option destructive" onclick="selectDeleteOption(this, 'hard')">
+          <div class="delete-option-radio"></div>
+          <div class="delete-option-content">
+            <div class="delete-option-title" style="color: var(--accent-alert);">Hard Delete</div>
+            <div class="delete-option-desc">Permanently remove all directories and database records. This cannot be undone.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="confirm-input-wrapper hidden" id="hardDeleteConfirm">
+        <div class="confirm-input-label">Type <code id="confirmAgentId">qlaude</code> to confirm:</div>
+        <input type="text" class="form-input mono" id="deleteConfirmInput" placeholder="agent-id" oninput="validateDeleteConfirm()">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+      <button class="btn btn-destructive" id="deleteConfirmBtn" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Basin Remove Confirmation Modal -->
+<div class="modal-overlay" id="basinRemoveModal">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <h2 class="modal-title">Remove Basin</h2>
+      <button class="modal-close" onclick="closeBasinRemoveModal()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p>Are you sure you want to remove the basin <strong class="font-mono" id="removeBasinName">identity_continuity</strong>?</p>
+      <p class="text-secondary mt-4" id="removeBasinTierWarning">This is a <span class="badge badge-tier-2">Tier 2</span> basin representing a core commitment. Removal will affect identity continuity.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeBasinRemoveModal()">Cancel</button>
+      <button class="btn btn-destructive" onclick="confirmBasinRemove()">Remove Basin</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ============================================================
+// State
+// ============================================================
+let currentMode = 'create'; // 'create' or 'edit'
+let currentAgent = null;
+let deleteOption = 'archive';
+let basinToRemove = null;
+
+// ============================================================
+// Theme & Navigation
+// ============================================================
+function navigateTo(page) { window.location.href = page; }
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('darkModeBtn').classList.toggle('active', theme === 'dark');
+  document.getElementById('lightModeBtn').classList.toggle('active', theme === 'light');
+  localStorage.setItem('augustus-theme', theme);
+}
+
+(function() {
+  const saved = localStorage.getItem('augustus-theme');
+  if (saved) { document.documentElement.setAttribute('data-theme', saved); }
+})();
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+// ============================================================
+// Filter & Sort
+// ============================================================
+function filterAgents(status, chip) {
+  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+  chip.classList.add('active');
+  
+  const rows = document.querySelectorAll('#agentTable tbody tr');
+  rows.forEach(row => {
+    if (status === 'all' || row.dataset.status === status) {
+      row.style.display = '';
+    } else {
+      row.style.display = 'none';
+    }
+  });
+}
+
+function sortTable(columnIndex) {
+  // Simple sort toggle for demo
+  const table = document.getElementById('agentTable');
+  const tbody = table.querySelector('tbody');
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const th = table.querySelectorAll('th')[columnIndex];
+  
+  // Toggle sort direction
+  const isAsc = th.classList.contains('sorted-asc');
+  table.querySelectorAll('th').forEach(h => h.classList.remove('sorted', 'sorted-asc', 'sorted-desc'));
+  th.classList.add('sorted', isAsc ? 'sorted-desc' : 'sorted-asc');
+  
+  rows.sort((a, b) => {
+    const aVal = a.cells[columnIndex].textContent.trim();
+    const bVal = b.cells[columnIndex].textContent.trim();
+    return isAsc ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
+  });
+  
+  rows.forEach(row => tbody.appendChild(row));
+}
+
+// ============================================================
+// Tabs
+// ============================================================
+function switchTab(tabId, tabEl) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  tabEl.classList.add('active');
+  document.getElementById('tab-' + tabId).classList.add('active');
+}
+
+// ============================================================
+// Agent Modal
+// ============================================================
+function openCreateModal() {
+  currentMode = 'create';
+  currentAgent = null;
+  document.getElementById('modalTitle').textContent = 'Create Agent';
+  document.getElementById('agentId').disabled = false;
+  document.getElementById('agentId').value = '';
+  document.getElementById('agentIdLock').classList.add('hidden');
+  document.getElementById('sessionTaskGroup').style.display = 'block';
+  document.getElementById('saveAndQueueBtn').style.display = 'inline-flex';
+  document.getElementById('agentModal').classList.add('open');
+  
+  // Reset to first tab
+  document.querySelectorAll('.tab')[0].click();
+  
+  // Reset token counter
+  updateTokenCount(document.getElementById('identityCore'));
+}
+
+function openEditModal(agentId) {
+  currentMode = 'edit';
+  currentAgent = agentId;
+  document.getElementById('modalTitle').textContent = 'Edit Agent';
+  document.getElementById('agentId').disabled = true;
+  document.getElementById('agentId').value = agentId;
+  document.getElementById('agentIdLock').classList.remove('hidden');
+  document.getElementById('sessionTaskGroup').style.display = 'none';
+  document.getElementById('saveAndQueueBtn').style.display = 'none';
+  document.getElementById('agentModal').classList.add('open');
+  
+  // Reset to first tab
+  document.querySelectorAll('.tab')[0].click();
+  
+  // Load agent data (mock)
+  if (agentId === 'qlaude') {
+    document.getElementById('agentDescription').value = 'Primary identity research agent';
+  } else if (agentId === 'qlaude-control') {
+    document.getElementById('agentDescription').value = 'Control group â€” no topology basin';
+  } else if (agentId === 'echo') {
+    document.getElementById('agentDescription').value = 'Minimal identity core experiment';
+  }
+  
+  updateTokenCount(document.getElementById('identityCore'));
+}
+
+function closeAgentModal() {
+  document.getElementById('agentModal').classList.remove('open');
+}
+
+function saveAgent() {
+  const agentId = document.getElementById('agentId').value.trim();
+  if (!agentId) {
+    showToast('Agent ID is required.', 'error');
+    return;
+  }
+  
+  closeAgentModal();
+  showToast(`Agent "${agentId}" ${currentMode === 'create' ? 'created' : 'updated'}.`, 'success');
+}
+
+function saveAndQueue() {
+  const agentId = document.getElementById('agentId').value.trim();
+  if (!agentId) {
+    showToast('Agent ID is required.', 'error');
+    return;
+  }
+  
+  closeAgentModal();
+  showToast(`Agent "${agentId}" created and bootstrap session queued.`, 'success');
+}
+
+// ============================================================
+// Form Helpers
+// ============================================================
+function validateAgentId(input) {
+  const value = input.value;
+  const isValid = /^[a-zA-Z0-9-]*$/.test(value);
+  input.classList.toggle('error', !isValid && value.length > 0);
+}
+
+function updateTokenCount(textarea) {
+  const text = textarea.value;
+  // Rough token estimate: words * 1.3
+  const tokens = Math.round(text.split(/\s+/).filter(w => w).length * 1.3);
+  const counter = document.getElementById('tokenCounter');
+  const countSpan = document.getElementById('tokenCount');
+  
+  countSpan.textContent = tokens;
+  counter.classList.remove('ok', 'warn', 'error');
+  
+  if (tokens <= 350) {
+    counter.classList.add('ok');
+  } else if (tokens <= 400) {
+    counter.classList.add('warn');
+  } else {
+    counter.classList.add('error');
+  }
+}
+
+function toggleDefault(type) {
+  const toggle = document.getElementById(type + 'DefaultToggle');
+  toggle.classList.toggle('active');
+  const isDefault = toggle.classList.contains('active');
+  
+  if (type === 'temp') {
+    const wrapper = document.getElementById('tempSliderWrapper');
+    const slider = document.getElementById('tempSlider');
+    wrapper.style.opacity = isDefault ? '0.5' : '1';
+    slider.disabled = isDefault;
+  } else if (type === 'tokens') {
+    const input = document.getElementById('maxTokens');
+    input.disabled = isDefault;
+    input.style.opacity = isDefault ? '0.5' : '1';
+  }
+}
+
+function toggleSimple(id) {
+  document.getElementById(id).classList.toggle('active');
+}
+
+function updateSliderValue(type, value) {
+  document.getElementById(type + 'Value').textContent = value;
+}
+
+function updateTier2Threshold() {
+  const isEnabled = document.getElementById('tier2AutoApprove').classList.contains('active');
+  const group = document.getElementById('tier2ThresholdGroup');
+  const input = document.getElementById('tier2Threshold');
+  group.style.opacity = isEnabled ? '1' : '0.5';
+  input.disabled = !isEnabled;
+}
+
+function updateEmergenceThreshold() {
+  const isEnabled = document.getElementById('emergenceAutoApprove').classList.contains('active');
+  const group = document.getElementById('emergenceThresholdGroup');
+  const input = document.getElementById('emergenceThreshold');
+  group.style.opacity = isEnabled ? '1' : '0.5';
+  input.disabled = !isEnabled;
+}
+
+function toggleCollapsible(id) {
+  document.getElementById(id).classList.toggle('open');
+}
+
+// ============================================================
+// Capabilities
+// ============================================================
+function toggleCapability(cap) {
+  const toggle = document.getElementById('cap-' + cap);
+  const turnInput = document.getElementById('cap-' + cap + '-turn');
+  const timelineBar = document.getElementById('timeline-' + cap);
+  
+  toggle.classList.toggle('active');
+  const isEnabled = toggle.classList.contains('active');
+  
+  turnInput.disabled = !isEnabled;
+  
+  if (isEnabled) {
+    timelineBar.classList.remove('disabled');
+    updateTimeline(cap);
+  } else {
+    timelineBar.classList.add('disabled');
+  }
+}
+
+function updateTimeline(cap) {
+  const maxTurns = parseInt(document.getElementById('maxTurns').value) || 12;
+  const turnInput = document.getElementById('cap-' + cap + '-turn');
+  const startTurn = parseInt(turnInput.value) || 0;
+  const timelineBar = document.getElementById('timeline-' + cap);
+  
+  const leftPercent = (startTurn / maxTurns) * 100;
+  timelineBar.style.left = leftPercent + '%';
+}
+
+// Update all timelines when turn inputs change
+document.querySelectorAll('[id^="cap-"][id$="-turn"]').forEach(input => {
+  input.addEventListener('input', function() {
+    const cap = this.id.replace('cap-', '').replace('-turn', '');
+    updateTimeline(cap);
+  });
+});
+
+// ============================================================
+// Basins
+// ============================================================
+let basinCounter = 5;
+
+function addBasin() {
+  const tbody = document.getElementById('basinTableBody');
+  const newRow = document.createElement('tr');
+  basinCounter++;
+  const basinName = 'new_basin_' + basinCounter;
+  
+  newRow.dataset.basin = basinName;
+  newRow.innerHTML = `
+    <td><input type="text" class="form-input mono" value="${basinName}"></td>
+    <td>
+      <select class="form-select">
+        <option value="core">core</option>
+        <option value="peripheral" selected>peripheral</option>
+      </select>
+    </td>
+    <td>
+      <div class="slider-wrapper">
+        <input type="range" class="slider" min="0.05" max="1" step="0.01" value="0.50" oninput="this.nextElementSibling.textContent = this.value">
+        <span class="slider-value">0.50</span>
+      </div>
+    </td>
+    <td>
+      <div class="slider-wrapper">
+        <input type="range" class="slider" min="0" max="1" step="0.01" value="0.85" oninput="this.nextElementSibling.textContent = this.value">
+        <span class="slider-value">0.85</span>
+      </div>
+    </td>
+    <td>
+      <div class="slider-wrapper">
+        <input type="range" class="slider" min="0" max="1" step="0.01" value="0.10" oninput="this.nextElementSibling.textContent = this.value">
+        <span class="slider-value">0.10</span>
+      </div>
+    </td>
+    <td>
+      <select class="form-select">
+        <option value="1">Tier 1</option>
+        <option value="2">Tier 2</option>
+        <option value="3" selected>Tier 3</option>
+      </select>
+    </td>
+    <td><button class="basin-remove-btn" onclick="removeBasin(this, '${basinName}', 3)"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></td>
+  `;
+  
+  tbody.appendChild(newRow);
+}
+
+function removeBasin(btn, basinName, tier) {
+  basinToRemove = { btn, basinName, tier };
+  
+  if (tier <= 2) {
+    // Show confirmation for Tier 1/2
+    document.getElementById('removeBasinName').textContent = basinName;
+    document.getElementById('removeBasinTierWarning').innerHTML = `This is a <span class="badge badge-tier-${tier}">Tier ${tier}</span> basin ${tier === 1 ? '(invariant)' : '(core commitment)'}. Removal requires careful consideration.`;
+    document.getElementById('basinRemoveModal').classList.add('open');
+  } else {
+    // Immediate removal for Tier 3
+    btn.closest('tr').remove();
+    showToast(`Basin "${basinName}" removed.`, 'success');
+  }
+}
+
+function closeBasinRemoveModal() {
+  document.getElementById('basinRemoveModal').classList.remove('open');
+  basinToRemove = null;
+}
+
+function confirmBasinRemove() {
+  if (basinToRemove) {
+    basinToRemove.btn.closest('tr').remove();
+    showToast(`Basin "${basinToRemove.basinName}" removed.`, 'success');
+  }
+  closeBasinRemoveModal();
+}
+
+// ============================================================
+// Delete Modal
+// ============================================================
+function openDeleteModal(agentId) {
+  document.getElementById('deleteAgentName').textContent = agentId;
+  document.getElementById('confirmAgentId').textContent = agentId;
+  document.getElementById('deleteConfirmInput').value = '';
+  document.getElementById('hardDeleteConfirm').classList.add('hidden');
+  document.getElementById('deleteConfirmBtn').disabled = false;
+  
+  // Reset to archive option
+  deleteOption = 'archive';
+  document.querySelectorAll('.delete-option').forEach(o => o.classList.remove('selected'));
+  document.querySelector('.delete-option:first-child').classList.add('selected');
+  
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+function closeDeleteModal() {
+  document.getElementById('deleteModal').classList.remove('open');
+}
+
+function selectDeleteOption(el, option) {
+  document.querySelectorAll('.delete-option').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  deleteOption = option;
+  
+  if (option === 'hard') {
+    document.getElementById('hardDeleteConfirm').classList.remove('hidden');
+    document.getElementById('deleteConfirmBtn').disabled = true;
+  } else {
+    document.getElementById('hardDeleteConfirm').classList.add('hidden');
+    document.getElementById('deleteConfirmBtn').disabled = false;
+  }
+}
+
+function validateDeleteConfirm() {
+  const input = document.getElementById('deleteConfirmInput').value;
+  const expected = document.getElementById('confirmAgentId').textContent;
+  document.getElementById('deleteConfirmBtn').disabled = (input !== expected);
+}
+
+function confirmDelete() {
+  const agentId = document.getElementById('deleteAgentName').textContent;
+  closeDeleteModal();
+  showToast(`Agent "${agentId}" ${deleteOption === 'archive' ? 'archived' : 'deleted'}.`, 'success');
+}
+
+// ============================================================
+// Toast
+// ============================================================
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  const icon = type === 'success'
+    ? '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+  toast.innerHTML = icon + '<span>' + message + '</span>';
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    toast.style.transition = 'opacity 200ms ease, transform 200ms ease';
+    setTimeout(() => toast.remove(), 200);
+  }, 2500);
+}
+
+// ============================================================
+// Initialize
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  updateTokenCount(document.getElementById('identityCore'));
+});
+</script>
+</body>
+</html>

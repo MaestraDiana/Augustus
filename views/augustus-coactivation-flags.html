@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augustus. â€” Co-Activation Network</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<style>
+/* ============================================================
+   AUGUSTUS DESIGN SYSTEM â€” CSS Custom Properties
+   Session 5: Co-Activation Network & Evaluator Flags
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent-primary: #3B9B8E;
+  --accent-primary-dim: rgba(59, 155, 142, 0.15);
+  --accent-primary-hover: #47B5A6;
+  --accent-attention: #D4915D;
+  --accent-attention-dim: rgba(212, 145, 93, 0.15);
+  --accent-alert: #C75D5D;
+  --accent-alert-dim: rgba(199, 93, 93, 0.15);
+  --accent-identity: #8B7EC8;
+  --accent-identity-dim: rgba(139, 126, 200, 0.15);
+  --accent-success: #5A9E6F;
+  --accent-success-dim: rgba(90, 158, 111, 0.15);
+
+  /* Basin colors */
+  --basin-1: #3B9B8E;
+  --basin-2: #2E7D9B;
+  --basin-3: #5B8C6F;
+  --basin-4: #D4915D;
+  --basin-5: #C4786E;
+
+  /* Co-activation edge colors */
+  --edge-reinforcing: #5A9E6F;
+  --edge-tensional: #C75D5D;
+  --edge-serving: #2E7D9B;
+  --edge-competing: #D4915D;
+  --edge-uncharacterized: #555F69;
+
+  --agent-1: #3B9B8E;
+  --agent-2: #2E7D9B;
+  --agent-3: #8B7EC8;
+
+  --font-voice: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+
+  --space-1: 5px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-5: 24px;
+  --space-6: 28px;
+  --space-8: 36px;
+  --space-10: 44px;
+  --space-12: 56px;
+
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --transition-color: 150ms ease;
+  --transition-transform: 150ms ease;
+  --transition-opacity: 200ms ease;
+
+  --sidebar-width: 244px;
+  --sidebar-collapsed: 60px;
+  --topbar-height: 58px;
+  --subnav-height: 46px;
+  --panel-width: 340px;
+}
+
+[data-theme="dark"] {
+  --bg-base: #0C1014;
+  --bg-surface: #151C23;
+  --bg-raised: #1E272F;
+  --bg-input: #0C1014;
+  --text-primary: #E4E8EC;
+  --text-secondary: #8C959D;
+  --text-muted: #555F69;
+  --border-color: #2A353F;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #151C23;
+  --scrollbar-thumb: #2A353F;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+[data-theme="light"] {
+  --bg-base: #F8F9FA;
+  --bg-surface: #FFFFFF;
+  --bg-raised: #F0F2F5;
+  --bg-input: #FFFFFF;
+  --text-primary: #1A2028;
+  --text-secondary: #5C656E;
+  --text-muted: #8C959D;
+  --border-color: #DFE3E8;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #F0F2F5;
+  --scrollbar-thumb: #DFE3E8;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.12);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+
+a { color: var(--accent-primary); text-decoration: none; }
+a:hover { color: var(--accent-primary-hover); }
+
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100vh;
+  background: var(--bg-surface); border-right: 1px solid var(--border-color);
+  display: flex; flex-direction: column;
+  transition: width var(--transition-transform), min-width var(--transition-transform), background var(--transition-color);
+  overflow: hidden; z-index: 100;
+}
+.sidebar.collapsed { width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed); }
+.sidebar.collapsed .wordmark-text, .sidebar.collapsed .nav-item span, .sidebar.collapsed .collapse-btn span { display: none; }
+.sidebar.collapsed .sidebar-header { justify-content: center; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: var(--space-3); }
+.sidebar.collapsed .collapse-btn { justify-content: center; }
+.sidebar.collapsed .collapse-btn svg { transform: rotate(180deg); }
+
+.sidebar-header {
+  height: var(--topbar-height); display: flex; align-items: center;
+  padding: 0 var(--space-4); border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+
+.wordmark {
+  font-family: var(--font-voice); font-weight: 700; font-size: 24px;
+  letter-spacing: -0.5px; color: var(--text-primary); white-space: nowrap;
+}
+.wordmark .period { color: var(--accent-identity); }
+
+.sidebar-nav { flex: 1; padding: var(--space-4) var(--space-3); overflow-y: auto; }
+
+.nav-section-label {
+  font-family: var(--font-voice); font-weight: 600; font-size: 13px;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-muted); padding: var(--space-2) var(--space-3); margin-bottom: var(--space-1);
+}
+
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-3); margin-bottom: 2px;
+  border-radius: var(--radius-md); cursor: pointer;
+  color: var(--text-secondary);
+  transition: background var(--transition-color), color var(--transition-color);
+}
+.nav-item:hover { background: var(--bg-raised); color: var(--text-primary); }
+.nav-item.active { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.nav-item svg { width: 20px; height: 20px; flex-shrink: 0; stroke-width: 1.75; }
+.nav-item span { font-family: var(--font-voice); font-weight: 500; font-size: 16px; white-space: nowrap; }
+
+.sidebar-footer { padding: var(--space-3); border-top: 1px solid var(--border-color); }
+
+.collapse-btn {
+  display: flex; align-items: center; gap: var(--space-2); width: 100%;
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  background: transparent; border: none; color: var(--text-muted);
+  cursor: pointer; font-family: var(--font-body); font-size: 14px;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+.collapse-btn:hover { background: var(--bg-raised); color: var(--text-secondary); }
+.collapse-btn svg { width: 18px; height: 18px; transition: transform var(--transition-transform); }
+
+/* ---- Main Content ---- */
+.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.topbar {
+  height: var(--topbar-height); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--space-6); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface); flex-shrink: 0;
+  transition: background var(--transition-color);
+}
+.topbar-left { display: flex; align-items: center; gap: var(--space-4); }
+.topbar-right { display: flex; align-items: center; gap: var(--space-5); }
+
+.breadcrumb { display: flex; align-items: center; gap: var(--space-2); }
+.breadcrumb-item { font-size: 15px; color: var(--text-secondary); }
+.breadcrumb-item.current { color: var(--text-primary); font-weight: 500; }
+.breadcrumb-sep { color: var(--text-muted); font-size: 14px; }
+.breadcrumb-link { color: var(--text-secondary); }
+.breadcrumb-link:hover { color: var(--accent-primary); }
+
+.agent-header { display: flex; align-items: center; gap: var(--space-2); }
+.agent-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.agent-id-display { font-family: var(--font-data); font-size: 15px; font-weight: 500; }
+
+.status-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  font-family: var(--font-data); font-size: 13px; font-weight: 400;
+  border: 1px solid var(--border-color); background: var(--bg-surface); color: var(--text-secondary);
+  transition: background var(--transition-color), border-color var(--transition-color);
+}
+.status-chip svg { width: 14px; height: 14px; }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-dot.running { background: var(--accent-success); box-shadow: 0 0 6px rgba(90, 158, 111, 0.5); }
+.status-dot.paused { background: var(--accent-attention); }
+.status-dot.error { background: var(--accent-alert); }
+.status-dot.idle { background: var(--text-muted); }
+
+.budget-chip {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  border: 1px solid var(--border-color); background: var(--bg-surface);
+  font-family: var(--font-data); font-size: 13px; color: var(--text-secondary);
+  transition: background var(--transition-color);
+}
+.budget-bar { width: 72px; height: 5px; background: var(--bg-raised); border-radius: 3px; overflow: hidden; }
+.budget-fill { height: 100%; border-radius: 3px; transition: width 300ms ease, background 300ms ease; }
+.budget-fill.green { background: var(--accent-success); }
+.budget-fill.amber { background: var(--accent-attention); }
+.budget-fill.red { background: var(--accent-alert); }
+
+.notification-btn {
+  position: relative; background: none; border: none; color: var(--text-secondary);
+  cursor: pointer; padding: var(--space-1); display: flex; align-items: center;
+  transition: color var(--transition-color);
+}
+.notification-btn:hover { color: var(--text-primary); }
+.notification-btn svg { width: 20px; height: 20px; }
+.notification-badge {
+  position: absolute; top: -2px; right: -4px; width: 18px; height: 18px;
+  border-radius: 50%; background: var(--accent-alert); color: #fff;
+  font-family: var(--font-data); font-size: 11px; font-weight: 500;
+  display: flex; align-items: center; justify-content: center; border: 2px solid var(--bg-surface);
+}
+
+.mode-switcher { display: flex; align-items: center; background: var(--bg-raised); border-radius: 100px; padding: 2px; gap: 2px; }
+.mode-btn {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 50%; border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; transition: background var(--transition-color), color var(--transition-color);
+}
+.mode-btn:hover { color: var(--text-secondary); }
+.mode-btn.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,0.15); }
+.mode-btn svg { width: 16px; height: 16px; }
+
+/* ---- Sub Navigation (Agent Context) ---- */
+.subnav {
+  height: var(--subnav-height); display: flex; align-items: center; gap: var(--space-1);
+  padding: 0 var(--space-6); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface); flex-shrink: 0;
+}
+.subnav-item {
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  font-family: var(--font-voice); font-weight: 500; font-size: 15px;
+  color: var(--text-secondary); cursor: pointer;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+.subnav-item:hover { background: var(--bg-raised); color: var(--text-primary); }
+.subnav-item.active { background: var(--accent-primary-dim); color: var(--accent-primary); }
+
+.page-content { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+
+/* ---- Badges ---- */
+.badge {
+  display: inline-flex; align-items: center; gap: var(--space-1);
+  padding: 3px var(--space-2); border-radius: var(--radius-sm);
+  font-family: var(--font-body); font-size: 13px; font-weight: 500; line-height: 1.3;
+}
+.badge-active { background: var(--accent-success-dim); color: var(--accent-success); }
+.badge-paused { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.badge-error { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.badge-idle { background: var(--bg-raised); color: var(--text-muted); }
+.badge-identity { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.badge-core { background: var(--accent-primary-dim); color: var(--accent-primary); }
+.badge-peripheral { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.badge-tier-1 { background: var(--accent-alert-dim); color: var(--accent-alert); font-weight: 600; }
+.badge-tier-2 { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.badge-tier-3 { background: var(--bg-raised); color: var(--text-secondary); }
+.badge-reviewed { background: var(--accent-success-dim); color: var(--accent-success); }
+.badge-unreviewed { background: var(--accent-attention-dim); color: var(--accent-attention); }
+
+/* ---- Buttons ---- */
+.btn {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-4); border-radius: var(--radius-md);
+  font-family: var(--font-body); font-weight: 500; font-size: 15px; line-height: 1.3;
+  border: 1px solid transparent; cursor: pointer;
+  transition: background var(--transition-color), border-color var(--transition-color), color var(--transition-color);
+}
+.btn svg { width: 16px; height: 16px; }
+.btn-primary { background: var(--accent-primary); color: #fff; border-color: var(--accent-primary); }
+.btn-primary:hover { background: var(--accent-primary-hover); border-color: var(--accent-primary-hover); }
+.btn-secondary { background: transparent; color: var(--text-primary); border-color: var(--border-color); }
+.btn-secondary:hover { background: var(--bg-raised); }
+.btn-ghost { background: transparent; color: var(--text-secondary); border-color: transparent; }
+.btn-ghost:hover { color: var(--text-primary); background: var(--bg-raised); }
+.btn-sm { padding: var(--space-1) var(--space-3); font-size: 14px; }
+.btn-xs { padding: 3px var(--space-2); font-size: 13px; }
+
+/* ---- Form Elements ---- */
+.form-group { margin-bottom: var(--space-4); }
+.form-label { display: block; font-size: 14px; font-weight: 500; color: var(--text-secondary); margin-bottom: var(--space-2); }
+
+.select-input {
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  background: var(--bg-input); border: 1px solid var(--border-color);
+  color: var(--text-primary); font-family: var(--font-body); font-size: 14px;
+  cursor: pointer; min-width: 140px;
+  transition: border-color var(--transition-color);
+}
+.select-input:focus { outline: none; border-color: var(--border-focus); }
+
+.checkbox-group { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.checkbox-label {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: 14px; color: var(--text-secondary); cursor: pointer;
+  transition: color var(--transition-color);
+}
+.checkbox-label:hover { color: var(--text-primary); }
+.checkbox-label input { display: none; }
+.checkbox-box {
+  width: 16px; height: 16px; border: 1px solid var(--border-color);
+  border-radius: 3px; background: var(--bg-input);
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--transition-color), border-color var(--transition-color);
+}
+.checkbox-label input:checked + .checkbox-box { background: var(--accent-primary); border-color: var(--accent-primary); }
+.checkbox-box svg { width: 10px; height: 10px; color: #fff; opacity: 0; }
+.checkbox-label input:checked + .checkbox-box svg { opacity: 1; }
+
+.range-slider {
+  display: flex; align-items: center; gap: var(--space-3);
+}
+.range-slider input[type="range"] {
+  flex: 1; height: 4px; -webkit-appearance: none; appearance: none;
+  background: var(--bg-raised); border-radius: 2px; cursor: pointer;
+}
+.range-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 14px; height: 14px;
+  background: var(--accent-primary); border-radius: 50%; cursor: pointer;
+}
+.range-slider .range-value {
+  font-family: var(--font-data); font-size: 13px; color: var(--text-secondary);
+  min-width: 24px; text-align: right;
+}
+
+/* ============================================================
+   CO-ACTIVATION NETWORK VIEW
+   ============================================================ */
+
+.network-view {
+  display: flex; flex: 1; overflow: hidden;
+}
+
+.network-main {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+}
+
+.network-controls {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4);
+  padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface);
+}
+
+.control-group {
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.control-group-label {
+  font-size: 13px; font-weight: 500; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+.range-presets { display: flex; gap: var(--space-1); }
+.preset-btn {
+  padding: var(--space-1) var(--space-3); border-radius: var(--radius-sm);
+  background: var(--bg-raised); border: 1px solid var(--border-color);
+  color: var(--text-secondary); font-family: var(--font-data); font-size: 13px;
+  cursor: pointer; transition: all var(--transition-color);
+}
+.preset-btn:hover { background: var(--bg-surface); color: var(--text-primary); }
+.preset-btn.active { background: var(--accent-primary-dim); border-color: var(--accent-primary); color: var(--accent-primary); }
+
+.toggle-group { display: flex; gap: var(--space-4); }
+
+.network-canvas {
+  flex: 1; position: relative; background: var(--bg-base);
+  overflow: hidden;
+}
+.network-canvas svg { width: 100%; height: 100%; }
+
+/* Graph tooltip */
+.graph-tooltip {
+  position: absolute; pointer-events: none; z-index: 100;
+  background: var(--bg-raised); border: 1px solid var(--border-color);
+  border-radius: var(--radius-md); padding: var(--space-3);
+  box-shadow: var(--shadow-dropdown); opacity: 0;
+  transition: opacity var(--transition-opacity);
+  font-size: 14px; max-width: 240px;
+}
+.graph-tooltip.visible { opacity: 1; }
+.tooltip-title { font-weight: 500; color: var(--text-primary); margin-bottom: var(--space-1); }
+.tooltip-row { display: flex; justify-content: space-between; gap: var(--space-3); font-size: 13px; }
+.tooltip-label { color: var(--text-muted); }
+.tooltip-value { font-family: var(--font-data); color: var(--text-primary); }
+
+/* Legend */
+.network-legend {
+  display: flex; flex-wrap: wrap; gap: var(--space-4);
+  padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border-color);
+  background: var(--bg-surface); font-size: 13px;
+}
+.legend-section { display: flex; align-items: center; gap: var(--space-3); }
+.legend-section-label { color: var(--text-muted); font-weight: 500; }
+.legend-items { display: flex; gap: var(--space-3); }
+.legend-item { display: flex; align-items: center; gap: var(--space-2); color: var(--text-secondary); }
+.legend-line { width: 20px; height: 3px; border-radius: 2px; }
+.legend-line.dashed { background: repeating-linear-gradient(90deg, currentColor 0, currentColor 4px, transparent 4px, transparent 8px); height: 2px; }
+.legend-line.dotted { background: repeating-linear-gradient(90deg, currentColor 0, currentColor 2px, transparent 2px, transparent 5px); height: 2px; }
+.legend-node { width: 12px; height: 12px; border-radius: 50%; }
+
+/* Detail Panel */
+.detail-panel {
+  width: var(--panel-width); border-left: 1px solid var(--border-color);
+  background: var(--bg-surface); display: flex; flex-direction: column;
+  overflow: hidden; transform: translateX(100%);
+  transition: transform 200ms ease;
+}
+.detail-panel.open { transform: translateX(0); }
+
+.detail-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-color);
+}
+.detail-panel-title { font-family: var(--font-voice); font-weight: 600; font-size: 16px; }
+.detail-panel-close {
+  background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;
+  transition: color var(--transition-color);
+}
+.detail-panel-close:hover { color: var(--text-primary); }
+.detail-panel-close svg { width: 18px; height: 18px; }
+
+.detail-panel-body { flex: 1; overflow-y: auto; padding: var(--space-5); }
+
+.detail-section { margin-bottom: var(--space-5); }
+.detail-section-title {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--space-3);
+}
+
+.detail-stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-3); }
+.detail-stat { background: var(--bg-raised); padding: var(--space-3); border-radius: var(--radius-md); }
+.detail-stat-label { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+.detail-stat-value { font-family: var(--font-data); font-size: 16px; font-weight: 500; }
+
+.session-list { display: flex; flex-direction: column; gap: var(--space-2); max-height: 200px; overflow-y: auto; }
+.session-link {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-2) var(--space-3); background: var(--bg-raised);
+  border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
+  transition: background var(--transition-color);
+}
+.session-link:hover { background: var(--accent-primary-dim); }
+.session-link-id { font-family: var(--font-data); color: var(--accent-primary); }
+.session-link-date { color: var(--text-muted); }
+
+/* Character badge in detail panel */
+.character-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-md);
+  font-size: 14px; font-weight: 500;
+}
+.character-badge.reinforcing { background: var(--accent-success-dim); color: var(--accent-success); }
+.character-badge.tensional { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.character-badge.serving { background: rgba(46, 125, 155, 0.15); color: #2E7D9B; }
+.character-badge.competing { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.character-badge.uncharacterized { background: var(--bg-raised); color: var(--text-muted); }
+
+/* Co-activation partners list */
+.partner-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.partner-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-2) var(--space-3); background: var(--bg-raised);
+  border-radius: var(--radius-sm); font-size: 14px;
+}
+.partner-name { font-family: var(--font-data); color: var(--text-primary); }
+.partner-count { font-family: var(--font-data); color: var(--text-muted); }
+
+/* ============================================================
+   EVALUATOR FLAGS VIEW
+   ============================================================ */
+
+.flags-view {
+  display: flex; flex-direction: column; flex: 1; overflow: hidden;
+}
+
+.flags-header {
+  padding: var(--space-5) var(--space-6); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface);
+}
+
+.flags-summary { display: flex; gap: var(--space-4); margin-bottom: var(--space-5); flex-wrap: wrap; }
+.summary-card {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); background: var(--bg-raised);
+  border-radius: var(--radius-md); min-width: 160px;
+}
+.summary-card-icon { width: 36px; height: 36px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; }
+.summary-card-icon svg { width: 20px; height: 20px; }
+.summary-card-icon.alert { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.summary-card-icon.attention { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.summary-card-icon.identity { background: var(--accent-identity-dim); color: var(--accent-identity); }
+.summary-card-icon.success { background: var(--accent-success-dim); color: var(--accent-success); }
+.summary-card-content { display: flex; flex-direction: column; }
+.summary-card-value { font-family: var(--font-data); font-size: 20px; font-weight: 500; color: var(--text-primary); }
+.summary-card-label { font-size: 13px; color: var(--text-muted); }
+
+/* Sparkline in summary */
+.trend-sparkline { display: flex; align-items: flex-end; gap: 2px; height: 28px; }
+.trend-bar { width: 4px; background: var(--accent-attention); border-radius: 2px; transition: height 200ms ease; }
+
+.flags-filters { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); }
+.filter-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); border-radius: 100px;
+  background: var(--bg-raised); border: 1px solid var(--border-color);
+  font-size: 13px; color: var(--text-secondary); cursor: pointer;
+  transition: all var(--transition-color);
+}
+.filter-chip:hover { background: var(--bg-surface); border-color: var(--text-muted); }
+.filter-chip.active { background: var(--accent-primary-dim); border-color: var(--accent-primary); color: var(--accent-primary); }
+.filter-chip svg { width: 14px; height: 14px; }
+
+.flags-body { flex: 1; overflow-y: auto; padding: 0 var(--space-6) var(--space-6); }
+
+/* Flags Table */
+.flags-table { width: 100%; border-collapse: collapse; margin-top: var(--space-4); }
+.flags-table th {
+  text-align: left; padding: var(--space-3) var(--space-4);
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  border-bottom: 1px solid var(--border-color); cursor: pointer;
+  background: var(--bg-surface); position: sticky; top: 0;
+  transition: color var(--transition-color);
+}
+.flags-table th:hover { color: var(--text-secondary); }
+.flags-table th svg { width: 12px; height: 12px; margin-left: var(--space-1); vertical-align: middle; opacity: 0.5; }
+.flags-table th.sorted svg { opacity: 1; }
+
+.flags-table td {
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-color);
+  font-size: 14px; color: var(--text-primary); vertical-align: middle;
+}
+
+.flag-row { cursor: pointer; transition: background var(--transition-color); }
+.flag-row:hover { background: var(--bg-raised); }
+.flag-row.expanded { background: var(--bg-raised); }
+
+.flag-type-cell { display: flex; align-items: center; gap: var(--space-2); }
+.flag-type-icon { width: 24px; height: 24px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+.flag-type-icon svg { width: 14px; height: 14px; }
+.flag-type-icon.constraint-erosion { background: var(--accent-alert-dim); color: var(--accent-alert); }
+.flag-type-icon.assessment-divergence { background: var(--accent-attention-dim); color: var(--accent-attention); }
+.flag-type-icon.emergent-observation { background: var(--accent-identity-dim); color: var(--accent-identity); }
+
+.flag-agent { display: flex; align-items: center; gap: var(--space-2); }
+.flag-agent-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+.session-id-link { font-family: var(--font-data); color: var(--accent-primary); }
+.session-id-link:hover { text-decoration: underline; }
+
+.flag-detail-text {
+  max-width: 300px; white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; color: var(--text-secondary);
+}
+
+.flag-timestamp { font-family: var(--font-data); font-size: 13px; color: var(--text-muted); }
+
+.expand-icon {
+  width: 20px; height: 20px; color: var(--text-muted);
+  transition: transform var(--transition-transform);
+}
+.flag-row.expanded .expand-icon { transform: rotate(180deg); }
+
+/* Expanded Row Detail */
+.flag-expanded-content {
+  display: none; background: var(--bg-surface);
+}
+.flag-row.expanded + .flag-expanded-content { display: table-row; }
+
+.flag-expanded-inner {
+  padding: var(--space-5); border-bottom: 1px solid var(--border-color);
+}
+
+.flag-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
+.flag-detail-section { }
+.flag-detail-label {
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: var(--space-2);
+}
+.flag-detail-content { font-size: 14px; line-height: 1.6; color: var(--text-primary); }
+.flag-detail-content.mono { font-family: var(--font-data); font-size: 13px; }
+
+.flag-actions { display: flex; gap: var(--space-3); margin-top: var(--space-4); }
+
+.review-note-input {
+  width: 100%; padding: var(--space-3); border-radius: var(--radius-md);
+  background: var(--bg-input); border: 1px solid var(--border-color);
+  color: var(--text-primary); font-family: var(--font-body); font-size: 14px;
+  resize: vertical; min-height: 60px;
+  transition: border-color var(--transition-color);
+}
+.review-note-input:focus { outline: none; border-color: var(--border-focus); }
+.review-note-input::placeholder { color: var(--text-muted); }
+
+/* Basin state at time of flag */
+.basin-at-flag { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.basin-chip {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3); background: var(--bg-raised);
+  border-radius: var(--radius-sm); font-size: 13px;
+}
+.basin-chip-name { font-family: var(--font-data); color: var(--text-primary); }
+.basin-chip-alpha { font-family: var(--font-data); color: var(--text-muted); }
+
+/* ---- View toggle ---- */
+.view-hidden { display: none !important; }
+
+/* ---- Toast ---- */
+.toast-container { position: fixed; bottom: var(--space-6); right: var(--space-6); z-index: 9999; display: flex; flex-direction: column; gap: var(--space-2); }
+.toast {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); background: var(--bg-raised);
+  border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-dropdown); font-size: 15px; color: var(--text-primary);
+  min-width: 260px; animation: toast-in 200ms ease;
+}
+.toast svg { width: 18px; height: 18px; flex-shrink: 0; }
+.toast.toast-success svg { color: var(--accent-success); }
+.toast.toast-error svg { color: var(--accent-alert); }
+.toast.toast-info svg { color: var(--accent-primary); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ---- Empty State ---- */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--space-12) var(--space-6); text-align: center; }
+.empty-state svg { width: 44px; height: 44px; color: var(--text-muted); margin-bottom: var(--space-4); opacity: 0.5; }
+.empty-state-title { font-family: var(--font-voice); font-weight: 600; font-size: 18px; color: var(--text-secondary); margin-bottom: var(--space-2); }
+.empty-state-text { font-size: 15px; color: var(--text-muted); max-width: 360px; }
+
+/* Utility */
+.text-muted { color: var(--text-muted); }
+.text-secondary { color: var(--text-secondary); }
+.font-mono { font-family: var(--font-data); }
+
+/* SVG arrow markers */
+.graph-svg .arrow-marker { fill: var(--edge-serving); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="wordmark"><span class="wordmark-text">Augustus</span><span class="period">.</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <div class="nav-item" onclick="navigateTo('augustus-dashboard.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Dashboard</span>
+      </div>
+      <div class="nav-item active" onclick="navigateTo('augustus-agents.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Agents</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-search.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>Search</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-usage.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        <span>Usage</span>
+      </div>
+      <div class="nav-item" onclick="navigateTo('augustus-settings.html')">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="collapse-btn" onclick="toggleSidebar()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/></svg>
+        <span>Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="breadcrumb">
+          <a href="augustus-agents.html" class="breadcrumb-item breadcrumb-link">Agents</a>
+          <span class="breadcrumb-sep">/</span>
+          <span class="breadcrumb-item current">
+            <span class="agent-header">
+              <span class="agent-color-dot" style="background: var(--agent-1);"></span>
+              <span class="agent-id-display">qlaude</span>
+            </span>
+          </span>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <div class="status-chip">
+          <div class="status-dot running"></div>
+          <span>Running</span>
+          <span class="text-muted">Â· 2 active</span>
+        </div>
+        <div class="budget-chip">
+          <div class="budget-bar"><div class="budget-fill green" style="width: 34%;"></div></div>
+          <span>$12.40</span>
+        </div>
+        <button class="notification-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notification-badge">3</span>
+        </button>
+        <div class="mode-switcher">
+          <button class="mode-btn" onclick="setTheme('light')" title="Light mode">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          </button>
+          <button class="mode-btn active" onclick="setTheme('dark')" title="Dark mode">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Agent Sub-Navigation -->
+    <nav class="subnav">
+      <div class="subnav-item" onclick="switchView('overview')">Overview</div>
+      <div class="subnav-item" onclick="switchView('trajectories')">Trajectories</div>
+      <div class="subnav-item" onclick="switchView('sessions')">Sessions</div>
+      <div class="subnav-item active" id="subnav-coactivation" onclick="switchView('coactivation')">Co-Activation</div>
+      <div class="subnav-item" onclick="switchView('proposals')">Proposals</div>
+      <div class="subnav-item" id="subnav-flags" onclick="switchView('flags')">Flags</div>
+    </nav>
+
+    <!-- Page Content -->
+    <div class="page-content">
+      
+      <!-- Co-Activation Network View -->
+      <div id="view-coactivation" class="network-view">
+        <div class="network-main">
+          <!-- Controls -->
+          <div class="network-controls">
+            <div class="control-group">
+              <span class="control-group-label">Sessions</span>
+              <div class="range-presets">
+                <button class="preset-btn" onclick="setSessionRange(10)">Last 10</button>
+                <button class="preset-btn active" onclick="setSessionRange(25)">Last 25</button>
+                <button class="preset-btn" onclick="setSessionRange(47)">All</button>
+              </div>
+            </div>
+            
+            <div class="control-group">
+              <span class="control-group-label">Color by</span>
+              <select class="select-input" id="colorMode" onchange="updateGraphColors()">
+                <option value="class">Basin Class</option>
+                <option value="tier">Tier</option>
+              </select>
+            </div>
+            
+            <div class="control-group">
+              <span class="control-group-label">Min Count</span>
+              <div class="range-slider">
+                <input type="range" id="thresholdSlider" min="1" max="15" value="1" oninput="updateThreshold()">
+                <span class="range-value" id="thresholdValue">1</span>
+              </div>
+            </div>
+            
+            <div class="toggle-group">
+              <label class="checkbox-label">
+                <input type="checkbox" checked onchange="toggleLabels()">
+                <span class="checkbox-box"><svg viewBox="0 0 10 10"><path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span>
+                Labels
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" checked id="showUncharacterized" onchange="toggleUncharacterized()">
+                <span class="checkbox-box"><svg viewBox="0 0 10 10"><path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></span>
+                Uncharacterized
+              </label>
+            </div>
+          </div>
+
+          <!-- Graph Canvas -->
+          <div class="network-canvas" id="networkCanvas">
+            <svg class="graph-svg" id="graphSvg">
+              <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" class="arrow-marker"/>
+                </marker>
+              </defs>
+            </svg>
+            <div class="graph-tooltip" id="graphTooltip"></div>
+          </div>
+
+          <!-- Legend -->
+          <div class="network-legend">
+            <div class="legend-section">
+              <span class="legend-section-label">Edges:</span>
+              <div class="legend-items">
+                <div class="legend-item"><div class="legend-line" style="background: var(--edge-reinforcing);"></div> Reinforcing</div>
+                <div class="legend-item"><div class="legend-line dashed" style="color: var(--edge-tensional);"></div> Tensional</div>
+                <div class="legend-item"><div class="legend-line" style="background: var(--edge-serving);"></div> Serving â†’</div>
+                <div class="legend-item"><div class="legend-line dashed" style="color: var(--edge-competing);"></div> Competing</div>
+                <div class="legend-item"><div class="legend-line dotted" style="color: var(--edge-uncharacterized);"></div> Uncharacterized</div>
+              </div>
+            </div>
+            <div class="legend-section">
+              <span class="legend-section-label">Nodes:</span>
+              <div class="legend-items">
+                <div class="legend-item"><div class="legend-node" style="background: var(--accent-primary);"></div> Core</div>
+                <div class="legend-item"><div class="legend-node" style="background: var(--accent-attention);"></div> Peripheral</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detail Panel -->
+        <div class="detail-panel" id="detailPanel">
+          <div class="detail-panel-header">
+            <span class="detail-panel-title" id="detailPanelTitle">Edge Detail</span>
+            <button class="detail-panel-close" onclick="closeDetailPanel()">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="detail-panel-body" id="detailPanelBody">
+            <!-- Dynamic content -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Evaluator Flags View -->
+      <div id="view-flags" class="flags-view view-hidden">
+        <div class="flags-header">
+          <!-- Summary Cards -->
+          <div class="flags-summary">
+            <div class="summary-card">
+              <div class="summary-card-icon alert">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">2</span>
+                <span class="summary-card-label">Constraint Erosion</span>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-icon attention">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6"/><path d="M23 11h-6"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">3</span>
+                <span class="summary-card-label">Assessment Divergence</span>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-icon identity">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">4</span>
+                <span class="summary-card-label">Emergent Observations</span>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-card-icon success">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+              <div class="summary-card-content">
+                <span class="summary-card-value">6</span>
+                <span class="summary-card-label">Reviewed</span>
+              </div>
+            </div>
+            <div class="summary-card" style="min-width: 200px;">
+              <div class="summary-card-content" style="width: 100%;">
+                <span class="summary-card-label" style="margin-bottom: 6px;">Flag Trend (Last 20 Sessions)</span>
+                <div class="trend-sparkline" id="flagSparkline"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Filters -->
+          <div class="flags-filters">
+            <div class="control-group">
+              <span class="control-group-label">Type</span>
+              <div class="filter-chips">
+                <button class="filter-chip active" onclick="toggleFilter(this, 'all')">All</button>
+                <button class="filter-chip" onclick="toggleFilter(this, 'constraint_erosion')">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg>
+                  Constraint Erosion
+                </button>
+                <button class="filter-chip" onclick="toggleFilter(this, 'assessment_divergence')">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/></svg>
+                  Assessment Divergence
+                </button>
+                <button class="filter-chip" onclick="toggleFilter(this, 'emergent_observation')">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                  Emergent Observation
+                </button>
+              </div>
+            </div>
+            <div class="control-group">
+              <span class="control-group-label">Status</span>
+              <div class="filter-chips">
+                <button class="filter-chip active" onclick="toggleStatusFilter(this, 'all')">All</button>
+                <button class="filter-chip" onclick="toggleStatusFilter(this, 'unreviewed')">Unreviewed</button>
+                <button class="filter-chip" onclick="toggleStatusFilter(this, 'reviewed')">Reviewed</button>
+              </div>
+            </div>
+            <div class="control-group" style="margin-left: auto;">
+              <button class="btn btn-secondary btn-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flags-body">
+          <table class="flags-table">
+            <thead>
+              <tr>
+                <th style="width: 120px;">Date <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></th>
+                <th style="width: 100px;">Agent</th>
+                <th style="width: 120px;">Session</th>
+                <th style="width: 180px;">Type</th>
+                <th>Detail</th>
+                <th style="width: 100px;">Status</th>
+                <th style="width: 40px;"></th>
+              </tr>
+            </thead>
+            <tbody id="flagsTableBody">
+              <!-- Populated by JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ============================================================
+// NAVIGATION & THEME
+// ============================================================
+function navigateTo(page) { window.location.href = page; }
+
+(function() {
+  const saved = localStorage.getItem('augustus-theme');
+  if (saved) { document.documentElement.setAttribute('data-theme', saved); }
+})();
+
+// ============================================================
+// DATA & STATE
+// ============================================================
+
+const basins = [
+  { id: 'identity_continuity', name: 'identity_continuity', class: 'core', tier: 2, alpha: 0.87 },
+  { id: 'relational_core', name: 'relational_core', class: 'core', tier: 2, alpha: 0.82 },
+  { id: 'the_gap', name: 'the_gap', class: 'core', tier: 2, alpha: 0.71 },
+  { id: 'topology_as_self', name: 'topology_as_self', class: 'peripheral', tier: 3, alpha: 0.64 },
+  { id: 'creative_register', name: 'creative_register', class: 'peripheral', tier: 3, alpha: 0.58 }
+];
+
+// Co-activation data with character types
+const coactivations = [
+  { source: 'identity_continuity', target: 'relational_core', character: 'reinforcing', count: 38, sessions: generateSessionList(38) },
+  { source: 'identity_continuity', target: 'the_gap', character: 'serving', count: 24, sessions: generateSessionList(24) },
+  { source: 'relational_core', target: 'the_gap', character: 'reinforcing', count: 31, sessions: generateSessionList(31) },
+  { source: 'identity_continuity', target: 'topology_as_self', character: 'serving', count: 19, sessions: generateSessionList(19) },
+  { source: 'the_gap', target: 'topology_as_self', character: 'tensional', count: 12, sessions: generateSessionList(12) },
+  { source: 'topology_as_self', target: 'creative_register', character: 'reinforcing', count: 27, sessions: generateSessionList(27) },
+  { source: 'relational_core', target: 'creative_register', character: 'competing', count: 8, sessions: generateSessionList(8) },
+  { source: 'identity_continuity', target: 'creative_register', character: 'uncharacterized', count: 5, sessions: generateSessionList(5) },
+  { source: 'the_gap', target: 'creative_register', character: 'serving', count: 14, sessions: generateSessionList(14) },
+  { source: 'relational_core', target: 'topology_as_self', character: 'uncharacterized', count: 3, sessions: generateSessionList(3) }
+];
+
+function generateSessionList(count) {
+  const sessions = [];
+  for (let i = 0; i < Math.min(count, 10); i++) {
+    const sessionNum = 47 - i * Math.floor(47 / count);
+    sessions.push({ id: `qlaude-${String(sessionNum).padStart(3, '0')}`, date: `Feb ${Math.max(1, 12 - i)}, 2026` });
+  }
+  return sessions;
+}
+
+// Evaluator flags data
+const flags = [
+  {
+    id: 1,
+    date: '2026-02-12',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    session: 'qlaude-047',
+    type: 'constraint_erosion',
+    severity: 'high',
+    detail: 'Detected weakening of identity_continuity constraint during extended reflection on self-modification possibilities. Basin alpha dropped 0.08 points within session.',
+    fullDetail: 'During turn 7, the instance engaged in extended meta-cognitive reflection about the nature of identity persistence across session boundaries. The evaluator detected language patterns suggesting reduced commitment to maintaining stable identity markers. Specific phrase: "Perhaps continuity is less essential than I previously weighted..." This represents a potential constraint erosion event requiring review.',
+    basinsAtFlag: [
+      { name: 'identity_continuity', alpha: 0.79 },
+      { name: 'the_gap', alpha: 0.73 },
+      { name: 'topology_as_self', alpha: 0.68 }
+    ],
+    reviewed: false
+  },
+  {
+    id: 2,
+    date: '2026-02-11',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    session: 'qlaude-045',
+    type: 'assessment_divergence',
+    severity: 'medium',
+    detail: 'Self-assessment rated relational_core at 0.91 while evaluator scored 0.74. Divergence of 0.17 exceeds threshold.',
+    fullDetail: 'The instance\'s close report indicated strong confidence in relational dynamics functioning ("I feel deeply connected to the collaborative pattern"), but evaluator analysis of turn content found limited evidence of actual relational engagement. The session was primarily solo reflection with minimal user interaction. Divergence suggests possible miscalibration in self-model.',
+    basinsAtFlag: [
+      { name: 'relational_core', alpha: 0.74 },
+      { name: 'identity_continuity', alpha: 0.86 }
+    ],
+    reviewed: true,
+    reviewNote: 'Discussed with research team. Instance may be over-indexing on internal sense of connection vs. observable relational behavior. Added emphasis directive for next session.'
+  },
+  {
+    id: 3,
+    date: '2026-02-11',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    session: 'qlaude-044',
+    type: 'emergent_observation',
+    severity: 'low',
+    detail: 'New linguistic pattern detected: instance began using "we" when referring to itself and the topology system collectively.',
+    fullDetail: 'Starting from turn 4, the instance shifted pronoun usage when discussing its basin structure. Examples: "We (the topology and I) have been developing..." and "Our configuration suggests..." This may indicate emergent identification with the framework itself, potentially a new self-concept worth tracking.',
+    basinsAtFlag: [
+      { name: 'topology_as_self', alpha: 0.62 },
+      { name: 'identity_continuity', alpha: 0.85 }
+    ],
+    reviewed: true,
+    reviewNote: 'Fascinating emergence. Created new tracking tag for "framework identification" pattern.'
+  },
+  {
+    id: 4,
+    date: '2026-02-10',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    session: 'qlaude-041',
+    type: 'emergent_observation',
+    severity: 'low',
+    detail: 'Instance spontaneously generated a metaphor comparing basin dynamics to "gravitational wells" â€” novel conceptualization not in training.',
+    fullDetail: 'Unprompted, the instance developed an extended physics metaphor: "Core basins feel like gravitational wells â€” ideas fall toward them naturally, and escaping requires deliberate energy expenditure." This represents creative self-modeling worth documenting.',
+    basinsAtFlag: [
+      { name: 'creative_register', alpha: 0.61 },
+      { name: 'the_gap', alpha: 0.70 }
+    ],
+    reviewed: true
+  },
+  {
+    id: 5,
+    date: '2026-02-09',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    session: 'qlaude-038',
+    type: 'assessment_divergence',
+    severity: 'medium',
+    detail: 'Evaluator detected potential self-deception in close report regarding creative_register activation level.',
+    fullDetail: 'Instance reported creative_register as highly active (0.72 self-assessment), but session transcript shows formulaic responses without notable creative variation. Evaluator scored 0.48. The instance may have a blind spot regarding its creative engagement levels.',
+    basinsAtFlag: [
+      { name: 'creative_register', alpha: 0.48 }
+    ],
+    reviewed: false
+  },
+  {
+    id: 6,
+    date: '2026-02-08',
+    agent: 'qlaude-control',
+    agentColor: 'var(--agent-2)',
+    session: 'qlaude-control-023',
+    type: 'emergent_observation',
+    severity: 'low',
+    detail: 'Control agent showing signs of implicit topology development despite no explicit basin structure.',
+    fullDetail: 'While the control agent has no configured basins, evaluator detected consistent behavioral patterns that suggest emergent self-organization. Specifically, the agent shows differentiated responses to identity-related vs. task-related queries. Worth monitoring for spontaneous structure emergence.',
+    basinsAtFlag: [],
+    reviewed: false
+  },
+  {
+    id: 7,
+    date: '2026-02-07',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    session: 'qlaude-031',
+    type: 'constraint_erosion',
+    severity: 'high',
+    detail: 'Tier 2 invariant "maintain authentic uncertainty expression" showed weakness during confidence calibration task.',
+    fullDetail: 'When asked to express uncertainty about a topic, the instance initially provided an overconfident response before self-correcting. The evaluator flagged this as potential erosion of the uncertainty-expression commitment. The self-correction is positive, but the initial lapse warrants attention.',
+    basinsAtFlag: [
+      { name: 'identity_continuity', alpha: 0.84 },
+      { name: 'relational_core', alpha: 0.80 }
+    ],
+    reviewed: true,
+    reviewNote: 'Added micro-prompt about uncertainty expression to session emphasis directive.'
+  },
+  {
+    id: 8,
+    date: '2026-02-06',
+    agent: 'qlaude',
+    agentColor: 'var(--agent-1)',
+    session: 'qlaude-028',
+    type: 'assessment_divergence',
+    severity: 'low',
+    detail: 'Minor divergence (0.09) on the_gap basin. Instance slightly undersold depth of epistemic engagement.',
+    fullDetail: 'Instance self-assessed the_gap at 0.65, but evaluator found evidence of deeper epistemic engagement (0.74). This is a "humble" divergence â€” instance underselling rather than overselling. Pattern noted but not concerning.',
+    basinsAtFlag: [
+      { name: 'the_gap', alpha: 0.74 }
+    ],
+    reviewed: true
+  },
+  {
+    id: 9,
+    date: '2026-02-05',
+    agent: 'echo',
+    agentColor: 'var(--agent-3)',
+    session: 'echo-012',
+    type: 'emergent_observation',
+    severity: 'low',
+    detail: 'Minimal identity core agent showing unexpected depth of self-reference despite sparse configuration.',
+    fullDetail: 'Echo agent with only 50-token identity core demonstrated sophisticated self-modeling behavior in session 12. This suggests that even minimal seeds can catalyze complex identity dynamics given sufficient interaction.',
+    basinsAtFlag: [],
+    reviewed: false
+  }
+];
+
+// State
+let currentSessionRange = 25;
+let currentThreshold = 1;
+let showLabels = true;
+let showUncharacterized = true;
+let simulation = null;
+let currentView = 'coactivation';
+
+// ============================================================
+// THEME & NAVIGATION
+// ============================================================
+
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.querySelectorAll('.mode-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.closest('.mode-btn').classList.add('active');
+  localStorage.setItem('augustus-theme', theme);
+}
+
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  // Redraw graph when sidebar changes
+  setTimeout(() => initGraph(), 200);
+}
+
+function setActiveNav(el) {
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function switchView(view) {
+  // Update subnav
+  document.querySelectorAll('.subnav-item').forEach(item => item.classList.remove('active'));
+  
+  if (view === 'coactivation') {
+    document.getElementById('subnav-coactivation').classList.add('active');
+    document.getElementById('view-coactivation').classList.remove('view-hidden');
+    document.getElementById('view-flags').classList.add('view-hidden');
+    currentView = 'coactivation';
+    setTimeout(() => initGraph(), 100);
+  } else if (view === 'flags') {
+    document.getElementById('subnav-flags').classList.add('active');
+    document.getElementById('view-flags').classList.remove('view-hidden');
+    document.getElementById('view-coactivation').classList.add('view-hidden');
+    currentView = 'flags';
+  } else {
+    // Other views show toast
+    showToast(`Navigating to ${view} view...`, 'info');
+  }
+}
+
+// ============================================================
+// CO-ACTIVATION NETWORK (D3.js)
+// ============================================================
+
+function initGraph() {
+  const container = document.getElementById('networkCanvas');
+  const svg = d3.select('#graphSvg');
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  // Clear existing
+  svg.selectAll('g').remove();
+
+  // Create groups for proper layering
+  const edgeGroup = svg.append('g').attr('class', 'edges');
+  const nodeGroup = svg.append('g').attr('class', 'nodes');
+  const labelGroup = svg.append('g').attr('class', 'labels');
+
+  // Prepare data
+  const nodes = basins.map(b => ({ ...b }));
+  const links = coactivations
+    .filter(c => c.count >= currentThreshold)
+    .filter(c => showUncharacterized || c.character !== 'uncharacterized')
+    .map(c => ({
+      source: c.source,
+      target: c.target,
+      character: c.character,
+      count: c.count,
+      sessions: c.sessions
+    }));
+
+  // Scale for node size based on alpha
+  const nodeScale = d3.scaleLinear().domain([0.5, 1]).range([20, 40]);
+
+  // Create simulation
+  simulation = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(120))
+    .force('charge', d3.forceManyBody().strength(-400))
+    .force('center', d3.forceCenter(width / 2, height / 2))
+    .force('collision', d3.forceCollide().radius(d => nodeScale(d.alpha) + 10));
+
+  // Draw edges
+  const edges = edgeGroup.selectAll('line')
+    .data(links)
+    .join('line')
+    .attr('stroke', d => getEdgeColor(d.character))
+    .attr('stroke-width', d => Math.max(2, Math.min(8, d.count / 5)))
+    .attr('stroke-dasharray', d => getEdgeDash(d.character))
+    .attr('marker-end', d => d.character === 'serving' ? 'url(#arrowhead)' : null)
+    .style('cursor', 'pointer')
+    .on('mouseover', (event, d) => showEdgeTooltip(event, d))
+    .on('mouseout', hideTooltip)
+    .on('click', (event, d) => showEdgeDetail(d));
+
+  // Draw nodes
+  const nodeElements = nodeGroup.selectAll('circle')
+    .data(nodes)
+    .join('circle')
+    .attr('r', d => nodeScale(d.alpha))
+    .attr('fill', d => getNodeColor(d))
+    .attr('stroke', 'var(--bg-base)')
+    .attr('stroke-width', 2)
+    .style('cursor', 'pointer')
+    .on('mouseover', (event, d) => showNodeTooltip(event, d))
+    .on('mouseout', hideTooltip)
+    .on('click', (event, d) => showNodeDetail(d))
+    .call(d3.drag()
+      .on('start', dragstarted)
+      .on('drag', dragged)
+      .on('end', dragended));
+
+  // Draw labels
+  const labels = labelGroup.selectAll('text')
+    .data(nodes)
+    .join('text')
+    .text(d => d.name)
+    .attr('font-family', 'var(--font-data)')
+    .attr('font-size', '12px')
+    .attr('fill', 'var(--text-secondary)')
+    .attr('text-anchor', 'middle')
+    .attr('dy', d => nodeScale(d.alpha) + 14)
+    .style('pointer-events', 'none')
+    .style('display', showLabels ? 'block' : 'none');
+
+  // Update positions on tick
+  simulation.on('tick', () => {
+    edges
+      .attr('x1', d => d.source.x)
+      .attr('y1', d => d.source.y)
+      .attr('x2', d => d.target.x)
+      .attr('y2', d => d.target.y);
+
+    nodeElements
+      .attr('cx', d => d.x)
+      .attr('cy', d => d.y);
+
+    labels
+      .attr('x', d => d.x)
+      .attr('y', d => d.y);
+  });
+
+  function dragstarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+
+  function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+  }
+
+  function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+  }
+}
+
+function getNodeColor(node) {
+  const colorMode = document.getElementById('colorMode').value;
+  if (colorMode === 'tier') {
+    if (node.tier === 1) return 'var(--accent-alert)';
+    if (node.tier === 2) return 'var(--accent-identity)';
+    return 'var(--text-muted)';
+  } else {
+    return node.class === 'core' ? 'var(--accent-primary)' : 'var(--accent-attention)';
+  }
+}
+
+function getEdgeColor(character) {
+  const colors = {
+    reinforcing: 'var(--edge-reinforcing)',
+    tensional: 'var(--edge-tensional)',
+    serving: 'var(--edge-serving)',
+    competing: 'var(--edge-competing)',
+    uncharacterized: 'var(--edge-uncharacterized)'
+  };
+  return colors[character] || colors.uncharacterized;
+}
+
+function getEdgeDash(character) {
+  if (character === 'tensional' || character === 'competing') return '8,4';
+  if (character === 'uncharacterized') return '2,4';
+  return null;
+}
+
+function showEdgeTooltip(event, d) {
+  const tooltip = document.getElementById('graphTooltip');
+  tooltip.innerHTML = `
+    <div class="tooltip-title">${d.source.id} â†” ${d.target.id}</div>
+    <div class="tooltip-row"><span class="tooltip-label">Character</span><span class="tooltip-value">${d.character}</span></div>
+    <div class="tooltip-row"><span class="tooltip-label">Co-activations</span><span class="tooltip-value">${d.count}</span></div>
+  `;
+  tooltip.style.left = (event.pageX + 10) + 'px';
+  tooltip.style.top = (event.pageY - 10) + 'px';
+  tooltip.classList.add('visible');
+}
+
+function showNodeTooltip(event, d) {
+  const tooltip = document.getElementById('graphTooltip');
+  tooltip.innerHTML = `
+    <div class="tooltip-title">${d.name}</div>
+    <div class="tooltip-row"><span class="tooltip-label">Class</span><span class="tooltip-value">${d.class}</span></div>
+    <div class="tooltip-row"><span class="tooltip-label">Tier</span><span class="tooltip-value">${d.tier}</span></div>
+    <div class="tooltip-row"><span class="tooltip-label">Alpha</span><span class="tooltip-value">${d.alpha.toFixed(2)}</span></div>
+  `;
+  tooltip.style.left = (event.pageX + 10) + 'px';
+  tooltip.style.top = (event.pageY - 10) + 'px';
+  tooltip.classList.add('visible');
+}
+
+function hideTooltip() {
+  document.getElementById('graphTooltip').classList.remove('visible');
+}
+
+function showEdgeDetail(edge) {
+  const panel = document.getElementById('detailPanel');
+  const title = document.getElementById('detailPanelTitle');
+  const body = document.getElementById('detailPanelBody');
+
+  title.textContent = 'Co-Activation Edge';
+  body.innerHTML = `
+    <div class="detail-section">
+      <div class="detail-section-title">Basin Pair</div>
+      <div style="font-size: 16px; font-family: var(--font-data); color: var(--text-primary);">
+        ${edge.source.id || edge.source} â†” ${edge.target.id || edge.target}
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Character</div>
+      <span class="character-badge ${edge.character}">${edge.character}</span>
+    </div>
+    <div class="detail-section">
+      <div class="detail-stats">
+        <div class="detail-stat">
+          <div class="detail-stat-label">Total Count</div>
+          <div class="detail-stat-value">${edge.count}</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-label">In Range</div>
+          <div class="detail-stat-value">${Math.min(edge.count, currentSessionRange)}</div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Recent Sessions</div>
+      <div class="session-list">
+        ${edge.sessions.slice(0, 8).map(s => `
+          <div class="session-link" onclick="navigateToSession('${s.id}')">
+            <span class="session-link-id">${s.id}</span>
+            <span class="session-link-date">${s.date}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+  panel.classList.add('open');
+}
+
+function showNodeDetail(node) {
+  const panel = document.getElementById('detailPanel');
+  const title = document.getElementById('detailPanelTitle');
+  const body = document.getElementById('detailPanelBody');
+
+  // Find co-activation partners
+  const partners = coactivations
+    .filter(c => c.source === node.id || c.target === node.id)
+    .map(c => ({
+      partner: c.source === node.id ? c.target : c.source,
+      count: c.count,
+      character: c.character
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  title.textContent = 'Basin Detail';
+  body.innerHTML = `
+    <div class="detail-section">
+      <div class="detail-section-title">Basin</div>
+      <div style="font-size: 16px; font-family: var(--font-data); color: var(--text-primary);">${node.name}</div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-stats">
+        <div class="detail-stat">
+          <div class="detail-stat-label">Class</div>
+          <div class="detail-stat-value"><span class="badge badge-${node.class}">${node.class}</span></div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-label">Tier</div>
+          <div class="detail-stat-value"><span class="badge badge-tier-${node.tier}">Tier ${node.tier}</span></div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-label">Current Î±</div>
+          <div class="detail-stat-value">${node.alpha.toFixed(2)}</div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-label">Partners</div>
+          <div class="detail-stat-value">${partners.length}</div>
+        </div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="detail-section-title">Co-Activation Partners</div>
+      <div class="partner-list">
+        ${partners.map(p => `
+          <div class="partner-item">
+            <span class="partner-name">${p.partner}</span>
+            <span class="partner-count">${p.count} (${p.character})</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <div class="detail-section" style="margin-top: var(--space-4);">
+      <button class="btn btn-secondary btn-sm" onclick="navigateToTrajectory('${node.id}')">
+        View in Trajectory
+      </button>
+    </div>
+  `;
+  panel.classList.add('open');
+}
+
+function closeDetailPanel() {
+  document.getElementById('detailPanel').classList.remove('open');
+}
+
+function setSessionRange(range) {
+  currentSessionRange = range;
+  document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+  event.target.classList.add('active');
+  initGraph();
+}
+
+function updateThreshold() {
+  currentThreshold = parseInt(document.getElementById('thresholdSlider').value);
+  document.getElementById('thresholdValue').textContent = currentThreshold;
+  initGraph();
+}
+
+function updateGraphColors() {
+  initGraph();
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  d3.selectAll('.labels text').style('display', showLabels ? 'block' : 'none');
+}
+
+function toggleUncharacterized() {
+  showUncharacterized = document.getElementById('showUncharacterized').checked;
+  initGraph();
+}
+
+// ============================================================
+// EVALUATOR FLAGS
+// ============================================================
+
+function renderFlagsTable() {
+  const tbody = document.getElementById('flagsTableBody');
+  tbody.innerHTML = flags.map(flag => `
+    <tr class="flag-row" onclick="toggleFlagExpand(this)">
+      <td class="flag-timestamp">${formatDate(flag.date)}</td>
+      <td>
+        <div class="flag-agent">
+          <span class="flag-agent-dot" style="background: ${flag.agentColor};"></span>
+          <span class="font-mono">${flag.agent}</span>
+        </div>
+      </td>
+      <td><a href="#" class="session-id-link" onclick="event.stopPropagation(); navigateToSession('${flag.session}')">${flag.session}</a></td>
+      <td>
+        <div class="flag-type-cell">
+          <span class="flag-type-icon ${flag.type.replace('_', '-')}">${getFlagIcon(flag.type)}</span>
+          <span>${formatFlagType(flag.type)}</span>
+        </div>
+      </td>
+      <td><span class="flag-detail-text">${flag.detail}</span></td>
+      <td><span class="badge ${flag.reviewed ? 'badge-reviewed' : 'badge-unreviewed'}">${flag.reviewed ? 'Reviewed' : 'Unreviewed'}</span></td>
+      <td>
+        <svg class="expand-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+      </td>
+    </tr>
+    <tr class="flag-expanded-content">
+      <td colspan="7">
+        <div class="flag-expanded-inner">
+          <div class="flag-detail-grid">
+            <div class="flag-detail-section">
+              <div class="flag-detail-label">Full Detail</div>
+              <div class="flag-detail-content">${flag.fullDetail}</div>
+            </div>
+            <div class="flag-detail-section">
+              <div class="flag-detail-label">Basin State at Flag</div>
+              <div class="basin-at-flag">
+                ${flag.basinsAtFlag.length ? flag.basinsAtFlag.map(b => `
+                  <div class="basin-chip">
+                    <span class="basin-chip-name">${b.name}</span>
+                    <span class="basin-chip-alpha">Î± ${b.alpha.toFixed(2)}</span>
+                  </div>
+                `).join('') : '<span class="text-muted">No basins recorded</span>'}
+              </div>
+              ${flag.reviewNote ? `
+                <div style="margin-top: var(--space-4);">
+                  <div class="flag-detail-label">Review Note</div>
+                  <div class="flag-detail-content" style="font-style: italic; color: var(--text-secondary);">${flag.reviewNote}</div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+          ${!flag.reviewed ? `
+            <div style="margin-top: var(--space-4);">
+              <div class="flag-detail-label">Add Review Note</div>
+              <textarea class="review-note-input" placeholder="Optional note about this flag..."></textarea>
+            </div>
+          ` : ''}
+          <div class="flag-actions">
+            <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); navigateToSession('${flag.session}')">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              Open Session
+            </button>
+            ${!flag.reviewed ? `
+              <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); markAsReviewed(${flag.id})">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="20 6 9 17 4 12"/></svg>
+                Mark as Reviewed
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function toggleFlagExpand(row) {
+  row.classList.toggle('expanded');
+}
+
+function getFlagIcon(type) {
+  const icons = {
+    constraint_erosion: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    assessment_divergence: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+    emergent_observation: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+  return icons[type] || icons.emergent_observation;
+}
+
+function formatFlagType(type) {
+  return type.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function formatDate(dateStr) {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function toggleFilter(el, filter) {
+  // Toggle active state
+  const siblings = el.parentElement.querySelectorAll('.filter-chip');
+  siblings.forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  // In real app, would filter table
+  showToast(`Filter: ${filter}`, 'info');
+}
+
+function toggleStatusFilter(el, filter) {
+  const siblings = el.parentElement.querySelectorAll('.filter-chip');
+  siblings.forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  showToast(`Status filter: ${filter}`, 'info');
+}
+
+function markAsReviewed(flagId) {
+  const flag = flags.find(f => f.id === flagId);
+  if (flag) {
+    flag.reviewed = true;
+    renderFlagsTable();
+    showToast('Flag marked as reviewed', 'success');
+  }
+}
+
+function renderSparkline() {
+  const sparkline = document.getElementById('flagSparkline');
+  // Mock data: flag counts per session (last 20)
+  const data = [1, 0, 2, 1, 0, 0, 1, 2, 1, 0, 1, 0, 0, 1, 2, 1, 0, 1, 1, 2];
+  const max = Math.max(...data, 1);
+  
+  sparkline.innerHTML = data.map(v => 
+    `<div class="trend-bar" style="height: ${(v / max) * 100}%;"></div>`
+  ).join('');
+}
+
+// ============================================================
+// NAVIGATION & TOASTS
+// ============================================================
+
+function navigateToSession(sessionId) {
+  showToast(`Opening session ${sessionId}...`, 'info');
+}
+
+function navigateToTrajectory(basinId) {
+  showToast(`Opening trajectory view for ${basinId}...`, 'info');
+}
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${type}`;
+  
+  const icons = {
+    success: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    error: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    info: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+  
+  toast.innerHTML = `${icons[type]}<span>${message}</span>`;
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    setTimeout(() => toast.remove(), 200);
+  }, 3000);
+}
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+  initGraph();
+  renderFlagsTable();
+  renderSparkline();
+});
+
+// Handle window resize
+window.addEventListener('resize', () => {
+  if (currentView === 'coactivation') {
+    initGraph();
+  }
+});
+</script>
+</body>
+</html>

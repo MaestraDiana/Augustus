@@ -1,0 +1,1521 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Augustus. â€” Usage</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   AUGUSTUS DESIGN SYSTEM â€” CSS Custom Properties
+   Session 7: Usage Dashboard
+   ============================================================ */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent-primary: #3B9B8E;
+  --accent-primary-dim: rgba(59, 155, 142, 0.15);
+  --accent-primary-hover: #47B5A6;
+  --accent-attention: #D4915D;
+  --accent-attention-dim: rgba(212, 145, 93, 0.15);
+  --accent-alert: #C75D5D;
+  --accent-alert-dim: rgba(199, 93, 93, 0.15);
+  --accent-identity: #8B7EC8;
+  --accent-identity-dim: rgba(139, 126, 200, 0.15);
+  --accent-success: #5A9E6F;
+  --accent-success-dim: rgba(90, 158, 111, 0.15);
+
+  /* Agent colors */
+  --agent-1: #3B9B8E;
+  --agent-2: #2E7D9B;
+  --agent-3: #8B7EC8;
+
+  --font-voice: 'Outfit', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-data: 'JetBrains Mono', monospace;
+
+  --space-1: 5px;
+  --space-2: 10px;
+  --space-3: 14px;
+  --space-4: 18px;
+  --space-5: 24px;
+  --space-6: 28px;
+  --space-8: 36px;
+  --space-10: 44px;
+  --space-12: 56px;
+
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+
+  --transition-color: 150ms ease;
+  --transition-transform: 150ms ease;
+  --transition-opacity: 200ms ease;
+
+  --sidebar-width: 244px;
+  --sidebar-collapsed: 60px;
+  --topbar-height: 58px;
+}
+
+[data-theme="dark"] {
+  --bg-base: #0C1014;
+  --bg-surface: #151C23;
+  --bg-raised: #1E272F;
+  --bg-input: #0C1014;
+  --text-primary: #E4E8EC;
+  --text-secondary: #8C959D;
+  --text-muted: #555F69;
+  --border-color: #2A353F;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #151C23;
+  --scrollbar-thumb: #2A353F;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.4);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.5);
+}
+
+[data-theme="light"] {
+  --bg-base: #F8F9FA;
+  --bg-surface: #FFFFFF;
+  --bg-raised: #F0F2F5;
+  --bg-input: #FFFFFF;
+  --text-primary: #1A2028;
+  --text-secondary: #5C656E;
+  --text-muted: #8C959D;
+  --border-color: #DFE3E8;
+  --border-focus: #3B9B8E;
+  --scrollbar-track: #F0F2F5;
+  --scrollbar-thumb: #DFE3E8;
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-dropdown: 0 4px 16px rgba(0,0,0,0.12);
+  --shadow-modal: 0 8px 32px rgba(0,0,0,0.15);
+}
+
+::-webkit-scrollbar { width: 7px; height: 7px; }
+::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background var(--transition-color), color var(--transition-color);
+}
+
+a { color: var(--accent-primary); text-decoration: none; }
+a:hover { color: var(--accent-primary-hover); }
+
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-width); min-width: var(--sidebar-width); height: 100vh;
+  background: var(--bg-surface); border-right: 1px solid var(--border-color);
+  display: flex; flex-direction: column;
+  transition: width var(--transition-transform), min-width var(--transition-transform), background var(--transition-color);
+  overflow: hidden; z-index: 100;
+}
+.sidebar.collapsed { width: var(--sidebar-collapsed); min-width: var(--sidebar-collapsed); }
+.sidebar.collapsed .wordmark-text, .sidebar.collapsed .nav-item span, .sidebar.collapsed .collapse-btn span { display: none; }
+.sidebar.collapsed .sidebar-header { justify-content: center; }
+.sidebar.collapsed .nav-item { justify-content: center; padding: var(--space-3); }
+.sidebar.collapsed .collapse-btn { justify-content: center; }
+.sidebar.collapsed .collapse-btn svg { transform: rotate(180deg); }
+
+.sidebar-header {
+  height: var(--topbar-height); display: flex; align-items: center;
+  padding: 0 var(--space-4); border-bottom: 1px solid var(--border-color); flex-shrink: 0;
+}
+
+.wordmark {
+  font-family: var(--font-voice); font-weight: 700; font-size: 24px;
+  letter-spacing: -0.5px; color: var(--text-primary); white-space: nowrap;
+}
+.wordmark .period { color: var(--accent-identity); }
+
+.sidebar-nav { flex: 1; padding: var(--space-3) 0; overflow-y: auto; }
+
+.nav-section-label {
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  text-transform: uppercase; color: var(--text-muted);
+  padding: var(--space-3) var(--space-4) var(--space-2);
+  letter-spacing: 0.5px;
+}
+.sidebar.collapsed .nav-section-label { display: none; }
+
+.nav-item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  color: var(--text-secondary); font-size: 16px; font-weight: 500;
+  font-family: var(--font-voice);
+  cursor: pointer; transition: color var(--transition-color), background var(--transition-color);
+  border: none; background: none; width: 100%; text-align: left;
+}
+.nav-item:hover { color: var(--text-primary); background: var(--bg-raised); }
+.nav-item.active { color: var(--accent-primary); background: var(--accent-primary-dim); }
+.nav-item svg { width: 20px; height: 20px; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; }
+
+.sidebar-footer {
+  padding: var(--space-3); border-top: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.collapse-btn {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-muted); font-size: 14px;
+  cursor: pointer; border: none; background: none; width: 100%;
+  transition: color var(--transition-color);
+}
+.collapse-btn:hover { color: var(--text-secondary); }
+.collapse-btn svg { width: 18px; height: 18px; transition: transform var(--transition-transform); }
+
+/* ---- Main Container ---- */
+.main-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ---- Topbar ---- */
+.topbar {
+  height: var(--topbar-height); display: flex; align-items: center; justify-content: space-between;
+  padding: 0 var(--space-5); border-bottom: 1px solid var(--border-color);
+  background: var(--bg-surface); flex-shrink: 0;
+}
+
+.topbar-left { display: flex; align-items: center; gap: var(--space-4); }
+.topbar-right { display: flex; align-items: center; gap: var(--space-4); }
+
+.page-title {
+  font-family: var(--font-voice); font-size: 20px; font-weight: 600;
+  color: var(--text-primary);
+}
+
+.orchestrator-status {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: 14px; color: var(--text-secondary);
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.status-dot.active { background: var(--accent-success); box-shadow: 0 0 6px var(--accent-success); }
+.status-dot.idle { background: var(--text-muted); }
+.status-dot.paused { background: var(--accent-attention); }
+
+.session-count {
+  font-family: var(--font-data); font-size: 13px;
+  color: var(--text-secondary);
+  padding: var(--space-1) var(--space-2);
+  background: var(--bg-raised);
+  border-radius: var(--radius-sm);
+}
+
+.budget-chip {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  background: var(--bg-raised); border-radius: var(--radius-md);
+  font-size: 13px; color: var(--text-secondary);
+}
+.budget-bar {
+  width: 72px; height: 5px; background: var(--border-color);
+  border-radius: 3px; overflow: hidden;
+}
+.budget-fill {
+  height: 100%; border-radius: 3px;
+  transition: width var(--transition-transform), background var(--transition-color);
+}
+.budget-fill.green { background: var(--accent-success); }
+.budget-fill.amber { background: var(--accent-attention); }
+.budget-fill.red { background: var(--accent-alert); }
+
+.icon-btn {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--text-secondary);
+  cursor: pointer; border-radius: var(--radius-sm);
+  transition: color var(--transition-color), background var(--transition-color);
+  position: relative;
+}
+.icon-btn:hover { color: var(--text-primary); background: var(--bg-raised); }
+.icon-btn svg { width: 20px; height: 20px; }
+.icon-btn .badge {
+  position: absolute; top: 2px; right: 2px;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--accent-alert); color: #fff;
+  font-family: var(--font-data); font-size: 11px; font-weight: 500;
+  border-radius: 9px; display: flex; align-items: center; justify-content: center;
+}
+
+.mode-switcher {
+  display: flex; background: var(--bg-raised); border-radius: var(--radius-md); padding: 2px;
+}
+.mode-btn {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  border: none; background: transparent; color: var(--text-muted);
+  cursor: pointer; border-radius: var(--radius-sm);
+  transition: color var(--transition-color), background var(--transition-color);
+}
+.mode-btn:hover { color: var(--text-secondary); }
+.mode-btn.active { background: var(--bg-surface); color: var(--text-primary); box-shadow: var(--shadow-card); }
+.mode-btn svg { width: 18px; height: 18px; }
+
+/* ---- Main Content ---- */
+.main-content {
+  flex: 1; overflow-y: auto; padding: var(--space-6);
+}
+
+/* ---- Alerts Section ---- */
+.alerts-section {
+  margin-bottom: var(--space-5);
+}
+
+.alert-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+}
+
+.alert-banner.warning {
+  background: var(--accent-attention-dim);
+  border: 1px solid var(--accent-attention);
+  color: var(--accent-attention);
+}
+
+.alert-banner.error {
+  background: var(--accent-alert-dim);
+  border: 1px solid var(--accent-alert);
+  color: var(--accent-alert);
+}
+
+.alert-banner svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.alert-banner span {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.alert-banner .dismiss-btn {
+  margin-left: auto;
+  padding: var(--space-1) var(--space-2);
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--transition-color);
+}
+
+.alert-banner .dismiss-btn:hover {
+  opacity: 1;
+}
+
+/* ---- Budget Overview Cards ---- */
+.budget-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+
+.budget-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.budget-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.budget-card-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.budget-card-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}
+
+.budget-card-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.budget-card-value {
+  font-family: var(--font-data);
+  font-size: 28px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.budget-card-value.success { color: var(--accent-success); }
+.budget-card-value.warning { color: var(--accent-attention); }
+.budget-card-value.danger { color: var(--accent-alert); }
+
+.budget-card-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.budget-card-meta strong {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* Progress bar with markers */
+.progress-container {
+  margin-top: var(--space-3);
+  position: relative;
+}
+
+.progress-bar {
+  height: 8px;
+  background: var(--border-color);
+  border-radius: 4px;
+  overflow: visible;
+  position: relative;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width var(--transition-transform);
+}
+
+.progress-fill.green { background: var(--accent-success); }
+.progress-fill.amber { background: var(--accent-attention); }
+.progress-fill.red { background: var(--accent-alert); }
+
+.progress-marker {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: 12px;
+  background: var(--text-muted);
+  border-radius: 1px;
+}
+
+.progress-marker.warning { left: 70%; background: var(--accent-attention); }
+.progress-marker.danger { left: 90%; background: var(--accent-alert); }
+
+.progress-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- Usage Chart Section ---- */
+.chart-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-6);
+}
+
+.chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+
+.chart-title {
+  font-family: var(--font-voice);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.chart-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.chart-period-btns {
+  display: flex;
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+
+.period-btn {
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-color);
+}
+
+.period-btn:hover {
+  color: var(--text-primary);
+}
+
+.period-btn.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+
+.export-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-color);
+}
+
+.export-btn:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+.export-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Chart Container */
+.chart-container {
+  position: relative;
+  height: 300px;
+}
+
+.chart-svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Chart Legend */
+.chart-legend {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-color);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.legend-line {
+  width: 20px;
+  height: 2px;
+}
+
+.legend-line.dashed {
+  background: repeating-linear-gradient(
+    to right,
+    var(--accent-attention) 0,
+    var(--accent-attention) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.legend-line.dotted {
+  background: repeating-linear-gradient(
+    to right,
+    var(--accent-alert) 0,
+    var(--accent-alert) 2px,
+    transparent 2px,
+    transparent 6px
+  );
+}
+
+/* ---- Agent Breakdown Table ---- */
+.breakdown-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.breakdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.breakdown-title {
+  font-family: var(--font-voice);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.breakdown-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Table Styles */
+.breakdown-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.breakdown-table th {
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.breakdown-table th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+.breakdown-table th.sortable:hover {
+  color: var(--text-secondary);
+}
+
+.breakdown-table th svg {
+  width: 12px;
+  height: 12px;
+  margin-left: 4px;
+  vertical-align: middle;
+  opacity: 0.5;
+}
+
+.breakdown-table td {
+  padding: var(--space-3) var(--space-4);
+  font-size: 14px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.breakdown-table tbody tr {
+  cursor: pointer;
+  transition: background var(--transition-color);
+}
+
+.breakdown-table tbody tr:hover {
+  background: var(--bg-raised);
+}
+
+.breakdown-table tbody tr.expanded {
+  background: var(--accent-primary-dim);
+}
+
+.agent-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.agent-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.agent-name {
+  font-family: var(--font-data);
+  font-weight: 500;
+}
+
+.token-cell {
+  font-family: var(--font-data);
+  font-size: 13px;
+}
+
+.cost-cell {
+  font-family: var(--font-data);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.cost-cell.total {
+  color: var(--accent-primary);
+}
+
+.expand-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  transition: transform var(--transition-transform);
+}
+
+.expanded .expand-icon {
+  transform: rotate(180deg);
+}
+
+/* Expanded Row Detail */
+.row-detail {
+  display: none;
+}
+
+.row-detail.visible {
+  display: table-row;
+}
+
+.row-detail td {
+  padding: 0;
+  background: var(--bg-base);
+}
+
+.detail-content {
+  padding: var(--space-4) var(--space-5);
+  padding-left: calc(var(--space-5) + 30px);
+}
+
+.detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--bg-surface);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.detail-table th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  background: var(--bg-raised);
+}
+
+.detail-table td {
+  padding: var(--space-2) var(--space-3);
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.detail-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.session-link {
+  font-family: var(--font-data);
+  color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.session-link:hover {
+  text-decoration: underline;
+}
+
+.model-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  background: var(--bg-raised);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* ---- Summary Footer ---- */
+.breakdown-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-raised);
+  border-top: 1px solid var(--border-color);
+}
+
+.footer-stat {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.footer-stat strong {
+  font-family: var(--font-data);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ---- Toast ---- */
+.toast-container {
+  position: fixed;
+  bottom: var(--space-5);
+  right: var(--space-5);
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.toast {
+  background: var(--bg-raised);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  box-shadow: var(--shadow-dropdown);
+  font-size: 14px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  animation: slideIn 200ms ease;
+}
+
+.toast.success { border-left: 3px solid var(--accent-success); }
+.toast.info { border-left: 3px solid var(--accent-primary); }
+.toast.warning { border-left: 3px solid var(--accent-attention); }
+.toast.error { border-left: 3px solid var(--accent-alert); }
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 1400px) {
+  .budget-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 1024px) {
+  .budget-cards {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="wordmark">Augustus<span class="period">.</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Main</div>
+      <a class="nav-item" href="augustus-dashboard.html">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        <span>Dashboard</span>
+      </a>
+      <a class="nav-item" href="augustus-agents.html">
+        <svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Agents</span>
+      </a>
+      <a class="nav-item" href="augustus-search.html">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span>Search</span>
+      </a>
+      <a class="nav-item active">
+        <svg viewBox="0 0 24 24"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+        <span>Usage</span>
+      </a>
+      <a class="nav-item" href="augustus-settings.html">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Settings</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="collapse-btn" onclick="toggleSidebar()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        <span>Collapse</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main Container -->
+  <div class="main-container">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <h1 class="page-title">Usage</h1>
+        <div class="orchestrator-status">
+          <span class="status-dot active"></span>
+          <span>Orchestrator</span>
+        </div>
+        <div class="session-count">3 active</div>
+      </div>
+      <div class="topbar-right">
+        <div class="budget-chip">
+          <span>Budget</span>
+          <div class="budget-bar">
+            <div class="budget-fill amber" style="width: 72%"></div>
+          </div>
+          <span style="font-family: var(--font-data);">72%</span>
+        </div>
+        <button class="icon-btn" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="badge">2</span>
+        </button>
+        <div class="mode-switcher">
+          <button class="mode-btn" id="lightModeBtn" onclick="setTheme('light')" title="Light mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+          </button>
+          <button class="mode-btn active" id="darkModeBtn" onclick="setTheme('dark')" title="Dark mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Alerts Section -->
+      <div class="alerts-section">
+        <div class="alert-banner warning">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+            <line x1="12" y1="9" x2="12" y2="13"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>Warning threshold breached: Daily spend at 72% of ceiling ($36.00 / $50.00)</span>
+          <button class="dismiss-btn" onclick="dismissAlert(this)">Dismiss</button>
+        </div>
+      </div>
+
+      <!-- Budget Overview Cards -->
+      <div class="budget-cards">
+        <div class="budget-card">
+          <div class="budget-card-header">
+            <span class="budget-card-label">Daily Spend</span>
+            <div class="budget-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+            </div>
+          </div>
+          <div class="budget-card-value warning">$36.00</div>
+          <div class="budget-card-meta">of <strong>$50.00</strong> daily ceiling</div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill amber" style="width: 72%"></div>
+            </div>
+            <div class="progress-labels">
+              <span>$0</span>
+              <span>$50</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="budget-card">
+          <div class="budget-card-header">
+            <span class="budget-card-label">Total Spend</span>
+            <div class="budget-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="12" y1="1" x2="12" y2="23"/>
+                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+              </svg>
+            </div>
+          </div>
+          <div class="budget-card-value">$847.50</div>
+          <div class="budget-card-meta">Warning: <strong>$1,000</strong> Â· Hard stop: <strong>$1,500</strong></div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill green" style="width: 56.5%"></div>
+              <div class="progress-marker warning"></div>
+              <div class="progress-marker danger"></div>
+            </div>
+            <div class="progress-labels">
+              <span>$0</span>
+              <span>$1,500</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="budget-card">
+          <div class="budget-card-header">
+            <span class="budget-card-label">Per-Session Average</span>
+            <div class="budget-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+          </div>
+          <div class="budget-card-value success">$10.34</div>
+          <div class="budget-card-meta">Ceiling: <strong>$15.00</strong> per session</div>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div class="progress-fill green" style="width: 69%"></div>
+            </div>
+            <div class="progress-labels">
+              <span>$0</span>
+              <span>$15</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="budget-card">
+          <div class="budget-card-header">
+            <span class="budget-card-label">Estimated Remaining</span>
+            <div class="budget-card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </div>
+          </div>
+          <div class="budget-card-value">~63</div>
+          <div class="budget-card-meta">sessions at current rate</div>
+        </div>
+      </div>
+
+      <!-- Usage Chart -->
+      <div class="chart-section">
+        <div class="chart-header">
+          <h2 class="chart-title">Daily Usage (Last 30 Days)</h2>
+          <div class="chart-controls">
+            <div class="chart-period-btns">
+              <button class="period-btn" onclick="setPeriod(this, '7d')">7D</button>
+              <button class="period-btn active" onclick="setPeriod(this, '30d')">30D</button>
+              <button class="period-btn" onclick="setPeriod(this, '90d')">90D</button>
+            </div>
+            <button class="export-btn" onclick="exportChart()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export PNG
+            </button>
+          </div>
+        </div>
+
+        <div class="chart-container">
+          <svg class="chart-svg" id="usageChart" viewBox="0 0 900 300"></svg>
+        </div>
+
+        <div class="chart-legend">
+          <div class="legend-item">
+            <span class="legend-dot" style="background: var(--agent-1);"></span>
+            qlaude
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot" style="background: var(--agent-2);"></span>
+            qlaude-control
+          </div>
+          <div class="legend-item">
+            <span class="legend-dot" style="background: var(--agent-3);"></span>
+            echo
+          </div>
+          <div class="legend-item">
+            <span class="legend-line dashed"></span>
+            Daily Ceiling
+          </div>
+          <div class="legend-item">
+            <span class="legend-line dotted"></span>
+            Warning Threshold
+          </div>
+        </div>
+      </div>
+
+      <!-- Agent Breakdown Table -->
+      <div class="breakdown-section">
+        <div class="breakdown-header">
+          <h2 class="breakdown-title">Per-Agent Breakdown</h2>
+          <div class="breakdown-controls">
+            <button class="export-btn" onclick="exportCSV()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Export CSV
+            </button>
+          </div>
+        </div>
+
+        <table class="breakdown-table">
+          <thead>
+            <tr>
+              <th style="width: 30px;"></th>
+              <th class="sortable" onclick="sortTable('agent')">
+                Agent
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/>
+                </svg>
+              </th>
+              <th class="sortable" onclick="sortTable('sessions')">
+                Sessions Today
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/>
+                </svg>
+              </th>
+              <th class="sortable" onclick="sortTable('tokens-in')">
+                Tokens In
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/>
+                </svg>
+              </th>
+              <th class="sortable" onclick="sortTable('tokens-out')">
+                Tokens Out
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/>
+                </svg>
+              </th>
+              <th class="sortable" onclick="sortTable('cost-today')">
+                Cost Today
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/>
+                </svg>
+              </th>
+              <th class="sortable" onclick="sortTable('cost-total')">
+                Cost Total
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M7 15l5 5 5-5"/><path d="M7 9l5-5 5 5"/>
+                </svg>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr onclick="toggleRow('row-qlaude')" id="row-qlaude">
+              <td>
+                <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </td>
+              <td>
+                <div class="agent-cell">
+                  <span class="agent-dot" style="background: var(--agent-1);"></span>
+                  <span class="agent-name">qlaude</span>
+                </div>
+              </td>
+              <td>4</td>
+              <td class="token-cell">142.5K</td>
+              <td class="token-cell">89.2K</td>
+              <td class="cost-cell">$24.80</td>
+              <td class="cost-cell total">$578.30</td>
+            </tr>
+            <tr class="row-detail" id="detail-qlaude">
+              <td colspan="7">
+                <div class="detail-content">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>Session</th>
+                        <th>Turns</th>
+                        <th>Tokens In</th>
+                        <th>Tokens Out</th>
+                        <th>Cost</th>
+                        <th>Model</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><span class="session-link" onclick="event.stopPropagation(); showToast('Opening SES-047...', 'info')">SES-047</span></td>
+                        <td>12</td>
+                        <td>42.1K</td>
+                        <td>28.5K</td>
+                        <td>$7.20</td>
+                        <td><span class="model-badge">claude-sonnet-4</span></td>
+                      </tr>
+                      <tr>
+                        <td><span class="session-link" onclick="event.stopPropagation(); showToast('Opening SES-046...', 'info')">SES-046</span></td>
+                        <td>8</td>
+                        <td>38.4K</td>
+                        <td>22.1K</td>
+                        <td>$6.10</td>
+                        <td><span class="model-badge">claude-sonnet-4</span></td>
+                      </tr>
+                      <tr>
+                        <td><span class="session-link" onclick="event.stopPropagation(); showToast('Opening SES-045...', 'info')">SES-045</span></td>
+                        <td>15</td>
+                        <td>35.8K</td>
+                        <td>24.3K</td>
+                        <td>$6.20</td>
+                        <td><span class="model-badge">claude-sonnet-4</span></td>
+                      </tr>
+                      <tr>
+                        <td><span class="session-link" onclick="event.stopPropagation(); showToast('Opening SES-044...', 'info')">SES-044</span></td>
+                        <td>6</td>
+                        <td>26.2K</td>
+                        <td>14.3K</td>
+                        <td>$5.30</td>
+                        <td><span class="model-badge">claude-sonnet-4</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+
+            <tr onclick="toggleRow('row-control')" id="row-control">
+              <td>
+                <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </td>
+              <td>
+                <div class="agent-cell">
+                  <span class="agent-dot" style="background: var(--agent-2);"></span>
+                  <span class="agent-name">qlaude-control</span>
+                </div>
+              </td>
+              <td>2</td>
+              <td class="token-cell">48.3K</td>
+              <td class="token-cell">31.7K</td>
+              <td class="cost-cell">$8.40</td>
+              <td class="cost-cell total">$189.60</td>
+            </tr>
+            <tr class="row-detail" id="detail-control">
+              <td colspan="7">
+                <div class="detail-content">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>Session</th>
+                        <th>Turns</th>
+                        <th>Tokens In</th>
+                        <th>Tokens Out</th>
+                        <th>Cost</th>
+                        <th>Model</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><span class="session-link" onclick="event.stopPropagation(); showToast('Opening SES-023...', 'info')">SES-023</span></td>
+                        <td>9</td>
+                        <td>28.1K</td>
+                        <td>18.9K</td>
+                        <td>$4.80</td>
+                        <td><span class="model-badge">claude-sonnet-4</span></td>
+                      </tr>
+                      <tr>
+                        <td><span class="session-link" onclick="event.stopPropagation(); showToast('Opening SES-022...', 'info')">SES-022</span></td>
+                        <td>7</td>
+                        <td>20.2K</td>
+                        <td>12.8K</td>
+                        <td>$3.60</td>
+                        <td><span class="model-badge">claude-sonnet-4</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+
+            <tr onclick="toggleRow('row-echo')" id="row-echo">
+              <td>
+                <svg class="expand-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="6 9 12 15 18 9"/>
+                </svg>
+              </td>
+              <td>
+                <div class="agent-cell">
+                  <span class="agent-dot" style="background: var(--agent-3);"></span>
+                  <span class="agent-name">echo</span>
+                </div>
+              </td>
+              <td>1</td>
+              <td class="token-cell">18.7K</td>
+              <td class="token-cell">12.4K</td>
+              <td class="cost-cell">$2.80</td>
+              <td class="cost-cell total">$79.60</td>
+            </tr>
+            <tr class="row-detail" id="detail-echo">
+              <td colspan="7">
+                <div class="detail-content">
+                  <table class="detail-table">
+                    <thead>
+                      <tr>
+                        <th>Session</th>
+                        <th>Turns</th>
+                        <th>Tokens In</th>
+                        <th>Tokens Out</th>
+                        <th>Cost</th>
+                        <th>Model</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><span class="session-link" onclick="event.stopPropagation(); showToast('Opening SES-012...', 'info')">SES-012</span></td>
+                        <td>5</td>
+                        <td>18.7K</td>
+                        <td>12.4K</td>
+                        <td>$2.80</td>
+                        <td><span class="model-badge">claude-opus-4-6</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="breakdown-footer">
+          <div class="footer-stat">
+            Total Sessions Today: <strong>7</strong>
+          </div>
+          <div class="footer-stat">
+            Total Tokens: <strong>209.5K in</strong> / <strong>133.3K out</strong>
+          </div>
+          <div class="footer-stat">
+            Total Cost Today: <strong>$36.00</strong>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// Theme switching
+function setTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('darkModeBtn').classList.toggle('active', theme === 'dark');
+  document.getElementById('lightModeBtn').classList.toggle('active', theme === 'light');
+  localStorage.setItem('augustus-theme', theme);
+  renderChart();
+}
+
+(function() {
+  const saved = localStorage.getItem('augustus-theme');
+  if (saved) { document.documentElement.setAttribute('data-theme', saved); }
+})();
+
+// Sidebar collapse
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+// Alert dismiss
+function dismissAlert(btn) {
+  btn.parentElement.style.display = 'none';
+  showToast('Alert dismissed', 'success');
+}
+
+// Period buttons
+function setPeriod(btn, period) {
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  showToast(`Showing ${period} data`, 'info');
+  renderChart();
+}
+
+// Table row expand
+function toggleRow(rowId) {
+  const row = document.getElementById(rowId);
+  const detailId = 'detail-' + rowId.split('-')[1];
+  const detail = document.getElementById(detailId);
+  
+  row.classList.toggle('expanded');
+  detail.classList.toggle('visible');
+}
+
+// Sort table
+function sortTable(column) {
+  showToast(`Sorting by ${column}...`, 'info');
+}
+
+// Export functions
+function exportChart() {
+  showToast('Exporting chart as PNG...', 'info');
+}
+
+function exportCSV() {
+  showToast('Exporting data as CSV...', 'info');
+}
+
+// Toast notifications
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(20px)';
+    setTimeout(() => toast.remove(), 200);
+  }, 3000);
+}
+
+// Generate mock usage data
+function generateUsageData() {
+  const days = 30;
+  const data = [];
+  
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date();
+    date.setDate(date.getDate() - i);
+    
+    // Random usage with some variance
+    const qlaude = 15 + Math.random() * 20 + (i < 7 ? Math.random() * 10 : 0);
+    const control = 5 + Math.random() * 8;
+    const echo = i % 3 === 0 ? 2 + Math.random() * 5 : 0;
+    
+    data.push({
+      date: date,
+      qlaude: qlaude,
+      control: control,
+      echo: echo,
+      total: qlaude + control + echo
+    });
+  }
+  
+  return data;
+}
+
+// Render chart
+function renderChart() {
+  const svg = document.getElementById('usageChart');
+  const data = generateUsageData();
+  
+  const width = 900;
+  const height = 300;
+  const padding = { top: 20, right: 20, bottom: 40, left: 50 };
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+  
+  const maxValue = 60;
+  const barWidth = (chartWidth / data.length) - 4;
+  
+  // Get theme colors
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const textColor = isDark ? '#8C959D' : '#5C656E';
+  const gridColor = isDark ? '#2A353F' : '#DFE3E8';
+  
+  let svgContent = '';
+  
+  // Y-axis grid lines and labels
+  for (let i = 0; i <= 6; i++) {
+    const y = padding.top + (chartHeight / 6) * i;
+    const value = maxValue - (maxValue / 6) * i;
+    
+    svgContent += `<line x1="${padding.left}" y1="${y}" x2="${width - padding.right}" y2="${y}" stroke="${gridColor}" stroke-dasharray="4,4"/>`;
+    svgContent += `<text x="${padding.left - 10}" y="${y + 4}" text-anchor="end" fill="${textColor}" font-size="11" font-family="JetBrains Mono">$${value.toFixed(0)}</text>`;
+  }
+  
+  // Daily ceiling line
+  const ceilingY = padding.top + chartHeight * (1 - 50 / maxValue);
+  svgContent += `<line x1="${padding.left}" y1="${ceilingY}" x2="${width - padding.right}" y2="${ceilingY}" stroke="#D4915D" stroke-width="2" stroke-dasharray="8,4"/>`;
+  
+  // Warning threshold line (70% of ceiling = $35)
+  const warningY = padding.top + chartHeight * (1 - 35 / maxValue);
+  svgContent += `<line x1="${padding.left}" y1="${warningY}" x2="${width - padding.right}" y2="${warningY}" stroke="#C75D5D" stroke-width="2" stroke-dasharray="2,4"/>`;
+  
+  // Bars
+  data.forEach((d, i) => {
+    const x = padding.left + i * (chartWidth / data.length) + 2;
+    
+    // Stack: echo bottom, control middle, qlaude top
+    let currentY = padding.top + chartHeight;
+    
+    // Echo
+    if (d.echo > 0) {
+      const h = (d.echo / maxValue) * chartHeight;
+      currentY -= h;
+      svgContent += `<rect x="${x}" y="${currentY}" width="${barWidth}" height="${h}" fill="#8B7EC8" rx="2"/>`;
+    }
+    
+    // Control
+    if (d.control > 0) {
+      const h = (d.control / maxValue) * chartHeight;
+      currentY -= h;
+      svgContent += `<rect x="${x}" y="${currentY}" width="${barWidth}" height="${h}" fill="#2E7D9B" rx="2"/>`;
+    }
+    
+    // Qlaude
+    if (d.qlaude > 0) {
+      const h = (d.qlaude / maxValue) * chartHeight;
+      currentY -= h;
+      svgContent += `<rect x="${x}" y="${currentY}" width="${barWidth}" height="${h}" fill="#3B9B8E" rx="2"/>`;
+    }
+    
+    // X-axis labels (every 5 days)
+    if (i % 5 === 0) {
+      const dateLabel = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      svgContent += `<text x="${x + barWidth / 2}" y="${height - 10}" text-anchor="middle" fill="${textColor}" font-size="11" font-family="Inter">${dateLabel}</text>`;
+    }
+  });
+  
+  // Axes
+  svgContent += `<line x1="${padding.left}" y1="${padding.top}" x2="${padding.left}" y2="${padding.top + chartHeight}" stroke="${gridColor}" stroke-width="1"/>`;
+  svgContent += `<line x1="${padding.left}" y1="${padding.top + chartHeight}" x2="${width - padding.right}" y2="${padding.top + chartHeight}" stroke="${gridColor}" stroke-width="1"/>`;
+  
+  svg.innerHTML = svgContent;
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  renderChart();
+});
+</script>
+
+</body>
+</html>

@@ -120,6 +120,7 @@ def _agent_to_dict(agent: AgentConfig) -> dict[str, Any]:
         "temperature_override": agent.temperature_override,
         "max_tokens_override": agent.max_tokens_override,
         "max_turns": agent.max_turns,
+        "session_interval": agent.session_interval,
         "identity_core": agent.identity_core,
         "session_task": agent.session_task,
         "close_protocol": agent.close_protocol,

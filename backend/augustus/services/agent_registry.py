@@ -216,7 +216,14 @@ class AgentRegistry:
                         arcname = f"{agent_id}/{file_path.relative_to(agent_dir)}"
                         zf.writestr(arcname, file_path.read_text(errors="replace"))
 
-            # Add agent config as JSON
+            # Add importable split-schema YAML (primary export artifact)
+            from augustus.services.yaml_generator import generate_bootstrap_yaml
+
+            agent.basins = await self.memory.get_current_basins(agent_id) or agent.basins
+            yaml_content = generate_bootstrap_yaml(agent)
+            zf.writestr(f"{agent_id}/{agent_id}.yaml", yaml_content)
+
+            # Add agent metadata as JSON (supplementary — not used for import)
             config_data = {
                 "agent_id": agent.agent_id,
                 "description": agent.description,
@@ -224,12 +231,9 @@ class AgentRegistry:
                 "model_override": agent.model_override,
                 "temperature_override": agent.temperature_override,
                 "max_turns": agent.max_turns,
-                "identity_core": agent.identity_core,
-                "session_task": agent.session_task,
-                "close_protocol": agent.close_protocol,
                 "created_at": agent.created_at,
             }
-            zf.writestr(f"{agent_id}/config.json", json.dumps(config_data, indent=2))
+            zf.writestr(f"{agent_id}/metadata.json", json.dumps(config_data, indent=2))
 
         logger.info(f"Exported agent '{agent_id}' to {zip_path}")
         return zip_path

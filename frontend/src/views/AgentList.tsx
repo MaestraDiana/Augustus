@@ -192,8 +192,10 @@ export default function AgentList() {
   };
 
   const handleClone = async (agentId: string) => {
+    const suffix = Date.now().toString(36).slice(-4);
+    const newId = `${agentId}-clone-${suffix}`;
     try {
-      const newAgent = await api.agents.clone(agentId);
+      const newAgent = await api.agents.clone(agentId, newId);
       navigate(`/agents/${newAgent.agent_id}`);
     } catch (err) {
       console.error('Failed to clone agent:', err);

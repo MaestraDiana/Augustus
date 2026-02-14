@@ -6,6 +6,7 @@ from typing import Any
 
 import yaml
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from augustus.api.dependencies import get_agent_registry, get_memory
@@ -541,17 +542,21 @@ async def clone_agent(
     return _agent_to_dict(cloned) if cloned else {"agent_id": body.new_agent_id, "status": "created"}
 
 
-@router.post("/{agent_id}/export")
+@router.get("/{agent_id}/export")
 async def export_agent(
     agent_id: str,
     registry: AgentRegistry = Depends(get_agent_registry),
-) -> dict:
-    """Export agent data as a ZIP archive."""
+) -> FileResponse:
+    """Export agent data as a downloadable ZIP archive."""
     try:
         zip_path = await registry.export_agent(agent_id)
     except AgentNotFoundError:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-    return {"agent_id": agent_id, "export_path": str(zip_path)}
+    return FileResponse(
+        path=str(zip_path),
+        media_type="application/zip",
+        filename=zip_path.name,
+    )
 
 
 @router.get("/{agent_id}/overview")

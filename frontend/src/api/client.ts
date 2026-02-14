@@ -68,8 +68,11 @@ export const api = {
       del<void>(`/agents/${id}`, hard ? { hard: 'true' } : undefined),
     pause: (id: string) => post<{ agent_id: string; status: string }>(`/agents/${id}/pause`),
     resume: (id: string) => post<{ agent_id: string; status: string }>(`/agents/${id}/resume`),
-    clone: (id: string) => post<Agent>(`/agents/${id}/clone`),
-    export: (id: string) => post<{ agent_id: string; export_path: string }>(`/agents/${id}/export`),
+    clone: (id: string, newAgentId: string) => post<Agent>(`/agents/${id}/clone`, { new_agent_id: newAgentId }),
+    export: (id: string) => {
+      window.open(`${API_BASE}/agents/${id}/export`, '_blank');
+      return Promise.resolve({ agent_id: id, export_path: '' });
+    },
     overview: (id: string) => get<AgentOverviewResponse>(`/agents/${id}/overview`),
     parseYaml: (yamlText: string) =>
       post<ParseYamlResponse>('/agents/parse-yaml', { yaml_text: yamlText }),

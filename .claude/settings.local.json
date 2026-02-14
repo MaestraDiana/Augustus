@@ -7,7 +7,14 @@
       "Bash(del \"Z:\\\\Web Clients\\\\Machine Pareidolia\\\\Lattice Runner\\\\v2\\\\nul\")",
       "Bash(done)",
       "WebFetch(domain:www.electron.build)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)",
+      "Bash(gh release:*)",
+      "Bash(gh api:*)",
+      "WebFetch(domain:www.electronjs.org)",
+      "WebFetch(domain:releases.electronjs.org)",
+      "WebFetch(domain:endoflife.date)"
     ]
   }
 }

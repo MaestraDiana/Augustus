@@ -380,6 +380,7 @@ async def create_agent(
         temperature_override=body.temperature_override,
         max_tokens_override=body.max_tokens_override,
         max_turns=body.max_turns,
+        session_interval=body.session_interval,
         identity_core=body.identity_core,
         session_task=body.session_task,
         close_protocol=body.close_protocol,
@@ -430,6 +431,8 @@ async def update_agent(
         updates["max_tokens_override"] = body.max_tokens_override
     if body.max_turns is not None:
         updates["max_turns"] = body.max_turns
+    if body.session_interval is not None:
+        updates["session_interval"] = body.session_interval
     if body.identity_core is not None:
         updates["identity_core"] = body.identity_core
     if body.session_task is not None:

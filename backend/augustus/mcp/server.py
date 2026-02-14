@@ -211,7 +211,12 @@ class MCPServer:
 
 
 def main() -> None:
-    """Entry point for MCP server."""
+    """Entry point for MCP server.
+
+    Uses the same data directory as the Augustus app (via ConfigManager)
+    so the MCP server sees the same agents, sessions, and data.
+    Override with AUGUSTUS_DATA_DIR env var if needed.
+    """
     import os
     from pathlib import Path
 
@@ -219,8 +224,18 @@ def main() -> None:
     from augustus.db.chroma_store import ChromaStore
     from augustus.services.memory import MemoryService
 
-    data_dir = Path(os.path.expanduser(os.environ.get("AUGUSTUS_DATA_DIR", "~/.augustus")))
-    data_dir.mkdir(parents=True, exist_ok=True)
+    # Check for explicit override first
+    env_dir = os.environ.get("AUGUSTUS_DATA_DIR")
+    if env_dir:
+        data_dir = Path(os.path.expanduser(env_dir))
+        data_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        # Use ConfigManager to find the same data dir the app uses
+        from augustus.config import ConfigManager
+        config = ConfigManager()
+        data_dir = config.get_data_dir()
+
+    logger.info("MCP server using data directory: %s", data_dir)
 
     sqlite_store = SQLiteStore(data_dir / "augustus.db")
     chroma_store = ChromaStore(data_dir / "chromadb")

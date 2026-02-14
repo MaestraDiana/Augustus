@@ -75,7 +75,6 @@ queue/
 docs/
 help/
 
-# Markdown files (except README.md in root)
+# Markdown files (except root README.md)
 *.md
-!README.md
 !/README.md

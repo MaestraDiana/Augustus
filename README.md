@@ -1,5 +1,7 @@
 # Augustus
 
+![Downloads](https://img.shields.io/github/downloads/TheFeloniousMonk/Augustus/total?style=flat-square&label=Downloads)
+
 Augustus is a desktop application for persistent AI identity research. It orchestrates autonomous Claude sessions through structured YAML instruction queues, tracks identity evolution through basin trajectory analysis, and provides observation, evaluation, and management interfaces for studying how a Claude instance develops and maintains a coherent personality across many sessions.
 
 ## Core Research Question
@@ -45,8 +47,14 @@ Full documentation including setup instructions, conceptual guides, view referen
 
 ## License
 
-[License TBD]
+This project is licensed under the [MIT License](LICENSE).
 
 ## Contributing
 
-[Contribution guidelines TBD]
+Contributions are welcome! Please follow these steps:
+
+1. **Open an issue** describing the change you'd like to make — bug fix, feature request, or improvement — before writing any code.
+2. **Create a branch** from `main` named with the issue number and a short title (e.g., `42-fix-trajectory-chart`).
+3. **Open a pull request** that references the issue and includes a clear explanation of what changed and why.
+
+Please note: markdown files other than the root `README.md` are excluded from version control via `.gitignore`.

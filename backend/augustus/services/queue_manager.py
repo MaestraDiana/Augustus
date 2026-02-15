@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from augustus.exceptions import QueueError, SchemaValidationError
+from augustus.utils import utcnow_iso
 from augustus.models.dataclasses import ParsedInstruction
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class QueueManager:
                 shutil.move(str(file_path), str(dest))
                 # Write error info
                 error_info = self.error_dir / f"{file_path.stem}.error.txt"
-                error_info.write_text(f"Validation error: {e}\nTimestamp: {datetime.utcnow().isoformat()}")
+                error_info.write_text(f"Validation error: {e}\nTimestamp: {utcnow_iso()}")
                 continue
 
             except Exception as e:
@@ -80,12 +81,12 @@ class QueueManager:
             original = file_path.read_text(encoding="utf-8")
             metadata_text = f"\n\n# --- Session Metadata (appended by orchestrator) ---\n"
             metadata_text += f"# session_id: {session_id}\n"
-            metadata_text += f"# completed_at: {datetime.utcnow().isoformat()}\n"
+            metadata_text += f"# completed_at: {utcnow_iso()}\n"
             for key, value in metadata.items():
                 metadata_text += f"# {key}: {value}\n"
 
             # Move to archive with metadata
-            archive_name = f"{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}_{file_path.name}"
+            archive_name = f"{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}_{file_path.name}"
             dest = self.archive_dir / archive_name
             dest.write_text(original + metadata_text, encoding="utf-8")
             file_path.unlink()
@@ -102,7 +103,7 @@ class QueueManager:
 
             error_info = self.error_dir / f"{file_path.stem}.error.txt"
             error_info.write_text(
-                f"Session failed: {error}\n" f"Session ID: {session_id}\n" f"Timestamp: {datetime.utcnow().isoformat()}"
+                f"Session failed: {error}\n" f"Session ID: {session_id}\n" f"Timestamp: {utcnow_iso()}"
             )
             logger.error(f"Failed YAML moved to error: {file_path.name}")
 
@@ -115,7 +116,7 @@ class QueueManager:
             raise QueueError(f"YAML validation failed: {e}")
 
         # Write with timestamp prefix for ordering
-        ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
         safe_name = filename if filename.endswith((".yaml", ".yml")) else f"{filename}.yaml"
         dest = self.pending_dir / f"{ts}_{safe_name}"
         dest.write_text(yaml_content, encoding="utf-8")

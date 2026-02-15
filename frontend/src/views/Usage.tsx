@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import { useApi } from '../hooks/useApi';
 import { formatDate } from '../utils/time';
 import UsageChart from '../components/charts/UsageChart';
 import { AGENT_COLORS } from '../utils/constants';
@@ -20,41 +21,41 @@ interface AgentUsage {
   agent_status?: string; // 'active' | 'idle' | 'paused' | 'deleted' | 'error'
 }
 
+interface UsageData {
+  daySummary: any;
+  monthSummary: any;
+  allSummary: any;
+  dailyData: any[];
+  settings: any;
+}
+
 export default function Usage() {
   const [period, setPeriod] = useState('30d');
-  const [loading, setLoading] = useState(true);
-
-  // API data
-  const [daySummary, setDaySummary] = useState<any>(null);
-  const [monthSummary, setMonthSummary] = useState<any>(null);
-  const [allSummary, setAllSummary] = useState<any>(null);
   const [dailyData, setDailyData] = useState<any[]>([]);
-  const [settings, setSettings] = useState<any>(null);
 
-  // Initial fetch of summary data
+  const { data, loading } = useApi<UsageData>(
+    async () => {
+      const [daySummary, monthSummary, allSummary, dailyRes, settings] = await Promise.all([
+        api.usage.summary(),
+        api.usage.summary('month'),
+        api.usage.summary('all'),
+        api.usage.daily(30),
+        api.settings.get(),
+      ]);
+      return { daySummary, monthSummary, allSummary, dailyData: dailyRes, settings };
+    },
+    [],
+  );
+
+  const daySummary = data?.daySummary ?? null;
+  const monthSummary = data?.monthSummary ?? null;
+  const allSummary = data?.allSummary ?? null;
+  const settings = data?.settings ?? null;
+
+  // Sync initial daily data from useApi result
   useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [dayRes, monthRes, allRes, dailyRes, settingsRes] = await Promise.all([
-          api.usage.summary(),                              // default period=day
-          api.usage.summary('month'),                        // monthly totals
-          api.usage.summary('all'),                           // all-time totals
-          api.usage.daily(30),                               // daily chart data (default 30d)
-          api.settings.get(),                                // budget thresholds
-        ]);
-        setDaySummary(dayRes);
-        setMonthSummary(monthRes);
-        setAllSummary(allRes);
-        setDailyData(dailyRes);
-        setSettings(settingsRes);
-      } catch (err) {
-        console.error('Failed to load usage data:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchAll();
-  }, []);
+    if (data?.dailyData) setDailyData(data.dailyData);
+  }, [data]);
 
   // Re-fetch chart data when period changes
   useEffect(() => {

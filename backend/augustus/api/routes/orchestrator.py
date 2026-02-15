@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends
 
 from augustus.api.dependencies import get_container
 from augustus.models.enums import OrchestratorStatus
+from augustus.utils import enum_val
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/orchestrator", tags=["orchestrator"])
@@ -28,7 +29,7 @@ def _get_orchestrator_status() -> dict:
     # The orchestrator object, if present, should expose status attributes.
     # Gracefully handle missing attributes for forward compatibility.
     status = getattr(orch, "status", OrchestratorStatus.PAUSED)
-    status_val = status.value if hasattr(status, "value") else str(status)
+    status_val = enum_val(status)
     active_sessions = getattr(orch, "active_session_count", 0)
     queued = getattr(orch, "queued_agent_count", 0)
     error = getattr(orch, "last_error", None)

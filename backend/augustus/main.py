@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import logging
-import sys
 from pathlib import Path
 
 import uvicorn
@@ -64,13 +63,23 @@ def main() -> None:
 
     async def run():
         """Run uvicorn with orchestrator as background task."""
-        # Start orchestrator in background
         orch_task = asyncio.create_task(orchestrator.start())
         try:
             await server.serve()
         finally:
-            await orchestrator.stop()
+            # The lifespan handler in app.py arms the shutdown watchdog,
+            # so we just need to clean up the orchestrator here.
+            try:
+                await orchestrator.stop(timeout=3.0)
+            except Exception:
+                pass
             orch_task.cancel()
+            try:
+                await asyncio.wait_for(asyncio.shield(orch_task), timeout=1.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                pass
+
+            logger.info("Augustus backend shutdown complete")
 
     asyncio.run(run())
 

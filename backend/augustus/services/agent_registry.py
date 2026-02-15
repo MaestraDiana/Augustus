@@ -6,13 +6,13 @@ import json
 import logging
 import shutil
 import zipfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from augustus.exceptions import AgentNotFoundError
 from augustus.models.dataclasses import AgentConfig
 from augustus.models.enums import AgentStatus
-from augustus.utils import DEFAULT_CONTINUATION_TASK
+from augustus.utils import DEFAULT_CONTINUATION_TASK, enum_val, utcnow_iso
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class AgentRegistry:
         (agent_dir / "logs").mkdir(parents=True, exist_ok=True)
 
         # Set timestamps
-        config.created_at = config.created_at or datetime.utcnow().isoformat()
+        config.created_at = config.created_at or utcnow_iso()
         config.status = config.status or AgentStatus.IDLE
 
         # Store in memory service
@@ -81,7 +81,7 @@ class AgentRegistry:
         Does not touch active sessions — they complete with the old config.
         """
         from augustus.services.queue_manager import QueueManager
-        from augustus.services.yaml_generator import generate_instruction_yaml
+        from augustus.services.yaml_generator import generate_next_session_yaml
 
         agent = await self.memory.get_agent(agent_id)
         if not agent:
@@ -108,10 +108,15 @@ class AgentRegistry:
             self._write_bootstrap_yaml(agent, agent_dir)
         else:
             # Has session history — write a continuation YAML
-            from augustus.services.yaml_generator import generate_next_session_yaml
-
             identity_core = agent.identity_core or f"You are {agent_id}."
             session_task = DEFAULT_CONTINUATION_TASK
+
+            # Carry structural sections from agent config
+            structural_sections = {}
+            if agent.session_protocol:
+                structural_sections["session_protocol"] = agent.session_protocol
+            if agent.relational_grounding:
+                structural_sections["relational_grounding"] = agent.relational_grounding
 
             yaml_content = generate_next_session_yaml(
                 agent_id=agent_id,
@@ -122,9 +127,10 @@ class AgentRegistry:
                 session_task=session_task,
                 close_protocol=agent.close_protocol,
                 capabilities=agent.capabilities,
+                structural_sections=structural_sections or None,
             )
 
-            ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
             dest = agent_dir / "queue" / "pending" / f"{ts}_edited.yaml"
             dest.write_text(yaml_content, encoding="utf-8")
             logger.info(f"Wrote regenerated YAML for '{agent_id}': {dest.name}")
@@ -204,7 +210,7 @@ class AgentRegistry:
 
         export_path = self.data_dir / "exports"
         export_path.mkdir(parents=True, exist_ok=True)
-        zip_path = export_path / f"{agent_id}-export-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}.zip"
+        zip_path = export_path / f"{agent_id}-export-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.zip"
 
         agent_dir = self.get_agent_dir(agent_id)
 
@@ -227,7 +233,7 @@ class AgentRegistry:
             config_data = {
                 "agent_id": agent.agent_id,
                 "description": agent.description,
-                "status": agent.status.value if hasattr(agent.status, "value") else str(agent.status),
+                "status": enum_val(agent.status),
                 "model_override": agent.model_override,
                 "temperature_override": agent.temperature_override,
                 "max_turns": agent.max_turns,
@@ -244,7 +250,7 @@ class AgentRegistry:
 
         try:
             yaml_content = generate_bootstrap_yaml(config)
-            ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
             filename = f"{ts}_bootstrap.yaml"
             dest = agent_dir / "queue" / "pending" / filename
             dest.write_text(yaml_content, encoding="utf-8")

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import copy
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import yaml
@@ -21,6 +21,7 @@ from augustus.models.dataclasses import (
     BasinConfig,
     CoActivationEntry,
 )
+from augustus.utils import enum_val
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +129,7 @@ def generate_instruction_yaml(
     basin_params: dict[str, dict] = {}
     for b in basins:
         basin_params[b.name] = {
-            "class": b.basin_class.value if hasattr(b.basin_class, "value") else str(b.basin_class),
+            "class": enum_val(b.basin_class),
             "alpha": round(b.alpha, 4),
             "lambda": round(b.lambda_, 4),
             "eta": round(b.eta, 4),
@@ -244,7 +245,7 @@ def generate_bootstrap_yaml(agent: AgentConfig) -> str:
     Uses the agent's stored identity_core, session_task, close_protocol,
     basins, and capabilities to produce the first instruction file.
     """
-    session_id = f"bootstrap-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+    session_id = f"bootstrap-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
     identity_core = agent.identity_core or _default_identity_core(agent.agent_id)
     session_task = agent.session_task or _default_session_task(agent.agent_id)
@@ -284,7 +285,7 @@ def generate_next_session_yaml(
     structural_sections: dict[str, Any] | None = None,
 ) -> str:
     """Generate the next-session YAML after handoff processing."""
-    session_id = f"session-{session_number:03d}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
+    session_id = f"session-{session_number:03d}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
     return generate_instruction_yaml(
         agent_id=agent_id,

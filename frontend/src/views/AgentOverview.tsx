@@ -4,12 +4,8 @@ import { Edit, ArrowRight } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import { api } from '../api/client';
 import { formatTimestamp, formatDuration } from '../utils/time';
+import { getBasinColor } from '../utils/constants';
 import type { Agent } from '../types';
-
-// Dynamic basin colors — cycles through brand palette
-const BASIN_COLOR_PALETTE = [
-  '#3B9B8E', '#2E7D9B', '#5B8C6F', '#D4915D', '#C4786E', '#8B7EC8',
-];
 
 interface OverviewBasin {
   name: string;
@@ -214,7 +210,7 @@ export default function AgentOverview() {
                 {basins.map((basin, idx) => {
                   const basinClass = basin.basin_class || 'peripheral';
                   const basinTier = basin.tier || 3;
-                  const color = BASIN_COLOR_PALETTE[idx % BASIN_COLOR_PALETTE.length];
+                  const color = getBasinColor(idx);
 
                   return (
                     <div key={basin.name} className="basin-item" data-emphasis={getBasinEmphasis(basin.alpha)}>

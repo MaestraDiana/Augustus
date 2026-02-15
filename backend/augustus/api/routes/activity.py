@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from augustus.api.dependencies import get_memory
 from augustus.models.dataclasses import ActivityEvent
 from augustus.services.memory import MemoryService
+from augustus.utils import utcnow_iso
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["activity"])
@@ -41,7 +42,6 @@ async def get_system_alerts(
 ) -> list[dict]:
     """Get active system alerts (pending proposals, unreviewed flags, budget warnings, etc.)."""
     raw_alerts = await memory.get_system_alerts()
-    from datetime import datetime
 
     severity_map = {"warning": "warn", "error": "error", "info": "info"}
     result = []
@@ -53,7 +53,7 @@ async def get_system_alerts(
             "detail": alert.get("detail", ""),
             "link_type": alert.get("type", ""),
             "agent_id": alert.get("agent_id", ""),
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": utcnow_iso(),
             "dismissed": False,
         })
     return result

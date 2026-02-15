@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import uuid
-from datetime import datetime
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
 from augustus.models.enums import FlagType, ProposalStatus
+from augustus.utils import enum_val, utcnow_iso
 
 logger = logging.getLogger(__name__)
 
@@ -109,12 +109,8 @@ class MCPServer:
                 {
                     "proposal_id": p.proposal_id,
                     "basin_name": p.basin_name,
-                    "tier": p.tier.value if hasattr(p.tier, "value") else p.tier,
-                    "status": (
-                        p.status.value
-                        if hasattr(p.status, "value")
-                        else str(p.status)
-                    ),
+                    "tier": p.tier.value if hasattr(p.tier, "value") else int(p.tier),
+                    "status": enum_val(p.status),
                     "rationale": p.rationale,
                     "consecutive_count": p.consecutive_count,
                 }
@@ -128,9 +124,7 @@ class MCPServer:
                 {
                     "agent_id": a.agent_id,
                     "description": a.description,
-                    "status": (
-                        a.status.value if hasattr(a.status, "value") else str(a.status)
-                    ),
+                    "status": enum_val(a.status),
                     "last_active": a.last_active,
                 }
                 for a in agents
@@ -172,7 +166,7 @@ class MCPServer:
                 session_id=session_id,
                 content=content,
                 tags=tags or [],
-                created_at=datetime.utcnow().isoformat(),
+                created_at=utcnow_iso(),
             )
             await memory.store_annotation(annotation)
             return json.dumps({"status": "stored", "annotation_id": annotation.annotation_id})
@@ -228,7 +222,7 @@ class MCPServer:
                 detail=rationale,
                 reviewed=False,
                 review_note=None,
-                created_at=datetime.utcnow().isoformat(),
+                created_at=utcnow_iso(),
             )
             await memory.store_flag(flag)
             return json.dumps({"status": "flagged", "flag_id": flag.flag_id})

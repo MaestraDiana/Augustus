@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from augustus.models.enums import AgentStatus, OrchestratorStatus
-from augustus.utils import DEFAULT_CONTINUATION_TASK
+from augustus.utils import DEFAULT_CONTINUATION_TASK, enum_val, utcnow_iso
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +246,7 @@ class Orchestrator:
                     logger.info(
                         "AGENT LOOP: %s — status is '%s', exiting",
                         agent_id,
-                        agent.status.value if hasattr(agent.status, 'value') else agent.status,
+                        enum_val(agent.status),
                     )
                     break
 
@@ -268,7 +268,7 @@ class Orchestrator:
                 if interval > 0 and agent.last_active:
                     try:
                         last = datetime.fromisoformat(agent.last_active)
-                        elapsed = (datetime.utcnow() - last).total_seconds()
+                        elapsed = (datetime.now(timezone.utc) - last).total_seconds()
                         remaining = interval - elapsed
                         if remaining > 0:
                             logger.info(
@@ -351,7 +351,7 @@ class Orchestrator:
                     # *was* active, and the timestamp drives "last run" in the UI
                     try:
                         await self.agent_registry.update_agent(agent_id, {
-                            "last_active": datetime.utcnow().isoformat(),
+                            "last_active": utcnow_iso(),
                         })
                     except Exception as e:
                         logger.error(
@@ -412,7 +412,7 @@ class Orchestrator:
 
             # Write directly to pending
             agent_dir = self.agent_registry.get_agent_dir(agent_id)
-            ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
             dest = agent_dir / "queue" / "pending" / f"{ts}_regenerated.yaml"
             dest.write_text(yaml_content, encoding="utf-8")
             logger.info("AGENT LOOP: %s — regenerated YAML: %s", agent_id, dest.name)

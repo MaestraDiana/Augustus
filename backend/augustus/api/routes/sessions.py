@@ -6,8 +6,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from augustus.api.dependencies import get_agent_registry, get_memory
-from augustus.models.dataclasses import SessionRecord
+from augustus.api.dependencies import get_agent_registry, get_memory, require_agent
+from augustus.models.dataclasses import AgentConfig, SessionRecord
 from augustus.services.agent_registry import AgentRegistry
 from augustus.services.memory import MemoryService
 
@@ -15,56 +15,20 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agents/{agent_id}", tags=["sessions"])
 
 
-def _session_to_dict(s: SessionRecord, include_transcript: bool = False) -> dict[str, Any]:
-    """Serialize SessionRecord to JSON-friendly dict."""
-    result: dict[str, Any] = {
-        "session_id": s.session_id,
-        "agent_id": s.agent_id,
-        "start_time": s.start_time,
-        "end_time": s.end_time,
-        "turn_count": s.turn_count,
-        "model": s.model,
-        "temperature": s.temperature,
-        "status": s.status,
-        "capabilities_used": s.capabilities_used,
-        "yaml_raw": s.yaml_raw,
-    }
-    if include_transcript:
-        result["transcript"] = s.transcript
-        result["close_report"] = s.close_report
-        result["basin_snapshots"] = [
-            {
-                "basin_name": bs.basin_name,
-                "alpha_start": bs.alpha_start,
-                "alpha_end": bs.alpha_end,
-                "delta": bs.delta,
-                "relevance_score": bs.relevance_score,
-            }
-            for bs in s.basin_snapshots
-        ]
-    return result
-
-
 @router.get("/sessions")
 async def list_sessions(
     agent_id: str,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    registry: AgentRegistry = Depends(get_agent_registry),
+    agent: AgentConfig = Depends(require_agent),
     memory: MemoryService = Depends(get_memory),
 ) -> dict:
     """List sessions for an agent with pagination."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-
     sessions = await memory.list_sessions(agent_id, limit=limit, offset=offset)
-
-    # Get total count for pagination metadata
     total = await memory.count_sessions(agent_id)
 
     return {
-        "sessions": [_session_to_dict(s) for s in sessions],
+        "sessions": [s.to_dict() for s in sessions],
         "total": total,
         "limit": limit,
         "offset": offset,
@@ -75,14 +39,10 @@ async def list_sessions(
 async def get_session_detail(
     agent_id: str,
     session_id: str,
-    registry: AgentRegistry = Depends(get_agent_registry),
+    agent: AgentConfig = Depends(require_agent),
     memory: MemoryService = Depends(get_memory),
 ) -> dict:
     """Get full session detail including transcript and close report."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-
     session = await memory.get_session(agent_id, session_id)
     if not session:
         raise HTTPException(
@@ -95,7 +55,7 @@ async def get_session_detail(
         agent_id, session_id
     )
 
-    result = _session_to_dict(session, include_transcript=True)
+    result = session.to_dict(include_transcript=True)
 
     # Attach evaluator output if available
     eval_output = await memory.get_evaluator_output(session_id)
@@ -133,14 +93,10 @@ async def get_session_detail(
 async def get_session_yaml_diff(
     agent_id: str,
     session_id: str,
-    registry: AgentRegistry = Depends(get_agent_registry),
+    agent: AgentConfig = Depends(require_agent),
     memory: MemoryService = Depends(get_memory),
 ) -> dict:
     """Get YAML for this session and the previous session for diffing."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-
     session = await memory.get_session(agent_id, session_id)
     if not session:
         raise HTTPException(

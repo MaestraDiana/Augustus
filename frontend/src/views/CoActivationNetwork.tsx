@@ -3,8 +3,92 @@ import { useParams } from 'react-router-dom';
 import { ZoomIn } from 'lucide-react';
 import ForceGraph, { GraphNode, GraphEdge } from '../components/charts/ForceGraph';
 import EmptyState from '../components/ui/EmptyState';
+import Checkbox from '../components/ui/Checkbox';
 import { api } from '../api/client';
+import { useApi } from '../hooks/useApi';
 import type { CoActivationEntry } from '../types';
+
+interface CoActivationResult {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  coActivationData: CoActivationEntry[];
+  totalSessions: number;
+}
+
+async function buildNodesFromAgent(agentId: string, extraNames: Set<string>): Promise<GraphNode[]> {
+  try {
+    const agentData = await api.agents.get(agentId);
+    const builtNodes: GraphNode[] = agentData.basins.map((b: any) => ({
+      id: b.name,
+      name: b.name,
+      alpha: b.alpha || 0.5,
+      class: (b.class || b.basin_class || 'peripheral') as 'core' | 'peripheral',
+      tier: b.tier || 3,
+    }));
+    extraNames.forEach((name) => {
+      if (!builtNodes.find((n) => n.id === name)) {
+        builtNodes.push({ id: name, name, alpha: 0.5, class: 'peripheral', tier: 3 });
+      }
+    });
+    return builtNodes;
+  } catch {
+    return Array.from(extraNames).map((name) => ({
+      id: name, name, alpha: 0.5, class: 'peripheral' as const, tier: 3,
+    }));
+  }
+}
+
+async function fetchCoActivation(agentId: string): Promise<CoActivationResult> {
+  let resultNodes: GraphNode[] = [];
+  let resultEdges: GraphEdge[] = [];
+  let resultCoActivation: CoActivationEntry[] = [];
+  let resultTotalSessions = 0;
+
+  try {
+    const data = await api.coactivation.get(agentId);
+
+    if (data.nodes && data.edges) {
+      const nodeNames: string[] = data.nodes;
+      resultNodes = await buildNodesFromAgent(agentId, new Set(nodeNames));
+      resultEdges = data.edges;
+    } else if ((data as any).co_activation_entries || (data as any).entries) {
+      const entries: CoActivationEntry[] = (data as any).co_activation_entries || (data as any).entries || [];
+      resultCoActivation = entries;
+
+      const nodeSet = new Set<string>();
+      entries.forEach((entry: CoActivationEntry) => {
+        nodeSet.add(entry.pair[0]);
+        nodeSet.add(entry.pair[1]);
+        resultEdges.push({
+          source: entry.pair[0],
+          target: entry.pair[1],
+          count: entry.count,
+          character: (entry.character || 'uncharacterized') as GraphEdge['character'],
+        });
+      });
+
+      resultNodes = await buildNodesFromAgent(agentId, nodeSet);
+    } else {
+      resultNodes = await buildNodesFromAgent(agentId, new Set());
+    }
+
+    try {
+      const sessionsData = await api.sessions.list(agentId, 1, 0);
+      resultTotalSessions = sessionsData.total || 0;
+    } catch {
+      resultTotalSessions = 0;
+    }
+  } catch {
+    resultNodes = await buildNodesFromAgent(agentId, new Set());
+  }
+
+  return {
+    nodes: resultNodes,
+    edges: resultEdges,
+    coActivationData: resultCoActivation,
+    totalSessions: resultTotalSessions,
+  };
+}
 
 export default function CoActivationNetwork() {
   const { agentId } = useParams<{ agentId: string }>();
@@ -20,93 +104,22 @@ export default function CoActivationNetwork() {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [edges, setEdges] = useState<GraphEdge[]>([]);
   const [coActivationData, setCoActivationData] = useState<CoActivationEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [totalSessions, setTotalSessions] = useState(0);
 
+  const { data: fetchedData, loading } = useApi<CoActivationResult>(
+    () => fetchCoActivation(agentId!),
+    [agentId],
+  );
+
+  // Sync fetched data into local state
   useEffect(() => {
-    if (!agentId) return;
-
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        // Fetch co-activation data from API
-        const data = await api.coactivation.get(agentId);
-
-        // Extract nodes and edges from API response
-        if (data.nodes && data.edges) {
-          // API returns nodes as string[] - build GraphNode objects
-          const nodeNames: string[] = data.nodes;
-          await buildNodesFromAgent(new Set(nodeNames));
-          setEdges(data.edges);
-        } else if ((data as any).co_activation_entries || (data as any).entries) {
-          const entries: CoActivationEntry[] = (data as any).co_activation_entries || (data as any).entries || [];
-          setCoActivationData(entries);
-
-          const nodeSet = new Set<string>();
-          const builtEdges: GraphEdge[] = [];
-          entries.forEach((entry: CoActivationEntry) => {
-            nodeSet.add(entry.pair[0]);
-            nodeSet.add(entry.pair[1]);
-            builtEdges.push({
-              source: entry.pair[0],
-              target: entry.pair[1],
-              count: entry.count,
-              character: (entry.character || 'uncharacterized') as GraphEdge['character'],
-            });
-          });
-          setEdges(builtEdges);
-
-          // Build nodes from agent basins
-          await buildNodesFromAgent(nodeSet);
-        } else {
-          // No co-activation data — show basins as disconnected nodes
-          await buildNodesFromAgent(new Set());
-          setEdges([]);
-        }
-
-        // Get session count for range presets
-        try {
-          const sessionsData = await api.sessions.list(agentId!, 1, 0);
-          setTotalSessions(sessionsData.total || 0);
-        } catch {
-          setTotalSessions(0);
-        }
-      } catch (err) {
-        console.error('Failed to load co-activation data:', err);
-        await buildNodesFromAgent(new Set());
-        setEdges([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    const buildNodesFromAgent = async (extraNames: Set<string>) => {
-      try {
-        const agentData = await api.agents.get(agentId!);
-        const builtNodes: GraphNode[] = agentData.basins.map((b: any) => ({
-          id: b.name,
-          name: b.name,
-          alpha: b.alpha || 0.5,
-          class: (b.class || b.basin_class || 'peripheral') as 'core' | 'peripheral',
-          tier: b.tier || 3,
-        }));
-        extraNames.forEach((name) => {
-          if (!builtNodes.find((n) => n.id === name)) {
-            builtNodes.push({ id: name, name, alpha: 0.5, class: 'peripheral', tier: 3 });
-          }
-        });
-        setNodes(builtNodes);
-      } catch {
-        setNodes(
-          Array.from(extraNames).map((name) => ({
-            id: name, name, alpha: 0.5, class: 'peripheral' as const, tier: 3,
-          }))
-        );
-      }
-    };
-
-    fetchData();
-  }, [agentId]);
+    if (fetchedData) {
+      setNodes(fetchedData.nodes);
+      setEdges(fetchedData.edges);
+      setCoActivationData(fetchedData.coActivationData);
+      setTotalSessions(fetchedData.totalSessions);
+    }
+  }, [fetchedData]);
 
   const handleNodeClick = (node: GraphNode) => {
     setSelectedNode(node);
@@ -214,20 +227,8 @@ export default function CoActivationNetwork() {
           </div>
 
           <div style={{ display: 'flex', gap: 'var(--space-4)' }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showLabels} onChange={(e) => setShowLabels(e.target.checked)} style={{ display: 'none' }} />
-              <span style={{ width: '16px', height: '16px', border: '1px solid var(--border-color)', borderRadius: '3px', background: showLabels ? 'var(--accent-primary)' : 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {showLabels && (<svg viewBox="0 0 10 10" style={{ width: '10px', height: '10px', color: '#fff' }}><path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>)}
-              </span>
-              Labels
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={showUncharacterized} onChange={(e) => setShowUncharacterized(e.target.checked)} style={{ display: 'none' }} />
-              <span style={{ width: '16px', height: '16px', border: '1px solid var(--border-color)', borderRadius: '3px', background: showUncharacterized ? 'var(--accent-primary)' : 'var(--bg-input)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {showUncharacterized && (<svg viewBox="0 0 10 10" style={{ width: '10px', height: '10px', color: '#fff' }}><path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>)}
-              </span>
-              Uncharacterized
-            </label>
+            <Checkbox checked={showLabels} onChange={setShowLabels} label="Labels" />
+            <Checkbox checked={showUncharacterized} onChange={setShowUncharacterized} label="Uncharacterized" />
           </div>
         </div>
 

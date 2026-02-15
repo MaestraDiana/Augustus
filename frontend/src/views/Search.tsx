@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../api/client';
 import { timeAgo } from '../utils/time';
+import { toggleSetItem } from '../utils/collections';
 import { AGENT_COLORS, getAgentColor } from '../utils/constants';
 import type { SearchResult, Agent } from '../types';
 
@@ -88,10 +89,7 @@ export default function Search() {
   }
 
   function toggleType(type: string) {
-    const next = new Set(activeTypes);
-    if (next.has(type)) next.delete(type);
-    else next.add(type);
-    setActiveTypes(next);
+    setActiveTypes(prev => toggleSetItem(prev, type));
   }
 
   const filteredResults = results.filter((r) => activeTypes.has(r.content_type));

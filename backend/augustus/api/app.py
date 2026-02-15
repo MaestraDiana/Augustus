@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -34,6 +36,26 @@ from augustus.services.evaluator import (
 from augustus.services.memory import MemoryService
 
 logger = logging.getLogger(__name__)
+
+
+def _arm_shutdown_watchdog(deadline: float = 6.0) -> None:
+    """Force-exit if the process doesn't terminate within *deadline* seconds.
+
+    On Windows, ``asyncio.run()`` blocks in ``shutdown_default_executor()``
+    when ChromaDB / SQLite leave non-daemon threads alive.  This watchdog
+    runs regardless of whether the app was launched via ``main.py`` or
+    ``uvicorn --reload``.
+    """
+    def _watchdog():
+        threading.Event().wait(deadline)
+        logger.warning(
+            "Shutdown watchdog: process still alive after %.0fs — forcing exit",
+            deadline,
+        )
+        os._exit(0)
+
+    t = threading.Thread(target=_watchdog, daemon=True, name="shutdown-watchdog")
+    t.start()
 
 
 async def _seed_default_evaluator_prompt(memory: MemoryService) -> None:
@@ -80,13 +102,19 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    # Arm the watchdog FIRST — if anything below hangs, we still exit.
+    _arm_shutdown_watchdog(deadline=6.0)
+
     # Shutdown: stop orchestrator if we started it
     if orch_task is not None and container.orchestrator is not None:
-        await container.orchestrator.stop(timeout=3.0)
+        try:
+            await container.orchestrator.stop(timeout=3.0)
+        except Exception:
+            pass
         if not orch_task.done():
             orch_task.cancel()
             try:
-                await asyncio.wait_for(orch_task, timeout=2.0)
+                await asyncio.wait_for(orch_task, timeout=1.0)
             except (asyncio.CancelledError, asyncio.TimeoutError):
                 pass
 
@@ -102,6 +130,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Global exception handler — catches any unhandled error and returns the
+# traceback in the response body so the frontend (and developer) can see
+# what actually went wrong instead of a bare "Internal Server Error".
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"{type(exc).__name__}: {exc}"},
+    )
+
 
 # Include routers
 app.include_router(agents.router)

@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { useApi } from '../hooks/useApi';
 import { formatDate } from '../utils/time';
+import { toggleSetItem } from '../utils/collections';
 import type { TierProposal } from '../types';
 
 // Backend response includes a tier field not in the TypeScript type
@@ -11,39 +13,22 @@ interface TierProposalWithTier extends TierProposal {
 
 export default function TierProposals() {
   const { agentId } = useParams<{ agentId: string }>();
-  const [proposals, setProposals] = useState<TierProposalWithTier[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedProposals, setSelectedProposals] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [rejectFormVisible, setRejectFormVisible] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (!agentId) return;
+  const { data, loading, error, refetch } = useApi<TierProposalWithTier[]>(
+    () => api.proposals.list(agentId!) as Promise<TierProposalWithTier[]>,
+    [agentId],
+  );
 
-    const fetchProposals = async () => {
-      try {
-        setError(null);
-        const data = await api.proposals.list(agentId);
-        setProposals(data as TierProposalWithTier[]);
-      } catch (err) {
-        console.error('Failed to load proposals:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load proposals');
-        setProposals([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProposals();
-  }, [agentId]);
+  const proposals = data ?? [];
 
   const handleApprove = async (proposalId: string) => {
     if (!agentId) return;
     try {
       await api.proposals.approve(agentId, proposalId);
-      // Refresh proposals
-      const data = await api.proposals.list(agentId);
-      setProposals(data as TierProposalWithTier[]);
+      refetch();
     } catch (err) {
       console.error('Failed to approve proposal:', err);
     }
@@ -53,9 +38,7 @@ export default function TierProposals() {
     if (!agentId) return;
     try {
       await api.proposals.reject(agentId, proposalId, rationale);
-      // Refresh proposals
-      const data = await api.proposals.list(agentId);
-      setProposals(data as TierProposalWithTier[]);
+      refetch();
     } catch (err) {
       console.error('Failed to reject proposal:', err);
     }
@@ -110,23 +93,11 @@ export default function TierProposals() {
   }
 
   const toggleRow = (id: string) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(id)) {
-      newExpanded.delete(id);
-    } else {
-      newExpanded.add(id);
-    }
-    setExpandedRows(newExpanded);
+    setExpandedRows(prev => toggleSetItem(prev, id));
   };
 
   const toggleSelect = (id: string) => {
-    const newSelected = new Set(selectedProposals);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedProposals(newSelected);
+    setSelectedProposals(prev => toggleSetItem(prev, id));
   };
 
   const toggleSelectAll = () => {
@@ -139,13 +110,7 @@ export default function TierProposals() {
   };
 
   const toggleRejectForm = (id: string) => {
-    const newVisible = new Set(rejectFormVisible);
-    if (newVisible.has(id)) {
-      newVisible.delete(id);
-    } else {
-      newVisible.add(id);
-    }
-    setRejectFormVisible(newVisible);
+    setRejectFormVisible(prev => toggleSetItem(prev, id));
   };
 
   const getTypeIcon = (type: string) => {

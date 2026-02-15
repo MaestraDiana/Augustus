@@ -21,11 +21,6 @@ class BudgetExceededError(AugustusError):
     pass
 
 
-class TierViolationError(AugustusError):
-    """Tier permission violation."""
-    pass
-
-
 class QueueError(AugustusError):
     """Queue operation error."""
     pass

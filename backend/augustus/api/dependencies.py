@@ -4,6 +4,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from fastapi import Depends
+
 from augustus.config import ConfigManager, Settings
 from augustus.db.sqlite_store import SQLiteStore
 from augustus.db.chroma_store import ChromaStore
@@ -74,7 +76,7 @@ def get_tier_enforcer() -> TierEnforcer:
 
 async def require_agent(
     agent_id: str,
-    registry: AgentRegistry = None,
+    registry: AgentRegistry = Depends(get_agent_registry),
 ) -> "AgentConfig":
     """FastAPI-injectable dependency that validates agent_id exists.
 
@@ -88,8 +90,6 @@ async def require_agent(
     """
     from fastapi import HTTPException
 
-    if registry is None:
-        registry = get_agent_registry()
     agent = await registry.get_agent(agent_id)
     if not agent:
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")

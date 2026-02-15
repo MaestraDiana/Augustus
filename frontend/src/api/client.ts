@@ -30,8 +30,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (!res.ok) {
-    const error = await res.text();
-    throw new Error(`API Error: ${res.status} - ${error}`);
+    const errorText = await res.text();
+    // Try to extract "detail" from JSON error responses
+    let message = errorText;
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed.detail) message = parsed.detail;
+    } catch {
+      // Not JSON — use raw text
+    }
+    throw new Error(`API Error: ${res.status} - ${message}`);
   }
   // 204 No Content has no body — don't try to parse it
   if (res.status === 204) {

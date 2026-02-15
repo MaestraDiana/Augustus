@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -11,6 +10,7 @@ from pydantic import BaseModel
 from augustus.api.dependencies import get_memory
 from augustus.models.dataclasses import EvaluatorPrompt
 from augustus.services.memory import MemoryService
+from augustus.utils import utcnow_iso
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/evaluator-prompts", tags=["evaluator-prompts"])
@@ -63,7 +63,7 @@ async def create_evaluator_prompt(
         version_id=version_id,
         prompt_text=body.prompt_text,
         change_rationale=body.change_rationale,
-        created_at=datetime.utcnow().isoformat(),
+        created_at=utcnow_iso(),
         is_active=False,
     )
 

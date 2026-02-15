@@ -3,11 +3,10 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 
-from augustus.api.dependencies import get_agent_registry, get_memory
-from augustus.models.dataclasses import SearchResult
-from augustus.services.agent_registry import AgentRegistry
+from augustus.api.dependencies import get_memory, require_agent
+from augustus.models.dataclasses import AgentConfig, SearchResult
 from augustus.services.memory import MemoryService
 
 logger = logging.getLogger(__name__)
@@ -31,14 +30,10 @@ async def search_agent(
     agent_id: str,
     q: str = Query(..., min_length=1, description="Search query"),
     n_results: int = Query(10, ge=1, le=50),
-    registry: AgentRegistry = Depends(get_agent_registry),
+    agent: AgentConfig = Depends(require_agent),
     memory: MemoryService = Depends(get_memory),
 ) -> list[dict]:
     """Semantic search scoped to a single agent."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-
     results = await memory.search_sessions(agent_id, q, n_results=n_results)
     return [_result_to_dict(r) for r in results]
 

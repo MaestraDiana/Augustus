@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { FileText } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
 import { api } from '../api/client';
+import { useApi } from '../hooks/useApi';
 import { formatTimestamp, formatDuration } from '../utils/time';
 
 interface SessionItem {
@@ -18,32 +19,23 @@ interface SessionItem {
   capabilities_used: string[];
 }
 
+interface SessionListResponse {
+  sessions: SessionItem[];
+  total: number;
+}
+
 export default function SessionList() {
   const { agentId } = useParams<{ agentId: string }>();
-  const [sessions, setSessions] = useState<SessionItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [offset, setOffset] = useState(0);
   const limit = 50;
 
-  useEffect(() => {
-    if (!agentId) return;
+  const { data, loading } = useApi<SessionListResponse>(
+    () => api.sessions.list(agentId!, limit, offset),
+    [agentId, offset],
+  );
 
-    const fetchSessions = async () => {
-      setLoading(true);
-      try {
-        const data = await api.sessions.list(agentId, limit, offset);
-        setSessions(data.sessions || []);
-        setTotal(data.total || 0);
-      } catch (err) {
-        console.error('Failed to load sessions:', err);
-        setSessions([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchSessions();
-  }, [agentId, offset]);
+  const sessions = data?.sessions ?? [];
+  const total = data?.total ?? 0;
 
   if (loading) {
     return (

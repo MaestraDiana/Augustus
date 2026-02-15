@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
 
 from augustus.models.dataclasses import BasinConfig, TierProposal, TierSettings
+from augustus.utils import utcnow_iso
 from augustus.models.enums import TierLevel, ProposalStatus, ProposalType
 
 logger = logging.getLogger(__name__)
@@ -69,7 +69,7 @@ class TierEnforcer:
                 # Tier 1: Always blocked
                 result.blocked.append(change)
                 proposal = TierProposal(
-                    proposal_id=f"prop-{agent_id}-{change.basin_name}-{datetime.utcnow().isoformat()}",
+                    proposal_id=f"prop-{agent_id}-{change.basin_name}-{utcnow_iso()}",
                     agent_id=agent_id,
                     basin_name=change.basin_name,
                     tier=change.tier,
@@ -80,7 +80,7 @@ class TierEnforcer:
                     else ProposalType.MODIFY,
                     status=ProposalStatus.REJECTED,
                     rationale=f"Tier 1 invariant modification blocked: {change.detail}",
-                    created_at=datetime.utcnow().isoformat(),
+                    created_at=utcnow_iso(),
                 )
                 result.proposals_created.append(proposal)
                 result.warnings.append(
@@ -90,7 +90,7 @@ class TierEnforcer:
             elif change.tier == TierLevel.TIER_2:
                 # Tier 2: Create proposal, may auto-approve
                 proposal = TierProposal(
-                    proposal_id=f"prop-{agent_id}-{change.basin_name}-{datetime.utcnow().isoformat()}",
+                    proposal_id=f"prop-{agent_id}-{change.basin_name}-{utcnow_iso()}",
                     agent_id=agent_id,
                     basin_name=change.basin_name,
                     tier=change.tier,
@@ -101,7 +101,7 @@ class TierEnforcer:
                     else ProposalType.MODIFY,
                     status=ProposalStatus.PENDING,
                     rationale=change.detail,
-                    created_at=datetime.utcnow().isoformat(),
+                    created_at=utcnow_iso(),
                 )
 
                 decision = await self.process_tier_proposal(
@@ -114,7 +114,7 @@ class TierEnforcer:
                         if decision.auto
                         else ProposalStatus.APPROVED
                     )
-                    proposal.resolved_at = datetime.utcnow().isoformat()
+                    proposal.resolved_at = utcnow_iso()
                     proposal.resolved_by = "auto" if decision.auto else "system"
                     if change.proposed:
                         result.allowed.append(change.proposed)

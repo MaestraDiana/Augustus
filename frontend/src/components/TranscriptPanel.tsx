@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Search, ChevronUp, ChevronDown, ChevronRight, Lock, Wrench, Download } from 'lucide-react';
+import { toggleSetItem } from '../utils/collections';
 
 // Content can be a string OR an array of Anthropic content blocks
 type ContentBlock =
@@ -82,13 +83,7 @@ export default function TranscriptPanel({ transcript, sessionId, agentId, startT
   }, [searchQuery, conversationTurns]);
 
   const toggleTurn = (index: number) => {
-    const newCollapsed = new Set(collapsedTurns);
-    if (newCollapsed.has(index)) {
-      newCollapsed.delete(index);
-    } else {
-      newCollapsed.add(index);
-    }
-    setCollapsedTurns(newCollapsed);
+    setCollapsedTurns(prev => toggleSetItem(prev, index));
   };
 
   const handleExpandAllChange = () => {

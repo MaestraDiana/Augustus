@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from augustus.api.dependencies import get_agent_registry, get_container, get_memory
+from augustus.api.dependencies import get_agent_registry, get_container, get_memory, require_agent
 from augustus.exceptions import AgentNotFoundError
 from augustus.models.dataclasses import AgentConfig, BasinConfig, TierSettings
 from augustus.models.enums import AgentStatus, BasinClass, TierLevel
@@ -18,6 +18,25 @@ from augustus.services.memory import MemoryService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/agents", tags=["agents"])
+
+
+def _parse_structural_section(raw: str) -> dict:
+    """Parse a structural-section string (session_protocol / relational_grounding).
+
+    Returns a dict.  Accepts valid YAML dicts, plain text (wrapped as
+    ``{"content": text}``), or empty strings (returns ``{}``).
+    """
+    if not raw or not raw.strip():
+        return {}
+    try:
+        parsed = yaml.safe_load(raw)
+    except yaml.YAMLError:
+        # Not valid YAML — treat as freeform text
+        return {"content": raw}
+    if isinstance(parsed, dict):
+        return parsed
+    # Valid YAML but not a dict (e.g. a plain string or list) — wrap it
+    return {"content": raw}
 
 
 # ── Pydantic request/response models ──────────────────────────────────
@@ -59,6 +78,8 @@ class CreateAgentRequest(BaseModel):
     capabilities: dict = {}
     basins: list[BasinConfigIn] = []
     tier_settings: TierSettingsIn | None = None
+    session_protocol: str = ""
+    relational_grounding: str = ""
 
 
 class UpdateAgentRequest(BaseModel):
@@ -75,6 +96,8 @@ class UpdateAgentRequest(BaseModel):
     capabilities: dict | None = None
     basins: list[BasinConfigIn] | None = None
     tier_settings: TierSettingsIn | None = None
+    session_protocol: str | None = None
+    relational_grounding: str | None = None
 
 
 class CloneAgentRequest(BaseModel):
@@ -111,44 +134,8 @@ def _basin_in_to_config(b: BasinConfigIn) -> BasinConfig:
 
 
 def _agent_to_dict(agent: AgentConfig) -> dict[str, Any]:
-    """Serialize AgentConfig to JSON-friendly dict."""
-    return {
-        "agent_id": agent.agent_id,
-        "description": agent.description,
-        "status": agent.status.value if isinstance(agent.status, AgentStatus) else str(agent.status),
-        "model_override": agent.model_override,
-        "temperature_override": agent.temperature_override,
-        "max_tokens_override": agent.max_tokens_override,
-        "max_turns": agent.max_turns,
-        "session_interval": agent.session_interval,
-        "identity_core": agent.identity_core,
-        "session_task": agent.session_task,
-        "close_protocol": agent.close_protocol,
-        "capabilities": agent.capabilities,
-        "basins": [
-            {
-                "name": b.name,
-                "basin_class": b.basin_class.value if isinstance(b.basin_class, BasinClass) else str(b.basin_class),
-                "alpha": b.alpha,
-                "lambda": b.lambda_,
-                "eta": b.eta,
-                "tier": b.tier.value if isinstance(b.tier, TierLevel) else int(b.tier),
-            }
-            for b in agent.basins
-        ],
-        "tier_settings": (
-            {
-                "tier_2_auto_approve": agent.tier_settings.tier_2_auto_approve,
-                "tier_2_threshold": agent.tier_settings.tier_2_threshold,
-                "emergence_auto_approve": agent.tier_settings.emergence_auto_approve,
-                "emergence_threshold": agent.tier_settings.emergence_threshold,
-            }
-            if agent.tier_settings
-            else None
-        ),
-        "created_at": agent.created_at,
-        "last_active": agent.last_active,
-    }
+    """Serialize AgentConfig to JSON-friendly dict. Delegates to AgentConfig.to_dict()."""
+    return agent.to_dict()
 
 
 # ── Default capabilities for import merging ────────────────────────────
@@ -176,6 +163,8 @@ def _parse_yaml_lenient(yaml_text: str) -> dict[str, Any]:
         "identity_core": None,
         "session_task": None,
         "close_protocol": None,
+        "session_protocol": None,
+        "relational_grounding": None,
         "capabilities": None,
         "basins": None,
         "warnings": warnings,
@@ -194,7 +183,7 @@ def _parse_yaml_lenient(yaml_text: str) -> dict[str, Any]:
         return result
 
     # Check for unexpected top-level keys
-    expected_keys = {"framework", "identity_core", "session_task", "close_protocol"}
+    expected_keys = {"framework", "identity_core", "session_task", "close_protocol", "session_protocol", "relational_grounding"}
     for key in data:
         if key not in expected_keys:
             warnings.append(f"Unexpected top-level field ignored: '{key}'")
@@ -216,6 +205,17 @@ def _parse_yaml_lenient(yaml_text: str) -> dict[str, Any]:
             ).strip()
         elif cp is not None:
             result["close_protocol"] = str(cp).strip()
+
+    # Extract structural sections (session_protocol, relational_grounding)
+    for skey in ("session_protocol", "relational_grounding"):
+        if skey in data:
+            val = data[skey]
+            if isinstance(val, dict):
+                result[skey] = yaml.dump(
+                    val, default_flow_style=False, sort_keys=False, allow_unicode=True
+                ).strip()
+            elif val is not None:
+                result[skey] = str(val).strip()
 
     # Extract framework section
     fw = data.get("framework")
@@ -369,53 +369,64 @@ async def create_agent(
     registry: AgentRegistry = Depends(get_agent_registry),
 ) -> dict:
     """Create a new agent."""
-    # Check if agent already exists
-    existing = await registry.get_agent(body.agent_id)
-    if existing:
-        raise HTTPException(status_code=409, detail=f"Agent '{body.agent_id}' already exists")
+    try:
+        # Check if agent already exists
+        existing = await registry.get_agent(body.agent_id)
+        if existing:
+            raise HTTPException(status_code=409, detail=f"Agent '{body.agent_id}' already exists")
 
-    basins = [_basin_in_to_config(b) for b in body.basins]
-    tier_settings = None
-    if body.tier_settings:
-        tier_settings = TierSettings(
-            tier_2_auto_approve=body.tier_settings.tier_2_auto_approve,
-            tier_2_threshold=body.tier_settings.tier_2_threshold,
-            emergence_auto_approve=body.tier_settings.emergence_auto_approve,
-            emergence_threshold=body.tier_settings.emergence_threshold,
+        basins = [_basin_in_to_config(b) for b in body.basins]
+        tier_settings = None
+        if body.tier_settings:
+            tier_settings = TierSettings(
+                tier_2_auto_approve=body.tier_settings.tier_2_auto_approve,
+                tier_2_threshold=body.tier_settings.tier_2_threshold,
+                emergence_auto_approve=body.tier_settings.emergence_auto_approve,
+                emergence_threshold=body.tier_settings.emergence_threshold,
+            )
+
+        # Parse structural sections from YAML strings back to dicts.
+        # If the string is valid YAML that produces a dict, use it directly.
+        # If it's plain text or non-dict YAML, wrap it so the data isn't lost.
+        session_protocol = _parse_structural_section(body.session_protocol)
+        relational_grounding = _parse_structural_section(body.relational_grounding)
+
+        config = AgentConfig(
+            agent_id=body.agent_id,
+            description=body.description,
+            model_override=body.model_override,
+            temperature_override=body.temperature_override,
+            max_tokens_override=body.max_tokens_override,
+            max_turns=body.max_turns,
+            session_interval=body.session_interval,
+            identity_core=body.identity_core,
+            session_task=body.session_task,
+            close_protocol=body.close_protocol,
+            capabilities=body.capabilities,
+            basins=basins,
+            tier_settings=tier_settings,
+            session_protocol=session_protocol,
+            relational_grounding=relational_grounding,
         )
 
-    config = AgentConfig(
-        agent_id=body.agent_id,
-        description=body.description,
-        model_override=body.model_override,
-        temperature_override=body.temperature_override,
-        max_tokens_override=body.max_tokens_override,
-        max_turns=body.max_turns,
-        session_interval=body.session_interval,
-        identity_core=body.identity_core,
-        session_task=body.session_task,
-        close_protocol=body.close_protocol,
-        capabilities=body.capabilities,
-        basins=basins,
-        tier_settings=tier_settings,
-    )
-
-    await registry.create_agent(config)
-    created = await registry.get_agent(body.agent_id)
-    return _agent_to_dict(created) if created else {"agent_id": body.agent_id, "status": "created"}
+        await registry.create_agent(config)
+        created = await registry.get_agent(body.agent_id)
+        return _agent_to_dict(created) if created else {"agent_id": body.agent_id, "status": "created"}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to create agent '%s'", body.agent_id)
+        raise HTTPException(status_code=500, detail=f"Failed to create agent: {exc}") from exc
 
 
 @router.get("/{agent_id}")
 async def get_agent(
     agent_id: str,
-    registry: AgentRegistry = Depends(get_agent_registry),
+    agent: AgentConfig = Depends(require_agent),
     memory: MemoryService = Depends(get_memory),
 ) -> dict:
     """Get agent detail."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-    d = _agent_to_dict(agent)
+    d = agent.to_dict()
     d["session_count"] = await memory.count_sessions(agent_id)
     d["queue_status"] = _get_queue_status(agent_id)
     return d
@@ -425,13 +436,10 @@ async def get_agent(
 async def update_agent(
     agent_id: str,
     body: UpdateAgentRequest,
+    agent: AgentConfig = Depends(require_agent),
     registry: AgentRegistry = Depends(get_agent_registry),
 ) -> dict:
     """Update agent configuration."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-
     updates: dict[str, Any] = {}
     if body.description is not None:
         updates["description"] = body.description
@@ -472,6 +480,10 @@ async def update_agent(
             "emergence_auto_approve": body.tier_settings.emergence_auto_approve,
             "emergence_threshold": body.tier_settings.emergence_threshold,
         }
+    if body.session_protocol is not None:
+        updates["session_protocol"] = _parse_structural_section(body.session_protocol)
+    if body.relational_grounding is not None:
+        updates["relational_grounding"] = _parse_structural_section(body.relational_grounding)
 
     try:
         await registry.update_agent(agent_id, updates)
@@ -482,6 +494,7 @@ async def update_agent(
     # Description and tier_settings are metadata-only — no YAML rebuild needed.
     yaml_fields = {
         "identity_core", "session_task", "close_protocol",
+        "session_protocol", "relational_grounding",
         "basins", "capabilities", "max_turns",
         "model_override", "temperature_override", "max_tokens_override",
     }
@@ -511,12 +524,10 @@ async def delete_agent(
 @router.post("/{agent_id}/pause")
 async def pause_agent(
     agent_id: str,
+    agent: AgentConfig = Depends(require_agent),
     registry: AgentRegistry = Depends(get_agent_registry),
 ) -> dict:
     """Pause an agent."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
     await registry.pause_agent(agent_id)
     return {"agent_id": agent_id, "status": "paused"}
 
@@ -524,12 +535,10 @@ async def pause_agent(
 @router.post("/{agent_id}/resume")
 async def resume_agent(
     agent_id: str,
+    agent: AgentConfig = Depends(require_agent),
     registry: AgentRegistry = Depends(get_agent_registry),
 ) -> dict:
     """Resume a paused agent."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
     await registry.resume_agent(agent_id)
     return {"agent_id": agent_id, "status": "active"}
 
@@ -577,59 +586,23 @@ async def export_agent(
 @router.get("/{agent_id}/overview")
 async def get_agent_overview(
     agent_id: str,
-    registry: AgentRegistry = Depends(get_agent_registry),
+    agent: AgentConfig = Depends(require_agent),
     memory: MemoryService = Depends(get_memory),
 ) -> dict:
     """Get agent overview summary (agent info + session count + current basins + recent flags)."""
-    agent = await registry.get_agent(agent_id)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
-
-    # Get session count
     session_count = await memory.count_sessions(agent_id)
-
-    # Get current basins
     current_basins = await memory.get_current_basins(agent_id)
-    basins_out = [
-        {
-            "name": b.name,
-            "basin_class": b.basin_class.value if isinstance(b.basin_class, BasinClass) else str(b.basin_class),
-            "alpha": b.alpha,
-            "lambda": b.lambda_,
-            "eta": b.eta,
-            "tier": b.tier.value if isinstance(b.tier, TierLevel) else int(b.tier),
-        }
-        for b in current_basins
-    ]
-
-    # Get recent flags
     flags = await memory.get_evaluator_flags(agent_id, limit=5)
-    flags_out = [
-        {
-            "flag_id": f.flag_id,
-            "flag_type": f.flag_type.value if hasattr(f.flag_type, "value") else str(f.flag_type),
-            "severity": f.severity,
-            "detail": f.detail,
-            "reviewed": f.reviewed,
-            "created_at": f.created_at,
-        }
-        for f in flags
-    ]
-
-    # Get pending proposals count
     proposals = await memory.get_tier_proposals(agent_id, status="pending")
-    pending_proposal_count = len(proposals)
-
-    # Last session info
     recent = await memory.list_sessions(agent_id, limit=1)
     last_session = recent[0] if recent else None
 
     return {
-        "agent": _agent_to_dict(agent),
+        "agent": agent.to_dict(),
         "session_count": session_count,
-        "current_basins": basins_out,
-        "recent_flags": flags_out,
-        "pending_proposal_count": pending_proposal_count,
+        "current_basins": [b.to_dict() for b in current_basins],
+        "recent_flags": [f.to_dict() for f in flags],
+        "pending_proposal_count": len(proposals),
         "queue_status": _get_queue_status(agent_id),
         "last_session": (
             {

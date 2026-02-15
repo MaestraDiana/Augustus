@@ -2,7 +2,6 @@
 // Matching Python backend dataclasses
 
 export type AgentStatus = 'active' | 'idle' | 'paused' | 'error';
-export type SessionStatus = 'pending' | 'active' | 'completed' | 'error';
 export type BasinClass = 'core' | 'peripheral' | 'emergent';
 export type Tier = 1 | 2 | 3;
 export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'auto_approved';
@@ -219,14 +218,6 @@ export interface Settings {
   data_directory: string;
 }
 
-export interface OrchestratorStatus {
-  status: 'running' | 'paused' | 'error';
-  active_agents: number;
-  active_sessions: number;
-  last_poll: string | null;
-  error_message: string | null;
-}
-
 // Form types
 export interface AgentFormData {
   agent_id: string;
@@ -241,6 +232,8 @@ export interface AgentFormData {
   capabilities: CapabilityConfig[];
   basins: BasinConfig[];
   tier_settings: TierSettings;
+  session_protocol: string;
+  relational_grounding: string;
 }
 
 // YAML import response
@@ -249,6 +242,8 @@ export interface ParseYamlResponse {
   identity_core: string | null;
   session_task: string | null;
   close_protocol: string | null;
+  session_protocol: string | null;
+  relational_grounding: string | null;
   capabilities: CapabilityConfig[] | null;
   basins: BasinConfig[] | null;
   warnings: string[];

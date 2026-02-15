@@ -427,9 +427,9 @@ async def test_delete_agent_hard(memory_service, sample_agent_config):
 @pytest.mark.asyncio
 async def test_get_usage_daily_summary(memory_service):
     """Test daily usage breakdown."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     # Use recent timestamps to fall within the 30-day window
-    base = datetime.utcnow()
+    base = datetime.now(timezone.utc)
     for day in range(3):
         ts = (base - timedelta(days=day + 1)).strftime("%Y-%m-%dT%H:%M:%S")
         usage = UsageRecord(

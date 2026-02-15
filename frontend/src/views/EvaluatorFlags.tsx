@@ -1,17 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
+import { useApi } from '../hooks/useApi';
 import { formatDate } from '../utils/time';
+import { toggleSetItem } from '../utils/collections';
 import { FlagRecord, FlagType } from '../types';
 import { AlertTriangle, Users, Info, Check } from 'lucide-react';
 import EmptyState from '../components/ui/EmptyState';
+import Checkbox from '../components/ui/Checkbox';
 
 export default function EvaluatorFlags() {
   const { agentId } = useParams<{ agentId: string }>();
   const navigate = useNavigate();
-  const [flags, setFlags] = useState<FlagRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<FlagType | 'all'>('all');
   const [showReviewed, setShowReviewed] = useState<boolean>(false);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
@@ -19,24 +19,12 @@ export default function EvaluatorFlags() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkReviewing, setBulkReviewing] = useState(false);
 
-  useEffect(() => {
-    if (!agentId) return;
+  const { data, loading, error, refetch } = useApi<FlagRecord[]>(
+    () => api.flags.list(agentId!),
+    [agentId],
+  );
 
-    const fetchFlags = async () => {
-      try {
-        setError(null);
-        const data = await api.flags.list(agentId);
-        setFlags(data);
-      } catch (err) {
-        console.error('Failed to load flags:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load flags');
-        setFlags([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFlags();
-  }, [agentId]);
+  const flags = data ?? [];
 
   const filteredFlags = flags.filter(flag => {
     if (selectedType !== 'all' && flag.flag_type !== selectedType) return false;
@@ -69,8 +57,7 @@ export default function EvaluatorFlags() {
     if (!agentId) return;
     try {
       await api.flags.review(agentId, flagId, reviewNotes[flagId] || '');
-      const data = await api.flags.list(agentId);
-      setFlags(data);
+      refetch();
       setSelected(prev => { const next = new Set(prev); next.delete(flagId); return next; });
       setExpandedRow(null);
       setShowReviewed(true);
@@ -96,11 +83,10 @@ export default function EvaluatorFlags() {
       }
 
       // Re-fetch to get authoritative state from server
-      const data = await api.flags.list(agentId);
+      refetch();
 
       // Batch all state updates together to avoid intermediate renders
       // where reviewed flags might flash out of view
-      setFlags(data);
       setSelected(new Set());
       setExpandedRow(null);
       setShowReviewed(true);
@@ -117,12 +103,7 @@ export default function EvaluatorFlags() {
   const someSelected = selected.size > 0;
 
   const toggleSelect = (flagId: string) => {
-    setSelected(prev => {
-      const next = new Set(prev);
-      if (next.has(flagId)) next.delete(flagId);
-      else next.add(flagId);
-      return next;
-    });
+    setSelected(prev => toggleSetItem(prev, flagId));
   };
 
   const toggleSelectAll = () => {
@@ -290,38 +271,7 @@ export default function EvaluatorFlags() {
               </button>
             ))}
           </div>
-          <label style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2)',
-            fontSize: '14px',
-            color: 'var(--text-secondary)',
-            cursor: 'pointer'
-          }}>
-            <input
-              type="checkbox"
-              checked={showReviewed}
-              onChange={(e) => setShowReviewed(e.target.checked)}
-              style={{ display: 'none' }}
-            />
-            <span style={{
-              width: '16px',
-              height: '16px',
-              border: '1px solid var(--border-color)',
-              borderRadius: '3px',
-              background: showReviewed ? 'var(--accent-primary)' : 'var(--bg-input)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              {showReviewed && (
-                <svg viewBox="0 0 10 10" style={{ width: '10px', height: '10px', color: '#fff' }}>
-                  <path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-                </svg>
-              )}
-            </span>
-            Show reviewed
-          </label>
+          <Checkbox checked={showReviewed} onChange={setShowReviewed} label="Show reviewed" />
         </div>
       </div>
 
@@ -369,27 +319,11 @@ export default function EvaluatorFlags() {
                 background: 'var(--bg-surface)',
                 textAlign: 'center',
               }}>
-                <span
-                  onClick={toggleSelectAll}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '16px',
-                    height: '16px',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '3px',
-                    background: allSelectableChecked ? 'var(--accent-primary)' : 'var(--bg-input)',
-                    cursor: selectableFlags.length > 0 ? 'pointer' : 'default',
-                    opacity: selectableFlags.length > 0 ? 1 : 0.4,
-                  }}
-                >
-                  {allSelectableChecked && (
-                    <svg viewBox="0 0 10 10" style={{ width: '10px', height: '10px', color: '#fff' }}>
-                      <path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-                    </svg>
-                  )}
-                </span>
+                <Checkbox
+                  checked={allSelectableChecked}
+                  onChange={toggleSelectAll}
+                  disabled={selectableFlags.length === 0}
+                />
               </th>
               {[
                 { label: 'Date', width: '100px' },
@@ -449,23 +383,10 @@ export default function EvaluatorFlags() {
                       }}
                     >
                       {!flag.reviewed ? (
-                        <span style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '16px',
-                          height: '16px',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '3px',
-                          background: selected.has(flag.flag_id) ? 'var(--accent-primary)' : 'var(--bg-input)',
-                          cursor: 'pointer',
-                        }}>
-                          {selected.has(flag.flag_id) && (
-                            <svg viewBox="0 0 10 10" style={{ width: '10px', height: '10px', color: '#fff' }}>
-                              <path d="M2 5l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-                            </svg>
-                          )}
-                        </span>
+                        <Checkbox
+                          checked={selected.has(flag.flag_id)}
+                          onChange={() => toggleSelect(flag.flag_id)}
+                        />
                       ) : (
                         <span style={{ width: '16px', height: '16px', display: 'inline-block' }} />
                       )}

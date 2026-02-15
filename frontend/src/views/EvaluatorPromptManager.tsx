@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Check, FileText, Plus } from 'lucide-react';
 import { api } from '../api/client';
+import { useApi } from '../hooks/useApi';
 import type { EvaluatorPrompt } from '../types';
 import Button from '../components/ui/Button';
 import Badge from '../components/ui/Badge';
@@ -43,14 +44,26 @@ export default function EvaluatorPromptManager() {
   const [diffVersionA, setDiffVersionA] = useState('');
   const [diffVersionB, setDiffVersionB] = useState('');
   const [lineNumbers, setLineNumbers] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const { data: fetchedPrompts, loading: isLoading, error } = useApi<EvaluatorPrompt[]>(
+    () => api.evaluatorPrompts.list(),
+    [],
+  );
+
+  // Sync fetched prompts into local state and initialize selections
   useEffect(() => {
-    loadPrompts();
-  }, []);
+    if (fetchedPrompts) {
+      setPrompts(fetchedPrompts);
+      if (fetchedPrompts.length > 0) {
+        const active = fetchedPrompts.find((p) => p.is_active);
+        setSelectedVersion(active?.version_id || fetchedPrompts[0].version_id);
+        setDiffVersionA(fetchedPrompts[fetchedPrompts.length - 1]?.version_id || '');
+        setDiffVersionB(active?.version_id || fetchedPrompts[0].version_id);
+      }
+    }
+  }, [fetchedPrompts]);
 
   useEffect(() => {
     if (selectedVersion) {
@@ -67,26 +80,6 @@ export default function EvaluatorPromptManager() {
   useEffect(() => {
     updateLineNumbers(editedPrompt);
   }, [editedPrompt]);
-
-  async function loadPrompts() {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await api.evaluatorPrompts.list();
-      setPrompts(data);
-      if (data.length > 0) {
-        const active = data.find((p) => p.is_active);
-        setSelectedVersion(active?.version_id || data[0].version_id);
-        setDiffVersionA(data[data.length - 1]?.version_id || '');
-        setDiffVersionB(active?.version_id || data[0].version_id);
-      }
-    } catch (err) {
-      console.error('Failed to load evaluator prompts:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load evaluator prompts');
-    } finally {
-      setIsLoading(false);
-    }
-  }
 
   function updateLineNumbers(text: string) {
     const lines = text.split('\n');

@@ -11,13 +11,13 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from typing import Any
 
 from augustus.db.chroma_store import ChromaStore
 from augustus.db.sqlite_store import SQLiteStore
-from augustus.utils import flatten_transcript, utcnow_iso
+from augustus.utils import flatten_transcript, utcnow_iso, enum_val
 from augustus.models import (
     ActivityEvent,
     AgentConfig,
@@ -77,7 +77,7 @@ class MemoryService:
     @staticmethod
     def _now() -> str:
         """Return current UTC timestamp as ISO string."""
-        return datetime.utcnow().isoformat()
+        return utcnow_iso()
 
     # ------------------------------------------------------------------
     # Session lifecycle
@@ -118,7 +118,7 @@ class MemoryService:
 
         # Index transcript in ChromaDB for semantic search
         if record.transcript:
-            transcript_text = self._transcript_to_text(record.transcript)
+            transcript_text = flatten_transcript(record.transcript)
             if transcript_text.strip():
                 await self.store_session_transcript(
                     record.agent_id, record.session_id, transcript_text
@@ -229,11 +229,6 @@ class MemoryService:
             status=row.get("status", "complete"),
             yaml_raw=row.get("yaml_raw", ""),
         )
-
-    @staticmethod
-    def _transcript_to_text(transcript: list[dict]) -> str:
-        """Flatten a transcript into searchable plain text."""
-        return flatten_transcript(transcript)
 
     # ------------------------------------------------------------------
     # Basin trajectories
@@ -362,11 +357,11 @@ class MemoryService:
             (
                 agent_id,
                 b.name,
-                b.basin_class.value if isinstance(b.basin_class, BasinClass) else b.basin_class,
+                enum_val(b.basin_class),
                 b.alpha,
                 b.lambda_,
                 b.eta,
-                b.tier.value if isinstance(b.tier, TierLevel) else b.tier,
+                b.tier.value if hasattr(b.tier, "value") else int(b.tier),
             )
             for b in basins
         ]
@@ -748,7 +743,7 @@ class MemoryService:
         resolved_by: str | None = None,
     ) -> None:
         """Update a proposal's status and resolution metadata."""
-        status_val = status.value if isinstance(status, ProposalStatus) else status
+        status_val = enum_val(status)
         resolved_at = self._now()
 
         sql = """
@@ -1316,42 +1311,6 @@ class MemoryService:
         results.sort(key=lambda r: r.relevance_score, reverse=True)
         return results[:n_results]
 
-    async def search_annotations(
-        self, agent_id: str, query: str, n_results: int = 5
-    ) -> list[Annotation]:
-        """Search annotations for an agent by semantic similarity."""
-        try:
-            chroma_results = await self._run_sync(
-                self.chroma.query,
-                "annotations",
-                query,
-                n_results,
-                {"agent_id": agent_id},
-            )
-        except Exception as e:
-            logger.warning("Annotation search failed: %s", e)
-            return []
-
-        # Extract annotation IDs from results and fetch full records from SQLite
-        ids = chroma_results.get("ids", [[]])[0]
-        annotations = []
-        for doc_id in ids:
-            # doc_id format: "{agent_id}:annotation:{annotation_id}"
-            parts = doc_id.split(":", 2)
-            if len(parts) >= 3:
-                annotation_id = parts[2]
-                sql = """
-                    SELECT * FROM annotations
-                    WHERE annotation_id = ?
-                """
-                row = await self._run_sync(
-                    self.sqlite.fetch_one, sql, (annotation_id,)
-                )
-                if row:
-                    annotations.append(self._row_to_annotation(row))
-
-        return annotations
-
     @staticmethod
     def _row_to_annotation(row: dict[str, Any]) -> Annotation:
         """Convert a database row to an Annotation dataclass."""
@@ -1413,7 +1372,7 @@ class MemoryService:
             Dictionary with total_tokens_in, total_tokens_out,
             total_cost, session_count, and period info.
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         if period == "day":
             cutoff = (now - timedelta(days=1)).isoformat()
         elif period == "week":
@@ -1451,7 +1410,7 @@ class MemoryService:
 
     async def get_usage_daily(self, days: int = 30) -> list[dict]:
         """Get daily usage breakdown for the last N days."""
-        cutoff = (datetime.utcnow() - timedelta(days=days)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
 
         sql = """
             SELECT
@@ -1574,17 +1533,7 @@ class MemoryService:
             "close_protocol": config.close_protocol,
             "capabilities": config.capabilities,
             "session_interval": config.session_interval,
-            "basins": [
-                {
-                    "name": b.name,
-                    "basin_class": b.basin_class.value if isinstance(b.basin_class, BasinClass) else b.basin_class,
-                    "alpha": b.alpha,
-                    "lambda_": b.lambda_,
-                    "eta": b.eta,
-                    "tier": b.tier.value if isinstance(b.tier, TierLevel) else b.tier,
-                }
-                for b in config.basins
-            ],
+            "basins": [b.to_dict() for b in config.basins],
             "tier_settings": (
                 {
                     "tier_2_auto_approve": config.tier_settings.tier_2_auto_approve,
@@ -1788,7 +1737,7 @@ class MemoryService:
                     name=b_data.get("name", ""),
                     basin_class=basin_class,
                     alpha=b_data.get("alpha", 0.5),
-                    lambda_=b_data.get("lambda_", 0.95),
+                    lambda_=b_data.get("lambda", b_data.get("lambda_", 0.95)),
                     eta=b_data.get("eta", 0.1),
                     tier=tier,
                 )
@@ -1919,7 +1868,7 @@ class MemoryService:
             )
 
         # Check daily budget usage
-        today_start = datetime.utcnow().replace(
+        today_start = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
         ).isoformat()
         budget_sql = """

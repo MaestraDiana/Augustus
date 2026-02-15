@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, AlertCircle, ChevronDown, Plus } from 'lucide-react';
 import { api } from '../api/client';
+import { toggleSetItem } from '../utils/collections';
+import { getBasinColor } from '../utils/constants';
 import type { SessionRecord, Annotation } from '../types';
 
 interface AnalysisSidePanelProps {
@@ -91,21 +93,7 @@ function AnalysisTab({ session }: { session: SessionRecord }) {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set());
 
   const toggleSection = (section: string) => {
-    const newExpanded = new Set(expandedSections);
-    if (newExpanded.has(section)) {
-      newExpanded.delete(section);
-    } else {
-      newExpanded.add(section);
-    }
-    setExpandedSections(newExpanded);
-  };
-
-  const basinColors: Record<string, string> = {
-    identity_continuity: 'var(--basin-core-1)',
-    relational_core: 'var(--basin-core-2)',
-    the_gap: 'var(--basin-core-3)',
-    topology_as_self: 'var(--basin-peripheral-1)',
-    creative_register: 'var(--basin-peripheral-2)'
+    setExpandedSections(prev => toggleSetItem(prev, section));
   };
 
   const basins = Object.keys(session.basin_snapshots_start || {});
@@ -125,7 +113,7 @@ function AnalysisTab({ session }: { session: SessionRecord }) {
             </tr>
           </thead>
           <tbody>
-            {basins.map((basinName) => {
+            {basins.map((basinName, index) => {
               const start = session.basin_snapshots_start?.[basinName];
               const end = session.basin_snapshots_end?.[basinName];
               if (!start || !end) return null;
@@ -134,7 +122,7 @@ function AnalysisTab({ session }: { session: SessionRecord }) {
 
               return (
                 <tr key={basinName}>
-                  <td className="basin-name" style={{ color: basinColors[basinName] || 'var(--text-primary)' }}>
+                  <td className="basin-name" style={{ color: getBasinColor(index) }}>
                     {basinName}
                   </td>
                   <td className="alpha-value">{start.alpha.toFixed(2)}</td>

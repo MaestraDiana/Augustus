@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+
 from augustus.models.enums import (
     AgentStatus,
     BasinClass,
@@ -14,6 +15,7 @@ from augustus.models.enums import (
     ProposalType,
     TierLevel,
 )
+from augustus.utils import enum_val
 
 
 @dataclass
@@ -25,6 +27,17 @@ class BasinConfig:
     lambda_: float
     eta: float
     tier: TierLevel
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict."""
+        return {
+            "name": self.name,
+            "basin_class": enum_val(self.basin_class),
+            "alpha": self.alpha,
+            "lambda": self.lambda_,
+            "eta": self.eta,
+            "tier": self.tier.value if hasattr(self.tier, "value") else int(self.tier),
+        }
 
 
 @dataclass
@@ -89,6 +102,16 @@ class BasinSnapshot:
     relevance_score: float = 0.0
     session_id: str = ""
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict."""
+        return {
+            "basin_name": self.basin_name,
+            "alpha_start": self.alpha_start,
+            "alpha_end": self.alpha_end,
+            "delta": self.delta,
+            "relevance_score": self.relevance_score,
+        }
+
 
 @dataclass
 class SessionRecord:
@@ -107,6 +130,26 @@ class SessionRecord:
     status: str = "complete"
     yaml_raw: str = ""
 
+    def to_dict(self, include_transcript: bool = False) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict."""
+        result: dict[str, Any] = {
+            "session_id": self.session_id,
+            "agent_id": self.agent_id,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
+            "turn_count": self.turn_count,
+            "model": self.model,
+            "temperature": self.temperature,
+            "status": self.status,
+            "capabilities_used": self.capabilities_used,
+            "yaml_raw": self.yaml_raw,
+        }
+        if include_transcript:
+            result["transcript"] = self.transcript
+            result["close_report"] = self.close_report
+            result["basin_snapshots"] = [bs.to_dict() for bs in self.basin_snapshots]
+        return result
+
 
 @dataclass
 class TierProposal:
@@ -123,6 +166,23 @@ class TierProposal:
     created_at: str = ""
     resolved_at: str = ""
     resolved_by: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict."""
+        return {
+            "proposal_id": self.proposal_id,
+            "agent_id": self.agent_id,
+            "basin_name": self.basin_name,
+            "tier": self.tier.value if hasattr(self.tier, "value") else int(self.tier),
+            "proposal_type": enum_val(self.proposal_type),
+            "status": enum_val(self.status),
+            "rationale": self.rationale,
+            "session_id": self.session_id,
+            "consecutive_count": self.consecutive_count,
+            "created_at": self.created_at,
+            "resolved_at": self.resolved_at,
+            "resolved_by": self.resolved_by,
+        }
 
 
 @dataclass
@@ -175,6 +235,22 @@ class FlagRecord:
     reviewed_by: str = ""
     created_at: str = ""
 
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict."""
+        return {
+            "flag_id": self.flag_id,
+            "agent_id": self.agent_id,
+            "session_id": self.session_id,
+            "flag_type": enum_val(self.flag_type),
+            "severity": self.severity,
+            "detail": self.detail,
+            "reviewed": self.reviewed,
+            "review_note": self.review_note,
+            "reviewed_at": self.reviewed_at or None,
+            "reviewed_by": self.reviewed_by or None,
+            "created_at": self.created_at,
+        }
+
 
 @dataclass
 class TierSettings:
@@ -206,6 +282,38 @@ class AgentConfig:
     relational_grounding: dict = field(default_factory=dict)
     created_at: str = ""
     last_active: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict."""
+        return {
+            "agent_id": self.agent_id,
+            "description": self.description,
+            "status": enum_val(self.status),
+            "model_override": self.model_override,
+            "temperature_override": self.temperature_override,
+            "max_tokens_override": self.max_tokens_override,
+            "max_turns": self.max_turns,
+            "session_interval": self.session_interval,
+            "identity_core": self.identity_core,
+            "session_task": self.session_task,
+            "close_protocol": self.close_protocol,
+            "capabilities": self.capabilities,
+            "basins": [b.to_dict() for b in self.basins],
+            "tier_settings": (
+                {
+                    "tier_2_auto_approve": self.tier_settings.tier_2_auto_approve,
+                    "tier_2_threshold": self.tier_settings.tier_2_threshold,
+                    "emergence_auto_approve": self.tier_settings.emergence_auto_approve,
+                    "emergence_threshold": self.tier_settings.emergence_threshold,
+                }
+                if self.tier_settings
+                else None
+            ),
+            "session_protocol": self.session_protocol,
+            "relational_grounding": self.relational_grounding,
+            "created_at": self.created_at,
+            "last_active": self.last_active,
+        }
 
 
 @dataclass

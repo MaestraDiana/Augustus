@@ -113,6 +113,20 @@ export default function ImportYamlModal({ isOpen, onClose, onImport }: ImportYam
       });
     }
 
+    if (result.session_protocol) {
+      const preview = result.session_protocol.length > 120
+        ? result.session_protocol.slice(0, 120) + '...'
+        : result.session_protocol;
+      items.push({ key: 'session_protocol', label: 'Session Protocol', preview, checked: true });
+    }
+
+    if (result.relational_grounding) {
+      const preview = result.relational_grounding.length > 120
+        ? result.relational_grounding.slice(0, 120) + '...'
+        : result.relational_grounding;
+      items.push({ key: 'relational_grounding', label: 'Relational Grounding', preview, checked: true });
+    }
+
     if (result.basins && result.basins.length > 0) {
       const names = result.basins.map((b) => b.name).join(', ');
       items.push({
@@ -156,6 +170,8 @@ export default function ImportYamlModal({ isOpen, onClose, onImport }: ImportYam
         identity_core: null,
         session_task: null,
         close_protocol: null,
+        session_protocol: null,
+        relational_grounding: null,
         capabilities: null,
         basins: null,
         warnings: [],
@@ -195,6 +211,12 @@ export default function ImportYamlModal({ isOpen, onClose, onImport }: ImportYam
     }
     if (checkedKeys.has('capabilities') && parseResult.capabilities) {
       imported.capabilities = parseResult.capabilities;
+    }
+    if (checkedKeys.has('session_protocol') && parseResult.session_protocol) {
+      imported.session_protocol = parseResult.session_protocol;
+    }
+    if (checkedKeys.has('relational_grounding') && parseResult.relational_grounding) {
+      imported.relational_grounding = parseResult.relational_grounding;
     }
 
     onImport(imported);

@@ -13,7 +13,7 @@ import json
 import logging
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import anthropic
@@ -184,7 +184,7 @@ class SessionManager:
         record = SessionRecord(
             session_id=session_id,
             agent_id=agent_id,
-            start_time=datetime.utcnow().isoformat(),
+            start_time=utcnow_iso(),
             model=model,
             temperature=temperature,
             status="running",
@@ -314,7 +314,7 @@ class SessionManager:
                 )
 
             # --- Phase 3: CLOSE ---
-            record.end_time = datetime.utcnow().isoformat()
+            record.end_time = utcnow_iso()
             record.turn_count = max_turns
             record.transcript = conversation
             record.capabilities_used = list(set(capabilities_used))
@@ -339,7 +339,7 @@ class SessionManager:
                     tokens_out=total_tokens_out,
                     estimated_cost=estimated_cost,
                     model=model,
-                    timestamp=datetime.utcnow().isoformat(),
+                    timestamp=utcnow_iso(),
                 )
             )
 
@@ -375,7 +375,7 @@ class SessionManager:
                 session_id,
             )
             record.status = "error"
-            record.end_time = datetime.utcnow().isoformat()
+            record.end_time = utcnow_iso()
             record.turn_count = turns_completed
             record.transcript = conversation
             await self.memory.store_session_record(record)
@@ -393,7 +393,7 @@ class SessionManager:
                         tokens_out=total_tokens_out,
                         estimated_cost=estimated_cost,
                         model=model,
-                        timestamp=datetime.utcnow().isoformat(),
+                        timestamp=utcnow_iso(),
                     )
                 )
 
@@ -410,7 +410,7 @@ class SessionManager:
                 "Session error for %s: %s", session_id, e, exc_info=True
             )
             record.status = "error"
-            record.end_time = datetime.utcnow().isoformat()
+            record.end_time = utcnow_iso()
             record.turn_count = turns_completed
             record.transcript = conversation
             await self.memory.store_session_record(record)
@@ -428,7 +428,7 @@ class SessionManager:
                         tokens_out=total_tokens_out,
                         estimated_cost=estimated_cost,
                         model=model,
-                        timestamp=datetime.utcnow().isoformat(),
+                        timestamp=utcnow_iso(),
                     )
                 )
 
@@ -1314,7 +1314,7 @@ class SessionManager:
         session_id: str,
     ) -> None:
         """Create FlagRecords from evaluator findings and store them."""
-        now = datetime.utcnow().isoformat()
+        now = utcnow_iso()
 
         if evaluator_output.constraint_erosion_flag:
             await self.memory.store_flag(
@@ -1637,15 +1637,6 @@ class SessionManager:
         return None
 
     # ------------------------------------------------------------------
-    # Transcript helpers
-    # ------------------------------------------------------------------
-
-    @staticmethod
-    def _flatten_transcript(transcript: list[dict]) -> str:
-        """Flatten a multi-turn conversation into searchable plain text."""
-        return flatten_transcript(transcript)
-
-    # ------------------------------------------------------------------
     # Budget check
     # ------------------------------------------------------------------
 
@@ -1751,6 +1742,6 @@ class SessionManager:
                 agent_id=agent_id,
                 session_id=session_id,
                 detail=detail,
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=utcnow_iso(),
             )
         )

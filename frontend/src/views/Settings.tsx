@@ -2,14 +2,13 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Check, X, AlertCircle, Copy, Loader2, FileText } from 'lucide-react';
 import { api } from '../api/client';
+import { useApi } from '../hooks/useApi';
 import type { Settings as SettingsType } from '../types';
 import Button from '../components/ui/Button';
 
 export default function Settings() {
   const navigate = useNavigate();
   const [settings, setSettings] = useState<SettingsType | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState<'unchecked' | 'validating' | 'valid' | 'invalid'>('unchecked');
@@ -25,8 +24,17 @@ export default function Settings() {
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
   const sectionsContainerRef = useRef<HTMLDivElement>(null);
 
+  const { data: fetchedSettings, loading, error, refetch } = useApi<SettingsType>(
+    () => api.settings.get(),
+    [],
+  );
+
+  // Sync fetched settings into local state for mutation
   useEffect(() => {
-    loadSettings();
+    if (fetchedSettings) setSettings(fetchedSettings);
+  }, [fetchedSettings]);
+
+  useEffect(() => {
     checkMcpStatus();
   }, []);
 
@@ -50,20 +58,6 @@ export default function Settings() {
 
     return () => observer.disconnect();
   }, [settings]);
-
-  async function loadSettings() {
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await api.settings.get();
-      setSettings(data);
-    } catch (err) {
-      console.error('Failed to load settings:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load settings');
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function checkMcpStatus() {
     try {
@@ -216,7 +210,7 @@ export default function Settings() {
               {error}
             </p>
           </div>
-          <Button variant="primary" onClick={loadSettings}>
+          <Button variant="primary" onClick={refetch}>
             Retry
           </Button>
         </div>

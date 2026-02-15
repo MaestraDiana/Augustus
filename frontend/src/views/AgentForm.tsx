@@ -11,6 +11,31 @@ interface AgentFormProps {
   mode?: 'create' | 'edit';
 }
 
+/** Convert an API structural section (dict or string) to a YAML string for the textarea. */
+function stringifyStructural(val: unknown): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val === 'object') {
+    // Convert dict back to YAML-ish text.  Use JSON.stringify as a
+    // lightweight serializer — the backend accepts any valid YAML,
+    // and JSON is valid YAML.  For a single "content" wrapper key,
+    // unwrap it so the user sees their original text.
+    const obj = val as Record<string, unknown>;
+    if (Object.keys(obj).length === 0) return '';
+    if (Object.keys(obj).length === 1 && typeof obj.content === 'string') {
+      return obj.content;
+    }
+    // Multi-key dict: render as YAML-style key: value lines
+    return Object.entries(obj)
+      .map(([k, v]) => {
+        if (typeof v === 'string') return `${k}: ${v}`;
+        return `${k}: ${JSON.stringify(v)}`;
+      })
+      .join('\n');
+  }
+  return String(val);
+}
+
 const initialFormData: AgentFormData = {
   agent_id: '',
   description: '',
@@ -40,6 +65,8 @@ const initialFormData: AgentFormData = {
     new_basin_auto_approve: false,
     new_basin_threshold: 5,
   },
+  session_protocol: '',
+  relational_grounding: '',
 };
 
 /**
@@ -78,6 +105,8 @@ function transformFormForApi(data: AgentFormData): Record<string, unknown> {
       emergence_auto_approve: data.tier_settings.new_basin_auto_approve,
       emergence_threshold: data.tier_settings.new_basin_threshold,
     },
+    session_protocol: data.session_protocol || '',
+    relational_grounding: data.relational_grounding || '',
   };
 }
 
@@ -145,6 +174,8 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
             capabilities,
             basins,
             tier_settings,
+            session_protocol: stringifyStructural((agent as any).session_protocol),
+            relational_grounding: stringifyStructural((agent as any).relational_grounding),
           });
         } catch (err) {
           console.error('Failed to load agent:', err);
@@ -267,7 +298,7 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
         </div>
       )}
 
-      <div className="section-card" style={{ marginBottom: 0 }}>
+      <div className="section-card" style={{ marginBottom: 0, overflow: 'visible' }}>
         <div className="tabs">
           {tabs.map((tab, index) => (
             <div
@@ -342,6 +373,34 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
                   placeholder="Before ending, reflect on..."
                   style={{ minHeight: '150px' }}
                 />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Session Protocol</label>
+                <textarea
+                  className="form-textarea code-editor"
+                  value={formData.session_protocol}
+                  onChange={(e) => updateField('session_protocol', e.target.value)}
+                  placeholder="Optional YAML — orchestrator coordination rules for session structure"
+                  style={{ minHeight: '100px' }}
+                />
+                <div className="form-hint">
+                  Orchestrator-owned. Not sent to the agent — defines session coordination rules.
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Relational Grounding</label>
+                <textarea
+                  className="form-textarea code-editor"
+                  value={formData.relational_grounding}
+                  onChange={(e) => updateField('relational_grounding', e.target.value)}
+                  placeholder="Optional YAML — relational context preserved across sessions"
+                  style={{ minHeight: '100px' }}
+                />
+                <div className="form-hint">
+                  Orchestrator-owned. Not sent to the agent — defines relational context that persists between sessions.
+                </div>
               </div>
             </div>
           )}

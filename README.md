@@ -1,6 +1,6 @@
 # Augustus
 
-![Downloads](https://img.shields.io/github/downloads/TheFeloniousMonk/Augustus/total?style=flat-square&label=Downloads)
+![Downloads](https://img.shields.io/badge/dynamic/json?url=https://raw.githubusercontent.com/TheFeloniousMonk/Augustus/main/install-counter.json&query=$.count&label=Downloads&style=flat-square&color=blue)
 
 Augustus is a desktop application for persistent AI identity research. It orchestrates autonomous Claude sessions through structured YAML instruction queues, tracks identity evolution through basin trajectory analysis, and provides observation, evaluation, and management interfaces for studying how a Claude instance develops and maintains a coherent personality across many sessions.
 

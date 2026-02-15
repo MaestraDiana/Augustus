@@ -3,6 +3,7 @@
 import sqlite3
 import logging
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,12 @@ logger = logging.getLogger(__name__)
 
 
 class SQLiteStore:
-    """SQLite database interface with WAL mode and automatic schema initialization."""
+    """SQLite database interface with WAL mode and automatic schema initialization.
+
+    A threading lock serializes all DB operations so that the single
+    connection can be safely shared across the asyncio thread-pool
+    executor (API handlers) and the orchestrator loop.
+    """
 
     def __init__(self, db_path: Path) -> None:
         """Initialize SQLite connection and schema.
@@ -19,12 +25,14 @@ class SQLiteStore:
             db_path: Path to the SQLite database file
         """
         self.db_path = db_path
+        self._lock = threading.Lock()
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
         self.conn = sqlite3.connect(
             str(db_path),
             check_same_thread=False,
             isolation_level=None,  # Autocommit mode
+            timeout=10,  # Wait up to 10s if DB is locked
         )
         self.conn.row_factory = sqlite3.Row
         self._init_db()
@@ -148,7 +156,8 @@ class SQLiteStore:
         Returns:
             Cursor with results
         """
-        return self.conn.execute(sql, params)
+        with self._lock:
+            return self.conn.execute(sql, params)
 
     def executemany(
         self, sql: str, params_list: list[tuple[Any, ...]]
@@ -162,7 +171,8 @@ class SQLiteStore:
         Returns:
             Cursor with results
         """
-        return self.conn.executemany(sql, params_list)
+        with self._lock:
+            return self.conn.executemany(sql, params_list)
 
     def fetch_one(self, sql: str, params: tuple[Any, ...] = ()) -> dict[str, Any] | None:
         """Execute query and fetch one row as a dictionary.
@@ -174,9 +184,10 @@ class SQLiteStore:
         Returns:
             Row as dictionary or None if no results
         """
-        cursor = self.conn.execute(sql, params)
-        row = cursor.fetchone()
-        return dict(row) if row else None
+        with self._lock:
+            cursor = self.conn.execute(sql, params)
+            row = cursor.fetchone()
+            return dict(row) if row else None
 
     def fetch_all(self, sql: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         """Execute query and fetch all rows as dictionaries.
@@ -188,14 +199,17 @@ class SQLiteStore:
         Returns:
             List of rows as dictionaries
         """
-        cursor = self.conn.execute(sql, params)
-        return [dict(row) for row in cursor.fetchall()]
+        with self._lock:
+            cursor = self.conn.execute(sql, params)
+            return [dict(row) for row in cursor.fetchall()]
 
     def commit(self) -> None:
         """Explicitly commit current transaction."""
-        self.conn.commit()
+        with self._lock:
+            self.conn.commit()
 
     def close(self) -> None:
         """Close database connection."""
-        self.conn.close()
+        with self._lock:
+            self.conn.close()
         logger.info("SQLite store closed")

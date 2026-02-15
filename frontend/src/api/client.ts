@@ -24,12 +24,37 @@ import type {
 
 const API_BASE = '/api';
 
+/** Status codes that are safe to retry on GET requests.  A 404 from a
+ *  dependency like `require_agent` can be transient when the DB is
+ *  momentarily contended by the orchestrator.  */
+const RETRYABLE_STATUSES = new Set([404, 408, 500, 502, 503, 504]);
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 400;
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) {
+  const method = options?.method ?? 'GET';
+  const retries = method === 'GET' ? MAX_RETRIES : 0;
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json', ...options?.headers },
+      ...options,
+    });
+
+    if (res.ok) {
+      // 204 No Content has no body — don't try to parse it
+      if (res.status === 204) {
+        return undefined as T;
+      }
+      return res.json();
+    }
+
     const errorText = await res.text();
     // Try to extract "detail" from JSON error responses
     let message = errorText;
@@ -39,13 +64,20 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     } catch {
       // Not JSON — use raw text
     }
-    throw new Error(`API Error: ${res.status} - ${message}`);
+
+    lastError = new Error(`API Error: ${res.status} - ${message}`);
+
+    // Retry transient errors on GET requests
+    if (attempt < retries && RETRYABLE_STATUSES.has(res.status)) {
+      await sleep(RETRY_DELAY_MS * (attempt + 1));
+      continue;
+    }
+
+    throw lastError;
   }
-  // 204 No Content has no body — don't try to parse it
-  if (res.status === 204) {
-    return undefined as T;
-  }
-  return res.json();
+
+  // Should not reach here, but satisfy TS
+  throw lastError ?? new Error('Request failed');
 }
 
 function get<T>(path: string) {

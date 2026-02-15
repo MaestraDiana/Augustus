@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any
 from augustus.models.enums import (
     AgentStatus,
     BasinClass,
@@ -73,6 +74,9 @@ class ParsedInstruction:
     close_protocol: CloseProtocol | None = None
     raw_yaml: str = ""
     validation_warnings: list[str] = field(default_factory=list)
+    structural_sections: dict[str, Any] = field(default_factory=dict)
+    """Orchestrator-owned structural sections (session_protocol, relational_grounding, etc.)
+    that round-trip through YAML but are not agent-writable."""
 
 
 @dataclass
@@ -198,6 +202,8 @@ class AgentConfig:
     capabilities: dict = field(default_factory=dict)
     basins: list[BasinConfig] = field(default_factory=list)
     tier_settings: TierSettings | None = None
+    session_protocol: dict = field(default_factory=dict)
+    relational_grounding: dict = field(default_factory=dict)
     created_at: str = ""
     last_active: str = ""
 

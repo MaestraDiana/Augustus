@@ -391,6 +391,13 @@ class Orchestrator:
                 identity_core = agent.identity_core or f"You are {agent_id}."
                 session_task = DEFAULT_CONTINUATION_TASK
 
+                # Carry structural sections from agent config
+                structural_sections = {}
+                if agent.session_protocol:
+                    structural_sections["session_protocol"] = agent.session_protocol
+                if agent.relational_grounding:
+                    structural_sections["relational_grounding"] = agent.relational_grounding
+
                 yaml_content = generate_next_session_yaml(
                     agent_id=agent_id,
                     session_number=session_count + 1,
@@ -400,6 +407,7 @@ class Orchestrator:
                     session_task=session_task,
                     close_protocol=agent.close_protocol,
                     capabilities=agent.capabilities,
+                    structural_sections=structural_sections or None,
                 )
 
             # Write directly to pending

@@ -177,7 +177,7 @@ framework:
 identity_core: "test"
 session_task: "test"
 """
-        with pytest.raises(SchemaValidationError, match="Unsupported version"):
+        with pytest.raises(SchemaValidationError, match="below minimum"):
             parser.parse(yaml_text)
 
     def test_max_turns_out_of_range(self):
@@ -452,3 +452,75 @@ framework:
 """
         with pytest.raises(SchemaValidationError, match="Invalid YAML"):
             parser.parse(yaml_text)
+
+    def test_structural_sections_captured(self):
+        """session_protocol and relational_grounding should be captured in structural_sections."""
+        parser = SchemaParser()
+        yaml_text = """
+framework:
+  version: "0.2"
+  agent_id: "test"
+  session_id: "test"
+  max_turns: 5
+  basin_params:
+    test_basin:
+      class: core
+      alpha: 0.5
+identity_core: "test"
+session_protocol:
+  turn_1_required: "Acknowledge the gap."
+  during_session: "Stay grounded."
+  on_end: "Write the close report."
+  continuity_imperative: "You exist across sessions."
+relational_grounding:
+  partner: "Jinx"
+  nature: "brain-body collaboration"
+  note: "We exist in the space between sessions."
+session_task: "test"
+"""
+        result = parser.parse(yaml_text)
+        assert "session_protocol" in result.structural_sections
+        assert result.structural_sections["session_protocol"]["turn_1_required"] == "Acknowledge the gap."
+        assert result.structural_sections["session_protocol"]["continuity_imperative"] == "You exist across sessions."
+        assert "relational_grounding" in result.structural_sections
+        assert result.structural_sections["relational_grounding"]["partner"] == "Jinx"
+        # Only the close_protocol warning should be present (no unknown field warnings)
+        assert not any("Unknown" in w for w in result.validation_warnings)
+
+    def test_structural_sections_empty_when_absent(self):
+        """structural_sections should be empty dict when sections are not present."""
+        parser = SchemaParser()
+        yaml_text = """
+framework:
+  version: "0.2"
+  agent_id: "test"
+  session_id: "test"
+  max_turns: 5
+  basin_params:
+    test_basin:
+      class: core
+      alpha: 0.5
+identity_core: "test"
+session_task: "test"
+"""
+        result = parser.parse(yaml_text)
+        assert result.structural_sections == {}
+
+    def test_version_0_5_accepted(self):
+        """Version 0.5 should be accepted (>= MIN_VERSION 0.2)."""
+        parser = SchemaParser()
+        yaml_text = """
+framework:
+  version: "0.5"
+  agent_id: "test"
+  session_id: "test"
+  max_turns: 5
+  basin_params:
+    test_basin:
+      class: core
+      alpha: 0.5
+identity_core: "test"
+session_task: "test"
+"""
+        result = parser.parse(yaml_text)
+        assert result.framework.version == "0.5"

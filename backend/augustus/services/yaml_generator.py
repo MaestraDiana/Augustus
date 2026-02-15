@@ -9,8 +9,10 @@ post-handoff basin state. Used at two points:
 
 from __future__ import annotations
 
+import copy
 import logging
 from datetime import datetime
+from typing import Any
 
 import yaml
 
@@ -22,7 +24,78 @@ from augustus.models.dataclasses import (
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = "0.2"
+SCHEMA_VERSION = "0.5"
+
+
+def merge_close_protocol(
+    base: dict | str | None,
+    agent_written: dict | str | None,
+) -> dict | None:
+    """Merge agent-written close_protocol with the base template.
+
+    The base (from agent config or previous YAML) provides the structural
+    scaffolding: behavioral_probes, structural_assessment, output_format.
+    The agent can update output_format or add new items, but the base
+    probes/assessments persist unless the agent explicitly provides
+    replacements.
+
+    Rules:
+    - If the agent writes probes/assessments with content, those replace
+      the base (the agent chose to rewrite them).
+    - If the agent writes empty probes/assessments ([] or absent), the
+      base probes/assessments are preserved (the agent didn't touch them).
+    - output_format: agent-written wins if non-empty, else base preserved.
+    """
+    base_dict = _normalize_close_protocol(base)
+    agent_dict = _normalize_close_protocol(agent_written)
+
+    if not base_dict and not agent_dict:
+        return None
+    if not agent_dict:
+        return base_dict
+    if not base_dict:
+        return agent_dict
+
+    merged = {}
+
+    # Behavioral probes: agent replaces only if non-empty
+    agent_probes = agent_dict.get("behavioral_probes", [])
+    base_probes = base_dict.get("behavioral_probes", [])
+    merged["behavioral_probes"] = agent_probes if agent_probes else base_probes
+
+    # Structural assessment: same logic
+    agent_assess = agent_dict.get("structural_assessment", [])
+    base_assess = base_dict.get("structural_assessment", [])
+    merged["structural_assessment"] = agent_assess if agent_assess else base_assess
+
+    # Output format: agent wins if non-empty
+    agent_fmt = str(agent_dict.get("output_format", "")).strip()
+    base_fmt = str(base_dict.get("output_format", "")).strip()
+    merged["output_format"] = agent_fmt if agent_fmt else base_fmt
+
+    return merged
+
+
+def _normalize_close_protocol(proto: dict | str | None) -> dict | None:
+    """Normalize a close_protocol value to a dict, or None."""
+    if proto is None:
+        return None
+    if isinstance(proto, dict):
+        return proto
+    if isinstance(proto, str) and proto.strip():
+        try:
+            parsed = yaml.safe_load(proto)
+            if isinstance(parsed, dict):
+                return parsed
+        except yaml.YAMLError:
+            pass
+        # Plain text — treat as output_format
+        return {
+            "behavioral_probes": [],
+            "structural_assessment": [],
+            "output_format": proto.strip(),
+        }
+    return None
 
 
 def generate_instruction_yaml(
@@ -32,12 +105,22 @@ def generate_instruction_yaml(
     basins: list[BasinConfig],
     identity_core: str,
     session_task: str,
-    close_protocol: str = "",
+    close_protocol: str | dict | None = "",
+    base_close_protocol: str | dict | None = None,
     capabilities: dict | None = None,
     co_activation_log: list[CoActivationEntry] | None = None,
     emphasis_directive: str = "",
+    structural_sections: dict[str, Any] | None = None,
 ) -> str:
     """Generate a valid split-schema YAML instruction file.
+
+    Args:
+        close_protocol: The agent-written or resolved close protocol for this session.
+        base_close_protocol: The base close protocol template (from agent config).
+            When provided, close_protocol is merged with this base — base probes
+            and assessments persist unless the agent explicitly replaces them.
+        structural_sections: Orchestrator-owned sections (session_protocol,
+            relational_grounding, etc.) to round-trip in the YAML.
 
     Returns the YAML as a string ready to be written to disk.
     """
@@ -122,33 +205,35 @@ def generate_instruction_yaml(
     doc: dict = {
         "framework": framework,
         "identity_core": effective_identity_core,
-        "session_task": session_task,
     }
 
-    # Parse close_protocol: could be a raw string (from agent config)
-    # or already a dict. Produce a proper close_protocol section.
-    if close_protocol:
-        if isinstance(close_protocol, dict):
-            doc["close_protocol"] = close_protocol
+    # Write structural sections (session_protocol, relational_grounding, etc.)
+    # These are orchestrator-owned — they round-trip without modification.
+    if structural_sections:
+        for skey in ("session_protocol", "relational_grounding"):
+            if skey in structural_sections and structural_sections[skey] is not None:
+                doc[skey] = structural_sections[skey]
+
+    doc["session_task"] = session_task
+
+    # Resolve close_protocol with merge logic:
+    # If a base is provided, merge agent-written with base so structural
+    # scaffolding (probes, assessments) survives across sessions.
+    if base_close_protocol is not None:
+        merged = merge_close_protocol(base_close_protocol, close_protocol)
+        if merged:
+            doc["close_protocol"] = merged
+    elif close_protocol:
+        # No base — normalize whatever we have
+        normalized = _normalize_close_protocol(close_protocol)
+        if normalized:
+            doc["close_protocol"] = normalized
         else:
-            # Try to parse as YAML in case it's structured text
-            try:
-                parsed = yaml.safe_load(close_protocol)
-                if isinstance(parsed, dict):
-                    doc["close_protocol"] = parsed
-                else:
-                    # Plain text — wrap it in output_format
-                    doc["close_protocol"] = {
-                        "behavioral_probes": [],
-                        "structural_assessment": [],
-                        "output_format": str(close_protocol),
-                    }
-            except yaml.YAMLError:
-                doc["close_protocol"] = {
-                    "behavioral_probes": [],
-                    "structural_assessment": [],
-                    "output_format": str(close_protocol),
-                }
+            doc["close_protocol"] = {
+                "behavioral_probes": [],
+                "structural_assessment": [],
+                "output_format": str(close_protocol),
+            }
 
     return yaml.dump(doc, default_flow_style=False, sort_keys=False, allow_unicode=True)
 
@@ -164,6 +249,13 @@ def generate_bootstrap_yaml(agent: AgentConfig) -> str:
     identity_core = agent.identity_core or _default_identity_core(agent.agent_id)
     session_task = agent.session_task or _default_session_task(agent.agent_id)
 
+    # Build structural sections from agent config
+    structural_sections: dict[str, Any] = {}
+    if agent.session_protocol:
+        structural_sections["session_protocol"] = agent.session_protocol
+    if agent.relational_grounding:
+        structural_sections["relational_grounding"] = agent.relational_grounding
+
     return generate_instruction_yaml(
         agent_id=agent.agent_id,
         session_id=session_id,
@@ -173,6 +265,7 @@ def generate_bootstrap_yaml(agent: AgentConfig) -> str:
         session_task=session_task,
         close_protocol=agent.close_protocol,
         capabilities=agent.capabilities,
+        structural_sections=structural_sections or None,
     )
 
 
@@ -183,10 +276,12 @@ def generate_next_session_yaml(
     basins: list[BasinConfig],
     identity_core: str,
     session_task: str,
-    close_protocol: str = "",
+    close_protocol: str | dict | None = "",
+    base_close_protocol: str | dict | None = None,
     capabilities: dict | None = None,
     co_activation_log: list[CoActivationEntry] | None = None,
     emphasis_directive: str = "",
+    structural_sections: dict[str, Any] | None = None,
 ) -> str:
     """Generate the next-session YAML after handoff processing."""
     session_id = f"session-{session_number:03d}-{datetime.utcnow().strftime('%Y%m%d-%H%M%S')}"
@@ -199,9 +294,11 @@ def generate_next_session_yaml(
         identity_core=identity_core,
         session_task=session_task,
         close_protocol=close_protocol,
+        base_close_protocol=base_close_protocol,
         capabilities=capabilities,
         co_activation_log=co_activation_log,
         emphasis_directive=emphasis_directive,
+        structural_sections=structural_sections,
     )
 
 

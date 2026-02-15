@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class SchemaParser:
     """Parse and validate YAML instruction files."""
 
-    SUPPORTED_VERSION = "0.2"
+    MIN_VERSION = "0.2"
 
     def parse(self, yaml_text: str) -> ParsedInstruction:
         """Parse YAML instruction file and route sections."""
@@ -42,11 +42,23 @@ class SchemaParser:
 
         warnings = []
 
-        # Check for unexpected top-level keys
-        expected_keys = {"framework", "identity_core", "session_task", "close_protocol"}
+        # Capture orchestrator-owned structural sections that must round-trip.
+        # These are NOT sent to the Claude API — they're coordination scaffolding
+        # that the orchestrator preserves between sessions.
+        structural_keys = {"session_protocol", "relational_grounding"}
+        structural_sections: dict[str, Any] = {}
+        for skey in structural_keys:
+            if skey in data and data[skey] is not None:
+                structural_sections[skey] = data[skey]
+
+        # Note unknown top-level keys — these are allowed (schema evolves)
+        # but tracked for debugging
+        known_keys = {
+            "framework", "identity_core", "session_task", "close_protocol",
+        } | structural_keys
         for key in data:
-            if key not in expected_keys:
-                warnings.append(f"Unexpected top-level field: '{key}'")
+            if key not in known_keys:
+                warnings.append(f"Unknown top-level field: '{key}'")
 
         # Validate required sections
         if not framework_raw:
@@ -74,15 +86,23 @@ class SchemaParser:
             close_protocol=close_protocol,
             raw_yaml=yaml_text,
             validation_warnings=warnings,
+            structural_sections=structural_sections,
         )
 
     def validate_framework(self, fw: dict[str, Any]) -> FrameworkConfig:
         """Strict validation of framework section."""
-        # version
+        # version — accept any version >= MIN_VERSION
         version = fw.get("version")
-        if str(version) != self.SUPPORTED_VERSION:
+        try:
+            ver = tuple(int(x) for x in str(version).split("."))
+            min_ver = tuple(int(x) for x in self.MIN_VERSION.split("."))
+            if ver < min_ver:
+                raise SchemaValidationError(
+                    f"Version '{version}' is below minimum '{self.MIN_VERSION}'"
+                )
+        except (ValueError, AttributeError):
             raise SchemaValidationError(
-                f"Unsupported version '{version}', expected '{self.SUPPORTED_VERSION}'"
+                f"Invalid version '{version}', expected semver >= '{self.MIN_VERSION}'"
             )
 
         # agent_id

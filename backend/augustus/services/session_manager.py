@@ -1491,6 +1491,14 @@ class SessionManager:
         take precedence over defaults.  The handoff engine always provides the
         updated framework section (basins, co-activation, emphasis).
 
+        Structural sections (session_protocol, relational_grounding) are
+        carried forward from the input instruction — these are orchestrator-
+        owned and round-trip without modification.
+
+        The close_protocol is merged with the agent config's base template
+        so that behavioral probes and structural assessments survive even
+        when the agent writes an incomplete close_protocol.
+
         When the agent did NOT write a YAML, falls back to
         ``DEFAULT_CONTINUATION_TASK``.
         """
@@ -1518,7 +1526,7 @@ class SessionManager:
                     "session_task", DEFAULT_CONTINUATION_TASK
                 )
                 next_close_protocol = agent_written_yaml.get(
-                    "close_protocol", agent.close_protocol
+                    "close_protocol", None
                 )
                 logger.info(
                     "Using agent-written YAML for next session of %s (sections: %s)",
@@ -1528,11 +1536,21 @@ class SessionManager:
             else:
                 next_identity_core = instruction.identity_core
                 next_task = DEFAULT_CONTINUATION_TASK
-                next_close_protocol = agent.close_protocol
+                next_close_protocol = None
                 logger.info(
                     "Using default continuation task for next session of %s",
                     agent_id,
                 )
+
+            # Carry structural sections forward from the input YAML.
+            # These are orchestrator-owned — they round-trip automatically.
+            structural_sections = instruction.structural_sections or {}
+
+            # Also merge in agent-level structural sections as fallback
+            if not structural_sections.get("session_protocol") and agent.session_protocol:
+                structural_sections["session_protocol"] = agent.session_protocol
+            if not structural_sections.get("relational_grounding") and agent.relational_grounding:
+                structural_sections["relational_grounding"] = agent.relational_grounding
 
             yaml_content = generate_next_session_yaml(
                 agent_id=agent_id,
@@ -1542,9 +1560,11 @@ class SessionManager:
                 identity_core=next_identity_core,
                 session_task=next_task,
                 close_protocol=next_close_protocol,
+                base_close_protocol=agent.close_protocol or None,
                 capabilities=agent.capabilities,
                 co_activation_log=co_activation_updates,
                 emphasis_directive=emphasis_directive,
+                structural_sections=structural_sections or None,
             )
 
             # Write to queue via QueueManager

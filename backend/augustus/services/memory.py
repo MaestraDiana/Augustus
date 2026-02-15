@@ -1595,6 +1595,8 @@ class MemoryService:
                 if config.tier_settings
                 else None
             ),
+            "session_protocol": config.session_protocol or {},
+            "relational_grounding": config.relational_grounding or {},
         }
         config_json = json.dumps(config_dict)
 
@@ -1671,6 +1673,8 @@ class MemoryService:
             "capabilities",
             "basins",
             "tier_settings",
+            "session_protocol",
+            "relational_grounding",
         }
         config_updates = {k: v for k, v in updates.items() if k in config_keys}
 
@@ -1823,6 +1827,8 @@ class MemoryService:
             capabilities=config_data.get("capabilities", {}),
             basins=basins,
             tier_settings=tier_settings,
+            session_protocol=config_data.get("session_protocol", {}),
+            relational_grounding=config_data.get("relational_grounding", {}),
             created_at=row.get("created_at", ""),
             last_active=row.get("last_active", ""),
         )

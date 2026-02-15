@@ -48,8 +48,14 @@ def main() -> None:
     # Run uvicorn
     logger.info(f"Starting Augustus on port {args.port}")
 
+    # Import the app object directly instead of using the string form
+    # ("augustus.api.app:app").  Uvicorn's string-based import fails
+    # inside a PyInstaller frozen binary because the module system
+    # differs from a normal Python environment.
+    from augustus.api.app import app as application
+
     config = uvicorn.Config(
-        "augustus.api.app:app",
+        application,
         host="127.0.0.1",
         port=args.port,
         log_level="info",

@@ -121,7 +121,7 @@ async def lifespan(app: FastAPI):
     logger.info("Augustus API shutting down")
 
 
-app = FastAPI(title="Augustus API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="Augustus API", version="0.9.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -166,7 +166,7 @@ app.include_router(activity.router)
 @app.get("/api/health")
 async def health():
     """Health check endpoint."""
-    return {"status": "ok", "version": "0.3.0"}
+    return {"status": "ok", "version": "0.9.0"}
 
 
 # SPA serving (production — frontend/dist served by FastAPI)

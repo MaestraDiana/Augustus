@@ -1153,9 +1153,10 @@ class SessionManager:
         2. Store close report in vector DB.
         3. Run the evaluator service (if enabled).
         4. Create flags from evaluator output.
-        5. Run the handoff engine to compute new basin alphas.
-        6. Persist basin snapshots and updated basins.
-        7. Generate next-session YAML (uses agent-written YAML if available).
+        5. Process basin proposals (so approved basins enter handoff).
+        6. Run the handoff engine to compute new basin alphas.
+        7. Persist basin snapshots and updated basins.
+        8. Generate next-session YAML (uses agent-written YAML if available).
         """
         agent_id = record.agent_id
         session_id = record.session_id
@@ -1211,6 +1212,27 @@ class SessionManager:
                 co_activation_entries, evaluator_output.co_activation_characters
             )
 
+        # 5b. Process basin proposals BEFORE handoff so approved basins
+        #     get snapshots and participate in emphasis generation.
+        if (
+            agent_written_yaml
+            and "basin_proposals" in agent_written_yaml
+            and self.tier_enforcer is not None
+        ):
+            approved_basins = await self._process_basin_proposals(
+                agent_id=agent_id,
+                session_id=session_id,
+                proposals=agent_written_yaml["basin_proposals"],
+                current_basins=initial_basins,
+            )
+            # Merge approved new basins into initial_basins so the handoff
+            # engine creates snapshots and emphasis directives for them.
+            if approved_basins:
+                existing_names = {b.name for b in initial_basins}
+                for basin in approved_basins:
+                    if basin.name not in existing_names:
+                        initial_basins.append(basin)
+
         # 6. Run handoff engine
         handoff_result: HandoffResult = self.handoff.execute_handoff(
             basins=initial_basins,
@@ -1236,19 +1258,6 @@ class SessionManager:
         if handoff_result.co_activation_updates:
             await self.memory.update_co_activation(
                 agent_id, handoff_result.co_activation_updates
-            )
-
-        # 7b. Process basin proposals through tier enforcer
-        if (
-            agent_written_yaml
-            and "basin_proposals" in agent_written_yaml
-            and self.tier_enforcer is not None
-        ):
-            await self._process_basin_proposals(
-                agent_id=agent_id,
-                session_id=session_id,
-                proposals=agent_written_yaml["basin_proposals"],
-                current_basins=handoff_result.updated_basins,
             )
 
         # 8. Generate and queue next-session YAML (handoff Step 8)
@@ -1372,12 +1381,16 @@ class SessionManager:
         session_id: str,
         proposals: list[dict],
         current_basins: list[BasinConfig],
-    ) -> None:
+    ) -> list[BasinConfig]:
         """Process agent basin proposals through the tier enforcer.
 
         Converts raw proposal dicts from the write_yaml tool into
         BasinConfig objects where applicable, then runs them through
         check_yaml_modifications to create TierProposal records.
+
+        Returns a list of BasinConfig objects for proposals that were
+        auto-approved or approved, so they can be included in the
+        handoff engine's basin list.
         """
         from augustus.models.enums import BasinClass, TierLevel
 
@@ -1447,7 +1460,9 @@ class SessionManager:
                 "Cannot process basin proposals: agent %s not found or no tier settings",
                 agent_id,
             )
-            return
+            return []
+
+        approved_basins: list[BasinConfig] = []
 
         try:
             result = await self.tier_enforcer.check_yaml_modifications(
@@ -1469,6 +1484,7 @@ class SessionManager:
                     ProposalStatus.APPROVED,
                 ) and proposal.proposed_config:
                     await self.memory.apply_approved_proposal(proposal)
+                    approved_basins.append(proposal.proposed_config)
 
             if result.proposals_created:
                 logger.info(
@@ -1488,6 +1504,8 @@ class SessionManager:
                 e,
                 exc_info=True,
             )
+
+        return approved_basins
 
     # ------------------------------------------------------------------
     # Next-session YAML generation (handoff Step 8)
@@ -1569,6 +1587,22 @@ class SessionManager:
                 structural_sections["session_protocol"] = agent.session_protocol
             if not structural_sections.get("relational_grounding") and agent.relational_grounding:
                 structural_sections["relational_grounding"] = agent.relational_grounding
+
+            # Belt-and-suspenders: re-read basin_current from the DB so
+            # that any basins approved during this close protocol (or via
+            # other paths) are never silently dropped from the next YAML.
+            canonical_basins = await self.memory.get_current_basins(agent_id)
+            if canonical_basins:
+                handoff_names = {b.name for b in updated_basins}
+                for cb in canonical_basins:
+                    if cb.name not in handoff_names:
+                        updated_basins.append(cb)
+                        logger.info(
+                            "Recovered basin '%s' from basin_current into "
+                            "next-session YAML for agent %s",
+                            cb.name,
+                            agent_id,
+                        )
 
             yaml_content = generate_next_session_yaml(
                 agent_id=agent_id,

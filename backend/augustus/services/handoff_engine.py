@@ -187,6 +187,7 @@ class HandoffEngine:
         self, before: list[BasinConfig], after: list[BasinConfig], relevance: dict
     ) -> list[BasinSnapshot]:
         """Compute deltas between before and after states."""
+        before_map = {b.name: b for b in before}
         after_map = {b.name: b for b in after}
         snapshots = []
         for b in before:
@@ -200,6 +201,18 @@ class HandoffEngine:
                         alpha_end=a.alpha,
                         delta=delta,
                         relevance_score=relevance.get(b.name, 0.0),
+                    )
+                )
+        # Include basins that are new in the after state (e.g. approved proposals)
+        for a in after:
+            if a.name not in before_map:
+                snapshots.append(
+                    BasinSnapshot(
+                        basin_name=a.name,
+                        alpha_start=a.alpha,
+                        alpha_end=a.alpha,
+                        delta=0.0,
+                        relevance_score=relevance.get(a.name, 0.0),
                     )
                 )
         return snapshots

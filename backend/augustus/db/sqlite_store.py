@@ -69,20 +69,27 @@ class SQLiteStore:
                 # Column already exists or other expected error — skip
                 pass
 
-        # v0.6.1: Remove CASCADE on usage.agent_id FK so usage records survive agent deletion.
-        # SQLite can't ALTER foreign keys, so we recreate the table if the old FK exists.
-        self._migrate_usage_table_drop_agent_cascade()
+        # v0.6.2: Remove ALL foreign keys from usage table so usage records
+        # survive both agent and session deletion (billing data preservation).
+        # SQLite can't ALTER foreign keys, so we recreate the table if FKs remain.
+        self._migrate_usage_table_drop_cascades()
 
         self.conn.commit()
         logger.debug("Migrations complete")
 
-    def _migrate_usage_table_drop_agent_cascade(self) -> None:
-        """Recreate usage table without CASCADE on agent_id FK.
+    def _migrate_usage_table_drop_cascades(self) -> None:
+        """Recreate usage table without any CASCADE foreign keys.
 
-        Usage records must survive agent deletion so billing data is preserved.
-        This is idempotent — if the table already lacks the CASCADE, it's a no-op.
+        Usage records must survive both agent AND session deletion so billing
+        data is always preserved.  The original schema had CASCADE on both
+        session_id→sessions and agent_id→agents.  An earlier migration removed
+        the agent_id CASCADE but kept session_id CASCADE — which still caused
+        usage records to vanish when sessions were cascade-deleted, and also
+        caused hard-delete to fail (UPDATE session_id='' violates FK).
+
+        This migration removes ALL foreign keys from the usage table.
+        It is idempotent — runs only if any REFERENCES clause remains.
         """
-        # Check if usage table has the old CASCADE FK by inspecting the SQL used to create it
         row = self.conn.execute(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='usage'"
         ).fetchone()
@@ -90,24 +97,23 @@ class SQLiteStore:
             return  # Table doesn't exist yet (schema.sql will create it correctly)
 
         create_sql = row[0] if row else ""
-        if "agents(agent_id) ON DELETE CASCADE" not in create_sql:
-            return  # Already migrated or never had CASCADE
+        if "REFERENCES" not in create_sql:
+            return  # Already fully migrated — no FKs remain
 
-        logger.info("Migrating usage table: removing CASCADE on agent_id FK")
+        logger.info("Migrating usage table: removing all foreign key constraints")
         try:
             self.conn.executescript("""
                 BEGIN TRANSACTION;
 
                 CREATE TABLE usage_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL,
-                    agent_id TEXT NOT NULL,
+                    session_id TEXT NOT NULL DEFAULT '',
+                    agent_id TEXT NOT NULL DEFAULT '',
                     tokens_in INTEGER DEFAULT 0,
                     tokens_out INTEGER DEFAULT 0,
                     estimated_cost REAL DEFAULT 0.0,
                     model TEXT DEFAULT '',
-                    timestamp TEXT DEFAULT (datetime('now')),
-                    FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+                    timestamp TEXT DEFAULT (datetime('now'))
                 );
 
                 INSERT INTO usage_new (id, session_id, agent_id, tokens_in, tokens_out, estimated_cost, model, timestamp)
@@ -122,7 +128,7 @@ class SQLiteStore:
 
                 COMMIT;
             """)
-            logger.info("Usage table migration complete — CASCADE on agent_id FK removed")
+            logger.info("Usage table migration complete — all foreign keys removed")
         except Exception as e:
             logger.error("Failed to migrate usage table: %s", e)
             try:

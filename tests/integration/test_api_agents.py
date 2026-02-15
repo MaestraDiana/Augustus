@@ -162,6 +162,24 @@ async def test_delete_agent(client):
 
 
 @pytest.mark.asyncio
+async def test_hard_delete_agent(client):
+    """Test hard deleting an agent removes all data."""
+    await client.post("/api/agents", json={
+        "agent_id": "hard-deletable",
+        "description": "Hard delete me",
+        "identity_core": "Test identity",
+        "max_turns": 8,
+    })
+
+    resp = await client.delete("/api/agents/hard-deletable?hard=true")
+    assert resp.status_code == 204
+
+    # Verify hard delete — agent should be gone
+    resp = await client.get("/api/agents/hard-deletable")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_delete_nonexistent_agent(client):
     """Test deleting a nonexistent agent returns 404."""
     resp = await client.delete("/api/agents/nonexistent")

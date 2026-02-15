@@ -132,17 +132,17 @@ CREATE TABLE IF NOT EXISTS co_activation_log (
 );
 
 -- Usage Tracking
--- NOTE: agent_id FK intentionally has NO CASCADE — usage records must survive agent deletion.
+-- NOTE: No foreign keys — usage records must survive both agent AND session deletion
+-- so billing data is always preserved.
 CREATE TABLE IF NOT EXISTS usage (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    session_id TEXT NOT NULL,
-    agent_id TEXT NOT NULL,
+    session_id TEXT NOT NULL DEFAULT '',
+    agent_id TEXT NOT NULL DEFAULT '',
     tokens_in INTEGER DEFAULT 0,
     tokens_out INTEGER DEFAULT 0,
     estimated_cost REAL DEFAULT 0.0,
     model TEXT DEFAULT '',
-    timestamp TEXT DEFAULT (datetime('now')),
-    FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+    timestamp TEXT DEFAULT (datetime('now'))
 );
 
 -- Activity Feed

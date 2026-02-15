@@ -1709,17 +1709,10 @@ class MemoryService:
     ) -> None:
         """Delete an agent. Soft delete sets status to 'deleted', hard delete removes all data."""
         if hard_delete:
-            # Detach usage records from session FK before cascading deletes.
-            # Usage records are preserved independently for billing visibility.
-            await self._run_sync(
-                self.sqlite.execute,
-                "UPDATE usage SET session_id = '' WHERE agent_id = ?",
-                (agent_id,),
-            )
-
             # Delete from agents table — CASCADE removes sessions, basin_snapshots,
             # basin_current, tier_proposals, annotations, flags, co_activation_log.
-            # Usage records survive because the FK on agent_id has no CASCADE.
+            # Usage records survive because the usage table has NO foreign keys
+            # (removed by migration v0.6.2).
             await self._run_sync(
                 self.sqlite.execute,
                 "DELETE FROM agents WHERE agent_id = ?",

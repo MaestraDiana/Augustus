@@ -31,9 +31,7 @@ const DeleteModal: React.FC<{
   const [confirmText, setConfirmText] = useState('');
 
   const handleConfirm = () => {
-    if (deleteMode === 'hard' && confirmText !== agentId) {
-      return;
-    }
+    if (deleteMode === 'hard' && confirmText !== agentId) return;
     onConfirm(deleteMode);
     setConfirmText('');
     onClose();
@@ -170,7 +168,6 @@ export default function AgentList() {
     setDeletingAgent(selectedAgent);
     try {
       await api.agents.delete(selectedAgent, mode === 'hard');
-      // Refresh agents list
       const data = await api.agents.list();
       setAgents(data);
     } catch (err) {

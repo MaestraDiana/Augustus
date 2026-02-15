@@ -17,6 +17,11 @@ block_cipher = None
 # ---------------------------------------------------------------------------
 chromadb_datas = collect_data_files("chromadb")
 chromadb_submodules = collect_submodules("chromadb")
+
+# Augustus own data files (schema.sql, etc.)
+augustus_datas = [
+    ("augustus/db/schema.sql", "augustus/db"),
+]
 anthropic_submodules = collect_submodules("anthropic")
 mcp_submodules = collect_submodules("mcp")
 
@@ -85,7 +90,7 @@ a = Analysis(
     ["augustus/main.py"],
     pathex=[],
     binaries=[],
-    datas=chromadb_datas,
+    datas=chromadb_datas + augustus_datas,
     hiddenimports=hidden_imports,
     hookspath=[],
     hooksconfig={},

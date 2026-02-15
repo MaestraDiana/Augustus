@@ -2,6 +2,7 @@
 
 import sqlite3
 import logging
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,12 @@ class SQLiteStore:
 
     def _init_db(self) -> None:
         """Execute schema DDL, run migrations, and enable WAL mode."""
-        schema_path = Path(__file__).parent / "schema.sql"
+        # In a PyInstaller frozen bundle, data files are extracted to
+        # sys._MEIPASS.  In development, __file__ resolves normally.
+        if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+            schema_path = Path(sys._MEIPASS) / "augustus" / "db" / "schema.sql"
+        else:
+            schema_path = Path(__file__).parent / "schema.sql"
         if not schema_path.exists():
             raise FileNotFoundError(f"Schema file not found: {schema_path}")
 

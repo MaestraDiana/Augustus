@@ -188,6 +188,7 @@ class SessionManager:
             model=model,
             temperature=temperature,
             status="running",
+            yaml_raw=instruction.raw_yaml,
         )
 
         await self._log_activity(

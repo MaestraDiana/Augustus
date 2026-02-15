@@ -10,6 +10,13 @@ export type ProposalType = 'modify' | 'add' | 'remove';
 export type FlagType = 'constraint_erosion' | 'assessment_divergence' | 'other';
 export type CoActivationCharacter = 'reinforcing' | 'tensional' | 'serving' | 'competing' | null;
 
+export interface QueueStatus {
+  pending_count: number;
+  has_active: boolean;
+  is_running: boolean;
+  queue_status: 'pending' | 'active' | 'running' | 'idle';
+}
+
 export interface Agent {
   agent_id: string;
   description: string;
@@ -27,6 +34,7 @@ export interface Agent {
   capabilities: CapabilityConfig[];
   basins: BasinConfig[];
   tier_settings: TierSettings;
+  queue_status?: QueueStatus;
 }
 
 export interface BasinConfig {
@@ -343,6 +351,7 @@ export interface SessionDetailResponse {
   model: string;
   temperature: number;
   capabilities_used: string[];
+  yaml_raw?: string;
   transcript: Array<{
     role: string;
     content: string;
@@ -371,6 +380,14 @@ export interface SessionDetailResponse {
     tags: string[];
     created_at: string;
   }>;
+}
+
+export interface YamlDiffResponse {
+  session_id: string;
+  yaml_raw: string;
+  previous_session_id: string | null;
+  previous_yaml_raw: string;
+  is_first_session: boolean;
 }
 
 export interface ValidateKeyResponse {

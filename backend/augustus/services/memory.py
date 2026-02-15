@@ -91,8 +91,9 @@ class MemoryService:
         sql = """
             INSERT OR REPLACE INTO sessions
                 (session_id, agent_id, start_time, end_time, turn_count,
-                 model, temperature, transcript_json, close_report_json, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 model, temperature, transcript_json, close_report_json,
+                 yaml_raw, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             record.session_id,
@@ -104,6 +105,7 @@ class MemoryService:
             record.temperature,
             transcript_json,
             close_report_json,
+            record.yaml_raw,
             record.status,
         )
         await self._run_sync(self.sqlite.execute, sql, params)
@@ -170,6 +172,26 @@ class MemoryService:
         rows = await self._run_sync(self.sqlite.fetch_all, sql, (agent_id,))
         return rows[0]["cnt"] if rows else 0
 
+    async def get_previous_session(
+        self, agent_id: str, session_id: str
+    ) -> SessionRecord | None:
+        """Get the session immediately before the given one (by start_time)."""
+        sql = """
+            SELECT * FROM sessions
+            WHERE agent_id = ? AND start_time < (
+                SELECT start_time FROM sessions
+                WHERE session_id = ? AND agent_id = ?
+            )
+            ORDER BY start_time DESC
+            LIMIT 1
+        """
+        row = await self._run_sync(
+            self.sqlite.fetch_one, sql, (agent_id, session_id, agent_id)
+        )
+        if not row:
+            return None
+        return self._row_to_session_record(row)
+
     def _row_to_session_record(self, row: dict[str, Any]) -> SessionRecord:
         """Convert a database row to a SessionRecord dataclass."""
         transcript = []
@@ -205,6 +227,7 @@ class MemoryService:
             transcript=transcript,
             close_report=close_report,
             status=row.get("status", "complete"),
+            yaml_raw=row.get("yaml_raw", ""),
         )
 
     @staticmethod
@@ -1366,16 +1389,18 @@ class MemoryService:
         ]
 
     async def get_usage_by_agent(self) -> list[dict]:
-        """Get total usage grouped by agent."""
+        """Get total usage grouped by agent, including deleted/archived agents."""
         sql = """
             SELECT
-                agent_id,
-                COALESCE(SUM(tokens_in), 0) as total_tokens_in,
-                COALESCE(SUM(tokens_out), 0) as total_tokens_out,
-                COALESCE(SUM(estimated_cost), 0.0) as total_cost,
-                COUNT(*) as session_count
-            FROM usage
-            GROUP BY agent_id
+                u.agent_id,
+                COALESCE(SUM(u.tokens_in), 0) as total_tokens_in,
+                COALESCE(SUM(u.tokens_out), 0) as total_tokens_out,
+                COALESCE(SUM(u.estimated_cost), 0.0) as total_cost,
+                COUNT(*) as session_count,
+                a.status as agent_status
+            FROM usage u
+            LEFT JOIN agents a ON u.agent_id = a.agent_id
+            GROUP BY u.agent_id
             ORDER BY total_cost DESC
         """
         rows = await self._run_sync(self.sqlite.fetch_all, sql, ())
@@ -1386,6 +1411,7 @@ class MemoryService:
                 "total_tokens_out": row["total_tokens_out"],
                 "total_cost": round(row["total_cost"], 4),
                 "session_count": row["session_count"],
+                "agent_status": row["agent_status"] if row["agent_status"] else "deleted",
             }
             for row in rows
         ]
@@ -1590,7 +1616,17 @@ class MemoryService:
     ) -> None:
         """Delete an agent. Soft delete sets status to 'deleted', hard delete removes all data."""
         if hard_delete:
-            # Delete from all SQLite tables (CASCADE handles most)
+            # Detach usage records from session FK before cascading deletes.
+            # Usage records are preserved independently for billing visibility.
+            await self._run_sync(
+                self.sqlite.execute,
+                "UPDATE usage SET session_id = '' WHERE agent_id = ?",
+                (agent_id,),
+            )
+
+            # Delete from agents table — CASCADE removes sessions, basin_snapshots,
+            # basin_current, tier_proposals, annotations, flags, co_activation_log.
+            # Usage records survive because the FK on agent_id has no CASCADE.
             await self._run_sync(
                 self.sqlite.execute,
                 "DELETE FROM agents WHERE agent_id = ?",
@@ -1618,7 +1654,7 @@ class MemoryService:
                         e,
                     )
 
-            logger.info("Hard deleted agent %s", agent_id)
+            logger.info("Hard deleted agent %s (usage records preserved)", agent_id)
         else:
             # Soft delete: mark status
             await self._run_sync(

@@ -14,6 +14,7 @@ import type {
   CoActivationResponse,
   SessionListResponse,
   SessionDetailResponse,
+  YamlDiffResponse,
   Settings,
   ValidateKeyResponse,
   AgentOverviewResponse,
@@ -85,6 +86,8 @@ export const api = {
       ),
     get: (agentId: string, sessionId: string) =>
       get<SessionDetailResponse>(`/agents/${agentId}/sessions/${sessionId}`),
+    getYamlDiff: (agentId: string, sessionId: string) =>
+      get<YamlDiffResponse>(`/agents/${agentId}/sessions/${sessionId}/yaml-diff`),
   },
 
   trajectories: {
@@ -120,7 +123,7 @@ export const api = {
   usage: {
     summary: (period?: string) =>
       get<UsageSummaryResponse>(period ? `/usage?period=${period}` : '/usage'),
-    daily: () => get<UsageDailyRecord[]>('/usage/daily'),
+    daily: (days?: number) => get<UsageDailyRecord[]>(days ? `/usage/daily?days=${days}` : '/usage/daily'),
   },
 
   settings: {

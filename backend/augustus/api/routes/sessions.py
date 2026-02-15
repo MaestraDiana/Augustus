@@ -27,6 +27,7 @@ def _session_to_dict(s: SessionRecord, include_transcript: bool = False) -> dict
         "temperature": s.temperature,
         "status": s.status,
         "capabilities_used": s.capabilities_used,
+        "yaml_raw": s.yaml_raw,
     }
     if include_transcript:
         result["transcript"] = s.transcript
@@ -126,3 +127,33 @@ async def get_session_detail(
     ]
 
     return result
+
+
+@router.get("/sessions/{session_id}/yaml-diff")
+async def get_session_yaml_diff(
+    agent_id: str,
+    session_id: str,
+    registry: AgentRegistry = Depends(get_agent_registry),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Get YAML for this session and the previous session for diffing."""
+    agent = await registry.get_agent(agent_id)
+    if not agent:
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    session = await memory.get_session(agent_id, session_id)
+    if not session:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session '{session_id}' not found for agent '{agent_id}'",
+        )
+
+    previous = await memory.get_previous_session(agent_id, session_id)
+
+    return {
+        "session_id": session_id,
+        "yaml_raw": session.yaml_raw or "",
+        "previous_session_id": previous.session_id if previous else None,
+        "previous_yaml_raw": previous.yaml_raw if previous else "",
+        "is_first_session": previous is None,
+    }

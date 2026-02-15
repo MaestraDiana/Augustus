@@ -17,6 +17,7 @@ interface AgentUsage {
   total_tokens_out: number;
   total_cost: number;
   session_count: number;
+  agent_status?: string; // 'active' | 'idle' | 'paused' | 'deleted' | 'error'
 }
 
 export default function Usage() {
@@ -25,20 +26,24 @@ export default function Usage() {
 
   // API data
   const [daySummary, setDaySummary] = useState<any>(null);
+  const [monthSummary, setMonthSummary] = useState<any>(null);
   const [allSummary, setAllSummary] = useState<any>(null);
   const [dailyData, setDailyData] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
 
+  // Initial fetch of summary data
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [dayRes, allRes, dailyRes, settingsRes] = await Promise.all([
+        const [dayRes, monthRes, allRes, dailyRes, settingsRes] = await Promise.all([
           api.usage.summary(),                              // default period=day
+          api.usage.summary('month'),                        // monthly totals
           api.usage.summary('all'),                           // all-time totals
-          api.usage.daily(),                                 // daily chart data
+          api.usage.daily(30),                               // daily chart data (default 30d)
           api.settings.get(),                                // budget thresholds
         ]);
         setDaySummary(dayRes);
+        setMonthSummary(monthRes);
         setAllSummary(allRes);
         setDailyData(dailyRes);
         setSettings(settingsRes);
@@ -51,9 +56,20 @@ export default function Usage() {
     fetchAll();
   }, []);
 
+  // Re-fetch chart data when period changes
+  useEffect(() => {
+    if (loading) return;
+    const days = period === '7d' ? 7 : period === '90d' ? 90 : 30;
+    api.usage.daily(days).then(setDailyData).catch(console.error);
+  }, [period]);
+
   // Derive budget card values from API data
   const dailySpend = daySummary?.total_cost ?? 0;
   const dailyCeiling = settings?.budget_per_day ?? 25;
+  const monthlySpend = monthSummary?.total_cost ?? 0;
+  const monthlySessions = monthSummary?.session_count ?? 0;
+  const monthlyTokensIn = monthSummary?.total_tokens_in ?? 0;
+  const monthlyTokensOut = monthSummary?.total_tokens_out ?? 0;
   const totalSpend = allSummary?.total_cost ?? 0;
   const warningThreshold = settings?.budget_warning ?? 50;
   const hardStop = settings?.budget_hard_stop ?? 100;
@@ -171,28 +187,30 @@ export default function Usage() {
           </div>
         </div>
 
-        {/* Total Spend */}
+        {/* Monthly Spend */}
         <div style={{
           background: 'var(--bg-surface)', border: '1px solid var(--border-color)',
           borderRadius: 'var(--radius-lg)', padding: 'var(--space-4)'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-3)' }}>
-            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>Total Spend</span>
+            <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 500 }}>Monthly Spend</span>
             <div style={{
               width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center',
               borderRadius: 'var(--radius-md)', background: 'var(--bg-raised)', color: 'var(--text-muted)'
             }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                <line x1="12" y1="1" x2="12" y2="23" />
-                <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
             </div>
           </div>
           <div style={{ fontFamily: 'var(--font-data)', fontSize: '28px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-            ${totalSpend.toFixed(2)}
+            ${monthlySpend.toFixed(2)}
           </div>
           <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-            Warning: <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>${warningThreshold.toFixed(0)}</strong> · Hard stop: <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>${hardStop.toFixed(0)}</strong>
+            <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{monthlySessions}</strong> sessions · All-time: <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>${totalSpend.toFixed(2)}</strong>
           </div>
           <div style={{ marginTop: 'var(--space-3)', position: 'relative' }}>
             <div style={{ height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'visible', position: 'relative' }}>
@@ -289,7 +307,7 @@ export default function Usage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-5)' }}>
           <h2 style={{ fontFamily: 'var(--font-voice)', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)' }}>
-            Daily Usage (Last 30 Days)
+            Daily Usage (Last {period === '7d' ? '7' : period === '90d' ? '90' : '30'} Days)
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
             <div style={{ display: 'flex', background: 'var(--bg-raised)', borderRadius: 'var(--radius-md)', padding: '2px' }}>
@@ -343,12 +361,15 @@ export default function Usage() {
           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-5)',
           marginTop: 'var(--space-4)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--border-color)'
         }}>
-          {byAgent.map((agent, i) => (
-            <div key={agent.agent_id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '13px', color: 'var(--text-secondary)' }}>
-              <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: AGENT_COLORS[i % AGENT_COLORS.length] }}></span>
-              {agent.agent_id}
-            </div>
-          ))}
+          {byAgent.map((agent, i) => {
+            const isDeleted = agent.agent_status === 'deleted';
+            return (
+              <div key={agent.agent_id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '13px', color: 'var(--text-secondary)', opacity: isDeleted ? 0.5 : 1 }}>
+                <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: AGENT_COLORS[i % AGENT_COLORS.length] }}></span>
+                {agent.agent_id}{isDeleted ? ' (Deleted)' : ''}
+              </div>
+            );
+          })}
           {byAgent.length === 0 && (
             <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No agents</div>
           )}
@@ -429,53 +450,80 @@ export default function Usage() {
                 </td>
               </tr>
             )}
-            {byAgent.map((agent, i) => (
-              <tr
-                key={agent.agent_id}
-                style={{
-                  transition: 'background var(--transition-color)',
-                  background: 'transparent'
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-raised)'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: AGENT_COLORS[i % AGENT_COLORS.length] }}></span>
-                    <span style={{ fontFamily: 'var(--font-data)', fontWeight: 500 }}>{agent.agent_id}</span>
-                  </div>
-                </td>
-                <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
-                  {agent.session_count}
-                </td>
-                <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
-                  <span style={{ fontFamily: 'var(--font-data)', fontSize: '13px' }}>{formatTokens(agent.total_tokens_in)}</span>
-                </td>
-                <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
-                  <span style={{ fontFamily: 'var(--font-data)', fontSize: '13px' }}>{formatTokens(agent.total_tokens_out)}</span>
-                </td>
-                <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
-                  <span style={{ fontFamily: 'var(--font-data)', fontSize: '14px', fontWeight: 500, color: 'var(--accent-primary)' }}>
-                    ${agent.total_cost.toFixed(2)}
-                  </span>
-                </td>
-              </tr>
-            ))}
+            {byAgent.map((agent, i) => {
+              const isDeleted = agent.agent_status === 'deleted';
+              const rowOpacity = isDeleted ? 0.5 : 1;
+
+              return (
+                <tr
+                  key={agent.agent_id}
+                  style={{
+                    transition: 'background var(--transition-color)',
+                    background: 'transparent',
+                    opacity: rowOpacity,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-raised)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                      <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: AGENT_COLORS[i % AGENT_COLORS.length] }}></span>
+                      <span style={{ fontFamily: 'var(--font-data)', fontWeight: 500 }}>{agent.agent_id}</span>
+                      {isDeleted && (
+                        <span style={{
+                          fontSize: '11px', color: 'var(--text-muted)', fontWeight: 400,
+                          fontFamily: 'var(--font-body)', fontStyle: 'italic'
+                        }}>
+                          (Deleted)
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
+                    {agent.session_count}
+                  </td>
+                  <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
+                    <span style={{ fontFamily: 'var(--font-data)', fontSize: '13px' }}>{formatTokens(agent.total_tokens_in)}</span>
+                  </td>
+                  <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
+                    <span style={{ fontFamily: 'var(--font-data)', fontSize: '13px' }}>{formatTokens(agent.total_tokens_out)}</span>
+                  </td>
+                  <td style={{ padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)', fontSize: '14px', color: 'var(--text-primary)' }}>
+                    <span style={{ fontFamily: 'var(--font-data)', fontSize: '14px', fontWeight: 500, color: 'var(--accent-primary)' }}>
+                      ${agent.total_cost.toFixed(2)}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', flexDirection: 'column', gap: 'var(--space-2)',
           padding: 'var(--space-4) var(--space-5)', background: 'var(--bg-raised)', borderTop: '1px solid var(--border-color)'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
-            Total Sessions Today: <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{footerSessions}</strong>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              Today: <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{footerSessions}</strong> sessions
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{formatTokens(footerTokensIn)} in</strong> / <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{formatTokens(footerTokensOut)} out</strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              Cost: <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>${footerCost.toFixed(2)}</strong>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
-            Total Tokens: <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{formatTokens(footerTokensIn)} in</strong> / <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{formatTokens(footerTokensOut)} out</strong>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
-            Total Cost Today: <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>${footerCost.toFixed(2)}</strong>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border-color)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              This Month: <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{monthlySessions}</strong> sessions
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{formatTokens(monthlyTokensIn)} in</strong> / <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--text-primary)' }}>{formatTokens(monthlyTokensOut)} out</strong>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '14px', color: 'var(--text-secondary)' }}>
+              Cost: <strong style={{ fontFamily: 'var(--font-data)', fontWeight: 500, color: 'var(--accent-primary)' }}>${monthlySpend.toFixed(2)}</strong>
+            </div>
           </div>
         </div>
       </div>

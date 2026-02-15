@@ -48,6 +48,79 @@ class Orchestrator:
         """Return number of currently active sessions."""
         return len(self._active_sessions)
 
+    def get_agent_queue_status(self, agent_id: str) -> dict:
+        """Get queue status for a specific agent.
+
+        Returns dict with pending_count, has_active, and queue_status ('pending', 'active', 'idle').
+        """
+        try:
+            agent_dir = self.agent_registry.get_agent_dir(agent_id)
+            queue_dir = agent_dir / "queue"
+            pending_dir = queue_dir / "pending"
+            active_dir = queue_dir / "active"
+
+            pending_files = (
+                list(pending_dir.glob("*.yaml")) + list(pending_dir.glob("*.yml"))
+                if pending_dir.exists() else []
+            )
+            active_files = (
+                list(active_dir.glob("*.yaml")) + list(active_dir.glob("*.yml"))
+                if active_dir.exists() else []
+            )
+
+            pending_count = len(pending_files)
+            has_active = len(active_files) > 0
+
+            # Also check if this agent has a running session in the orchestrator
+            is_running = agent_id in self._active_sessions
+
+            if is_running:
+                queue_status = "running"
+            elif has_active:
+                queue_status = "active"
+            elif pending_count > 0:
+                queue_status = "pending"
+            else:
+                queue_status = "idle"
+
+            return {
+                "pending_count": pending_count,
+                "has_active": has_active,
+                "is_running": is_running,
+                "queue_status": queue_status,
+            }
+        except Exception:
+            return {
+                "pending_count": 0,
+                "has_active": False,
+                "is_running": False,
+                "queue_status": "idle",
+            }
+
+    @property
+    def queued_agent_count(self) -> int:
+        """Return total pending YAML files across agents with active orchestrator tasks.
+
+        Only counts files in pending/ (genuinely waiting to run).
+        Does NOT count active/ (that's either a running session or stale debris).
+        Only counts agents the orchestrator is actually managing.
+        """
+        try:
+            total = 0
+            for agent_id in list(self._tasks.keys()):
+                try:
+                    agent_dir = self.agent_registry.get_agent_dir(agent_id)
+                    pending_dir = agent_dir / "queue" / "pending"
+                    if pending_dir.exists():
+                        total += len(
+                            list(pending_dir.glob("*.yaml")) + list(pending_dir.glob("*.yml"))
+                        )
+                except Exception:
+                    continue
+            return total
+        except Exception:
+            return 0
+
     async def start(self) -> None:
         """Start the orchestration loop."""
         if self._running:
@@ -187,6 +260,29 @@ class Orchestrator:
                     await asyncio.sleep(5)
                     continue
 
+                # Check session interval BEFORE polling — polling moves
+                # files from pending/ to active/, so we must not dequeue
+                # until we are ready to execute.  Otherwise the YAML sits
+                # in active/ and blocks all future polls.
+                interval = getattr(agent, 'session_interval', 0) or 0
+                if interval > 0 and agent.last_active:
+                    try:
+                        last = datetime.fromisoformat(agent.last_active)
+                        elapsed = (datetime.utcnow() - last).total_seconds()
+                        remaining = interval - elapsed
+                        if remaining > 0:
+                            logger.info(
+                                "AGENT LOOP: %s — interval not reached "
+                                "(%.0fs remaining of %ds), sleeping",
+                                agent_id, remaining, interval,
+                            )
+                            # Sleep in 60s chunks so loop stays responsive to
+                            # pause/stop signals (re-checks _running each iter)
+                            await asyncio.sleep(min(remaining, 60))
+                            continue
+                    except (ValueError, TypeError):
+                        pass  # Malformed last_active — skip interval check
+
                 # Poll for new YAML
                 pending_count = len(queue.list_pending())
                 active_yaml = queue.get_active()
@@ -214,26 +310,6 @@ class Orchestrator:
                     )
                     await asyncio.sleep(poll_interval)
                     continue
-
-                # Check session interval — wait if too soon since last session
-                interval = getattr(agent, 'session_interval', 0) or 0
-                if interval > 0 and agent.last_active:
-                    try:
-                        last = datetime.fromisoformat(agent.last_active)
-                        elapsed = (datetime.utcnow() - last).total_seconds()
-                        remaining = interval - elapsed
-                        if remaining > 0:
-                            logger.info(
-                                "AGENT LOOP: %s — interval not reached "
-                                "(%.0fs remaining of %ds), sleeping",
-                                agent_id, remaining, interval,
-                            )
-                            # Sleep in 60s chunks so loop stays responsive to
-                            # pause/stop signals (re-checks _running each iter)
-                            await asyncio.sleep(min(remaining, 60))
-                            continue
-                    except (ValueError, TypeError):
-                        pass  # Malformed last_active — skip interval check
 
                 # Execute session
                 session_id = instruction.framework.session_id

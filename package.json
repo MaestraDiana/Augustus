@@ -1,6 +1,6 @@
 {
   "name": "augustus",
-  "version": "0.3.0",
+  "version": "0.7.0",
   "description": "Augustus - Persistent AI Identity Research Platform",
   "main": "electron/main.js",
   "scripts": {

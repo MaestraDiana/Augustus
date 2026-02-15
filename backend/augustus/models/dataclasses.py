@@ -101,6 +101,7 @@ class SessionRecord:
     basin_snapshots: list[BasinSnapshot] = field(default_factory=list)
     capabilities_used: list[str] = field(default_factory=list)
     status: str = "complete"
+    yaml_raw: str = ""
 
 
 @dataclass

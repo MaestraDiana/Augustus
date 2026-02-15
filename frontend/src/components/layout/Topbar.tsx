@@ -1,4 +1,5 @@
-import { Bell, Sun, Moon, Activity, Play, Pause } from 'lucide-react';
+import { Bell, Sun, Moon, Activity, Clock, Play, Pause } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme';
 import StatusChip from '../ui/StatusChip';
 import UpdateBanner from '../ui/UpdateBanner';
@@ -11,8 +12,10 @@ interface TopbarProps {
 
 export default function Topbar({ pageTitle }: TopbarProps) {
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   const [orchestratorStatus, setOrchestratorStatus] = useState<'running' | 'paused' | 'error' | 'idle'>('idle');
   const [activeSessions, setActiveSessions] = useState(0);
+  const [queuedAgents, setQueuedAgents] = useState(0);
   const [budget, setBudget] = useState({ used: 0, total: 25 });
   const [isTogglingOrchestrator, setIsTogglingOrchestrator] = useState(false);
 
@@ -23,6 +26,7 @@ export default function Topbar({ pageTitle }: TopbarProps) {
         const status = await api.orchestrator.status();
         setOrchestratorStatus(status.status);
         setActiveSessions(status.active_sessions || 0);
+        setQueuedAgents(status.queued_agents || 0);
       } catch (error) {
         console.error('Failed to fetch orchestrator status:', error);
         setOrchestratorStatus('error');
@@ -105,7 +109,19 @@ export default function Topbar({ pageTitle }: TopbarProps) {
           {activeSessions} active
         </div>
 
-        <div className="budget-chip">
+        {queuedAgents > 0 && (
+          <div className="status-chip" style={{ color: 'var(--accent-primary)' }}>
+            <Clock size={14} />
+            {queuedAgents} queued
+          </div>
+        )}
+
+        <div
+          className="budget-chip"
+          onClick={() => navigate('/usage')}
+          style={{ cursor: 'pointer' }}
+          title="View usage details"
+        >
           <span>${budget.used.toFixed(2)} / ${budget.total}</span>
           <div className="budget-bar">
             <div className={`budget-fill ${budgetColor}`} style={{ width: `${budgetPercentage}%` }} />

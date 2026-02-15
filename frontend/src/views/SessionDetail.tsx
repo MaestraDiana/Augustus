@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, FileText, Download, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Download, AlertCircle, GitCompareArrows } from 'lucide-react';
 import { api } from '../api/client';
 import { formatDuration } from '../utils/time';
 import type { SessionRecord, Annotation } from '../types';
@@ -8,6 +8,7 @@ import TranscriptPanel from '../components/TranscriptPanel';
 import AnalysisSidePanel from '../components/AnalysisSidePanel';
 import Modal from '../components/ui/Modal';
 import YamlHighlighter from '../components/YamlHighlighter';
+import YamlDiffViewer from '../components/YamlDiffViewer';
 import LoadingSkeleton from '../components/ui/LoadingSkeleton';
 import EmptyState from '../components/ui/EmptyState';
 import './SessionDetail.css';
@@ -60,6 +61,7 @@ export default function SessionDetail() {
   const { agentId, sessionId } = useParams();
   const navigate = useNavigate();
   const [yamlModalOpen, setYamlModalOpen] = useState(false);
+  const [diffModalOpen, setDiffModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<SessionDetailData | null>(null);
@@ -271,6 +273,12 @@ export default function SessionDetail() {
         </div>
 
         <div className="session-header-right">
+          {adjacentSessions.next !== null && (
+            <button className="btn btn-secondary btn-sm" onClick={() => setDiffModalOpen(true)}>
+              <GitCompareArrows size={16} />
+              View YAML Changes
+            </button>
+          )}
           <button className="btn btn-secondary btn-sm" onClick={() => setYamlModalOpen(true)}>
             <FileText size={16} />
             View Raw YAML
@@ -325,6 +333,19 @@ export default function SessionDetail() {
         width="800px"
       >
         <YamlHighlighter content={generateYamlContent(sessionData)} />
+      </Modal>
+
+      {/* YAML Diff Modal */}
+      <Modal
+        isOpen={diffModalOpen}
+        onClose={() => setDiffModalOpen(false)}
+        title="YAML Changes"
+        width="900px"
+      >
+        <YamlDiffViewer
+          agentId={agentId!}
+          sessionId={sessionId!}
+        />
       </Modal>
     </div>
   );

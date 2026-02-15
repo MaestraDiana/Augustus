@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from augustus.api.dependencies import get_agent_registry, get_memory
+from augustus.api.dependencies import get_agent_registry, get_container, get_memory
 from augustus.exceptions import AgentNotFoundError
 from augustus.models.dataclasses import AgentConfig, BasinConfig, TierSettings
 from augustus.models.enums import AgentStatus, BasinClass, TierLevel
@@ -338,17 +338,27 @@ async def parse_yaml_for_import(body: ParseYamlRequest) -> dict:
     return _parse_yaml_lenient(body.yaml_text)
 
 
+def _get_queue_status(agent_id: str) -> dict:
+    """Get queue status for an agent from the orchestrator."""
+    container = get_container()
+    orch = container.orchestrator
+    if orch and hasattr(orch, "get_agent_queue_status"):
+        return orch.get_agent_queue_status(agent_id)
+    return {"pending_count": 0, "has_active": False, "is_running": False, "queue_status": "idle"}
+
+
 @router.get("")
 async def list_agents(
     registry: AgentRegistry = Depends(get_agent_registry),
     memory: MemoryService = Depends(get_memory),
 ) -> list[dict]:
-    """List all agents with session counts."""
+    """List all agents with session counts and queue status."""
     agents = await registry.list_agents()
     result = []
     for a in agents:
         d = _agent_to_dict(a)
         d["session_count"] = await memory.count_sessions(a.agent_id)
+        d["queue_status"] = _get_queue_status(a.agent_id)
         result.append(d)
     return result
 
@@ -407,6 +417,7 @@ async def get_agent(
         raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
     d = _agent_to_dict(agent)
     d["session_count"] = await memory.count_sessions(agent_id)
+    d["queue_status"] = _get_queue_status(agent_id)
     return d
 
 
@@ -619,6 +630,7 @@ async def get_agent_overview(
         "current_basins": basins_out,
         "recent_flags": flags_out,
         "pending_proposal_count": pending_proposal_count,
+        "queue_status": _get_queue_status(agent_id),
         "last_session": (
             {
                 "session_id": last_session.session_id,

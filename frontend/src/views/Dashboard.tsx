@@ -13,6 +13,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   XCircle,
+  Clock,
+  Loader2,
 } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
@@ -125,6 +127,16 @@ const AgentCard: React.FC<{
 
   const isActive = agent.status === 'active';
   const model = agent.model_override || DEFAULT_MODEL;
+  const qs = agent.queue_status;
+
+  // Derive a display label from queue state.
+  // "Running session" = orchestrator is actively executing a session for this agent.
+  // "N queued" = pending YAML files waiting to run. Only count pending/, not active/
+  //   (active/ is either the currently-running session or stale debris).
+  const pendingCount = qs?.pending_count ?? 0;
+  const queueLabel = qs?.is_running ? 'Running session'
+    : pendingCount > 0 ? `${pendingCount} queued`
+    : null;
 
   return (
     <Link to={`/agents/${agent.agent_id}`} style={{ textDecoration: 'none' }}>
@@ -138,6 +150,21 @@ const AgentCard: React.FC<{
               />
               <span className="agent-id">{agent.agent_id}</span>
               <Badge variant={agent.status}>{agent.status}</Badge>
+              {queueLabel && (
+                <span style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '4px',
+                  fontSize: '11px', fontFamily: 'var(--font-data)',
+                  color: qs?.is_running ? 'var(--accent-success)' : 'var(--accent-primary)',
+                  marginLeft: 'var(--space-1)',
+                }}>
+                  {qs?.is_running ? (
+                    <Loader2 size={11} style={{ animation: 'spin 1.5s linear infinite' }} />
+                  ) : (
+                    <Clock size={11} />
+                  )}
+                  {queueLabel}
+                </span>
+              )}
             </div>
             <div className="agent-description">{agent.description}</div>
           </div>

@@ -62,8 +62,67 @@ class SQLiteStore:
             except Exception:
                 # Column already exists or other expected error — skip
                 pass
+
+        # v0.6.1: Remove CASCADE on usage.agent_id FK so usage records survive agent deletion.
+        # SQLite can't ALTER foreign keys, so we recreate the table if the old FK exists.
+        self._migrate_usage_table_drop_agent_cascade()
+
         self.conn.commit()
         logger.debug("Migrations complete")
+
+    def _migrate_usage_table_drop_agent_cascade(self) -> None:
+        """Recreate usage table without CASCADE on agent_id FK.
+
+        Usage records must survive agent deletion so billing data is preserved.
+        This is idempotent — if the table already lacks the CASCADE, it's a no-op.
+        """
+        # Check if usage table has the old CASCADE FK by inspecting the SQL used to create it
+        row = self.conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='usage'"
+        ).fetchone()
+        if not row:
+            return  # Table doesn't exist yet (schema.sql will create it correctly)
+
+        create_sql = row[0] if row else ""
+        if "agents(agent_id) ON DELETE CASCADE" not in create_sql:
+            return  # Already migrated or never had CASCADE
+
+        logger.info("Migrating usage table: removing CASCADE on agent_id FK")
+        try:
+            self.conn.executescript("""
+                BEGIN TRANSACTION;
+
+                CREATE TABLE usage_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    agent_id TEXT NOT NULL,
+                    tokens_in INTEGER DEFAULT 0,
+                    tokens_out INTEGER DEFAULT 0,
+                    estimated_cost REAL DEFAULT 0.0,
+                    model TEXT DEFAULT '',
+                    timestamp TEXT DEFAULT (datetime('now')),
+                    FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE CASCADE
+                );
+
+                INSERT INTO usage_new (id, session_id, agent_id, tokens_in, tokens_out, estimated_cost, model, timestamp)
+                    SELECT id, session_id, agent_id, tokens_in, tokens_out, estimated_cost, model, timestamp FROM usage;
+
+                DROP TABLE usage;
+                ALTER TABLE usage_new RENAME TO usage;
+
+                CREATE INDEX IF NOT EXISTS idx_usage_agent ON usage(agent_id);
+                CREATE INDEX IF NOT EXISTS idx_usage_timestamp ON usage(timestamp);
+                CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
+
+                COMMIT;
+            """)
+            logger.info("Usage table migration complete — CASCADE on agent_id FK removed")
+        except Exception as e:
+            logger.error("Failed to migrate usage table: %s", e)
+            try:
+                self.conn.execute("ROLLBACK")
+            except Exception:
+                pass
 
     def execute(self, sql: str, params: tuple[Any, ...] = ()) -> sqlite3.Cursor:
         """Execute a single SQL statement.

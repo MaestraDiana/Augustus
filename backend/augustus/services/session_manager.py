@@ -32,7 +32,7 @@ from augustus.models.dataclasses import (
     SessionRecord,
     UsageRecord,
 )
-from augustus.models.enums import CoActivationCharacter, FlagType
+from augustus.models.enums import CoActivationCharacter, FlagType, ProposalStatus
 from augustus.services.evaluator import EvaluatorService
 from augustus.services.handoff_engine import HandoffEngine, HandoffResult
 from augustus.services.schema_parser import SchemaParser
@@ -1433,6 +1433,13 @@ class SessionManager:
                                 pass
                         break
 
+        # Build a map of agent-provided rationales keyed by basin name
+        rationale_map = {
+            p.get("name", ""): p.get("rationale", "")
+            for p in proposals
+            if p.get("rationale")
+        }
+
         # Get agent tier settings
         agent = await self.memory.get_agent(agent_id)
         if not agent or not agent.tier_settings:
@@ -1447,10 +1454,21 @@ class SessionManager:
                 agent_id, proposed_basins, current_basins, agent.tier_settings
             )
 
-            # Store all proposals created by the tier enforcer
+            # Store all proposals created by the tier enforcer,
+            # enriching with the agent's own rationale when available
             for proposal in result.proposals_created:
                 proposal.session_id = session_id
+                agent_rationale = rationale_map.get(proposal.basin_name)
+                if agent_rationale:
+                    proposal.rationale = agent_rationale
                 await self.memory.store_tier_proposal(proposal)
+
+                # Auto-approved proposals: apply structural change to agent config
+                if proposal.status in (
+                    ProposalStatus.AUTO_APPROVED,
+                    ProposalStatus.APPROVED,
+                ) and proposal.proposed_config:
+                    await self.memory.apply_approved_proposal(proposal)
 
             if result.proposals_created:
                 logger.info(

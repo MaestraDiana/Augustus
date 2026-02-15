@@ -61,6 +61,8 @@ class SQLiteStore:
             # v0.2.1: Add reviewed_at and reviewed_by to flags table
             "ALTER TABLE flags ADD COLUMN reviewed_at TEXT DEFAULT ''",
             "ALTER TABLE flags ADD COLUMN reviewed_by TEXT DEFAULT ''",
+            # v0.9.1: Store proposed basin config with tier proposals
+            "ALTER TABLE tier_proposals ADD COLUMN proposed_config_json TEXT DEFAULT ''",
         ]
         for sql in migrations:
             try:

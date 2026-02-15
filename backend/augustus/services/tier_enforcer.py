@@ -81,6 +81,7 @@ class TierEnforcer:
                     status=ProposalStatus.REJECTED,
                     rationale=f"Tier 1 invariant modification blocked: {change.detail}",
                     created_at=utcnow_iso(),
+                    proposed_config=change.proposed,
                 )
                 result.proposals_created.append(proposal)
                 result.warnings.append(
@@ -102,6 +103,7 @@ class TierEnforcer:
                     status=ProposalStatus.PENDING,
                     rationale=change.detail,
                     created_at=utcnow_iso(),
+                    proposed_config=change.proposed,
                 )
 
                 decision = await self.process_tier_proposal(
@@ -124,7 +126,7 @@ class TierEnforcer:
                 result.proposals_created.append(proposal)
 
             elif change.tier == TierLevel.TIER_3:
-                # Tier 3: Always allowed
+                # Tier 3: Modifications always allowed; new basins check emergence settings
                 if change.change_type == "create":
                     # New basin — check emergence settings
                     if await self.is_new_basin_allowed(
@@ -132,7 +134,35 @@ class TierEnforcer:
                     ):
                         if change.proposed:
                             result.allowed.append(change.proposed)
+                        # Record as auto-approved
+                        proposal = TierProposal(
+                            proposal_id=f"prop-{agent_id}-{change.basin_name}-{utcnow_iso()}",
+                            agent_id=agent_id,
+                            basin_name=change.basin_name,
+                            tier=change.tier,
+                            proposal_type=ProposalType.CREATE,
+                            status=ProposalStatus.AUTO_APPROVED,
+                            rationale=change.detail or f"New basin '{change.basin_name}' auto-approved",
+                            created_at=utcnow_iso(),
+                            resolved_at=utcnow_iso(),
+                            resolved_by="auto",
+                            proposed_config=change.proposed,
+                        )
+                        result.proposals_created.append(proposal)
                     else:
+                        # Not auto-approved — create a pending proposal for human review
+                        proposal = TierProposal(
+                            proposal_id=f"prop-{agent_id}-{change.basin_name}-{utcnow_iso()}",
+                            agent_id=agent_id,
+                            basin_name=change.basin_name,
+                            tier=change.tier,
+                            proposal_type=ProposalType.CREATE,
+                            status=ProposalStatus.PENDING,
+                            rationale=change.detail or f"New basin '{change.basin_name}' requires approval",
+                            created_at=utcnow_iso(),
+                            proposed_config=change.proposed,
+                        )
+                        result.proposals_created.append(proposal)
                         result.blocked.append(change)
                         result.warnings.append(
                             f"New basin '{change.basin_name}' requires approval"
@@ -196,10 +226,21 @@ class TierEnforcer:
         return ProposalDecision(approved=False, reason="Unknown tier")
 
     async def approve_proposal(self, proposal_id: str) -> None:
-        """Human-initiated approval."""
+        """Human-initiated approval — updates status and applies the change."""
         await self.memory.update_proposal_status(
             proposal_id, ProposalStatus.APPROVED, resolved_by="human"
         )
+
+        # Apply the structural change to the agent's configuration
+        proposal = await self.memory.get_tier_proposal(proposal_id)
+        if proposal and proposal.proposed_config:
+            await self.memory.apply_approved_proposal(proposal)
+        else:
+            logger.warning(
+                "Proposal %s approved but no proposed_config stored — "
+                "basin must be added manually",
+                proposal_id,
+            )
 
     async def reject_proposal(self, proposal_id: str, rationale: str) -> None:
         """Human-initiated rejection. Reset counter."""

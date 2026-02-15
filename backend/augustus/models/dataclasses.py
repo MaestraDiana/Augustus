@@ -166,10 +166,11 @@ class TierProposal:
     created_at: str = ""
     resolved_at: str = ""
     resolved_by: str = ""
+    proposed_config: BasinConfig | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-friendly dict."""
-        return {
+        result = {
             "proposal_id": self.proposal_id,
             "agent_id": self.agent_id,
             "basin_name": self.basin_name,
@@ -183,6 +184,9 @@ class TierProposal:
             "resolved_at": self.resolved_at,
             "resolved_by": self.resolved_by,
         }
+        if self.proposed_config:
+            result["proposed_config"] = self.proposed_config.to_dict()
+        return result
 
 
 @dataclass

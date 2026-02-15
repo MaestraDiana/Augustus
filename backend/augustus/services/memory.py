@@ -683,12 +683,18 @@ class MemoryService:
         )
         created_at = proposal.created_at or self._now()
 
+        # Serialize proposed basin config if present
+        proposed_config_json = ""
+        if proposal.proposed_config:
+            proposed_config_json = json.dumps(proposal.proposed_config.to_dict())
+
         sql = """
             INSERT OR REPLACE INTO tier_proposals
                 (proposal_id, agent_id, basin_name, tier, proposal_type,
                  status, rationale, session_id, consecutive_count,
+                 proposed_config_json,
                  created_at, resolved_at, resolved_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             proposal.proposal_id,
@@ -700,6 +706,7 @@ class MemoryService:
             proposal.rationale,
             proposal.session_id,
             proposal.consecutive_count,
+            proposed_config_json,
             created_at,
             proposal.resolved_at,
             proposal.resolved_by,
@@ -846,6 +853,34 @@ class MemoryService:
         except (ValueError, TypeError):
             tier = TierLevel.TIER_3
 
+        # Parse proposed basin config if stored
+        proposed_config = None
+        proposed_json = row.get("proposed_config_json", "")
+        if proposed_json:
+            try:
+                cfg = json.loads(proposed_json)
+                if isinstance(cfg, dict) and "name" in cfg:
+                    bc_val = cfg.get("basin_class", "peripheral")
+                    try:
+                        bc = BasinClass(bc_val)
+                    except ValueError:
+                        bc = BasinClass.PERIPHERAL
+                    t_val = cfg.get("tier", 3)
+                    try:
+                        t = TierLevel(int(t_val))
+                    except (ValueError, TypeError):
+                        t = TierLevel.TIER_3
+                    proposed_config = BasinConfig(
+                        name=cfg["name"],
+                        basin_class=bc,
+                        alpha=cfg.get("alpha", 0.3),
+                        lambda_=cfg.get("lambda", cfg.get("lambda_", 0.95)),
+                        eta=cfg.get("eta", 0.1),
+                        tier=t,
+                    )
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         return TierProposal(
             proposal_id=row["proposal_id"],
             agent_id=row["agent_id"],
@@ -859,7 +894,100 @@ class MemoryService:
             created_at=row.get("created_at", ""),
             resolved_at=row.get("resolved_at", ""),
             resolved_by=row.get("resolved_by", ""),
+            proposed_config=proposed_config,
         )
+
+    async def get_tier_proposal(self, proposal_id: str) -> TierProposal | None:
+        """Retrieve a single tier proposal by ID."""
+        sql = "SELECT * FROM tier_proposals WHERE proposal_id = ?"
+        row = await self._run_sync(
+            self.sqlite.fetch_one, sql, (proposal_id,)
+        )
+        if not row:
+            return None
+        return self._row_to_tier_proposal(row)
+
+    async def apply_approved_proposal(self, proposal: TierProposal) -> None:
+        """Apply an approved CREATE proposal by adding the basin to agent config.
+
+        Updates both the agents.config_json and basin_current tables.
+        """
+        if not proposal.proposed_config:
+            logger.warning(
+                "Cannot apply proposal %s: no proposed_config stored",
+                proposal.proposal_id,
+            )
+            return
+
+        agent = await self.get_agent(proposal.agent_id)
+        if not agent:
+            logger.warning(
+                "Cannot apply proposal %s: agent %s not found",
+                proposal.proposal_id,
+                proposal.agent_id,
+            )
+            return
+
+        basin = proposal.proposed_config
+
+        if proposal.proposal_type == ProposalType.CREATE:
+            # Add basin to agent config if not already present
+            existing_names = {b.name for b in agent.basins}
+            if basin.name in existing_names:
+                logger.info(
+                    "Basin '%s' already exists in agent %s config — skipping add",
+                    basin.name,
+                    agent.agent_id,
+                )
+                return
+
+            new_basins = list(agent.basins) + [basin]
+            basins_dicts = [b.to_dict() for b in new_basins]
+            await self.update_agent(agent.agent_id, {"basins": basins_dicts})
+            await self.update_current_basins(agent.agent_id, new_basins)
+
+            logger.info(
+                "Applied approved proposal %s: added basin '%s' to agent %s",
+                proposal.proposal_id,
+                basin.name,
+                agent.agent_id,
+            )
+
+        elif proposal.proposal_type == ProposalType.MODIFY:
+            # Replace existing basin with proposed config
+            new_basins = [
+                basin if b.name == basin.name else b
+                for b in agent.basins
+            ]
+            basins_dicts = [b.to_dict() for b in new_basins]
+            await self.update_agent(agent.agent_id, {"basins": basins_dicts})
+            await self.update_current_basins(agent.agent_id, new_basins)
+
+            logger.info(
+                "Applied approved proposal %s: modified basin '%s' in agent %s",
+                proposal.proposal_id,
+                basin.name,
+                agent.agent_id,
+            )
+
+        elif proposal.proposal_type == ProposalType.PRUNE:
+            # Remove basin from agent config
+            new_basins = [b for b in agent.basins if b.name != basin.name]
+            basins_dicts = [b.to_dict() for b in new_basins]
+            await self.update_agent(agent.agent_id, {"basins": basins_dicts})
+            # Also remove from basin_current
+            await self._run_sync(
+                self.sqlite.execute,
+                "DELETE FROM basin_current WHERE agent_id = ? AND basin_name = ?",
+                (agent.agent_id, basin.name),
+            )
+
+            logger.info(
+                "Applied approved proposal %s: pruned basin '%s' from agent %s",
+                proposal.proposal_id,
+                basin.name,
+                agent.agent_id,
+            )
 
     # ------------------------------------------------------------------
     # Co-activation

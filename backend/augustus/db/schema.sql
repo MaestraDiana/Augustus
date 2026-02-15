@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS tier_proposals (
     rationale TEXT DEFAULT '',
     session_id TEXT DEFAULT '',
     consecutive_count INTEGER DEFAULT 0,
+    proposed_config_json TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now')),
     resolved_at TEXT DEFAULT '',
     resolved_by TEXT DEFAULT '',

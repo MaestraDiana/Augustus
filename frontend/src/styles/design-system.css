@@ -389,7 +389,7 @@
   overflow: hidden; transition: background var(--transition-color), border-color var(--transition-color);
 }
 .section-card-header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border-color); }
-.section-card-body { max-height: 460px; overflow-y: auto; }
+.section-card-body { overflow-y: auto; }
 .alerts-card-body { padding: var(--space-4); }
 
 .feed-list { display: flex; flex-direction: column; }
@@ -625,6 +625,7 @@
 }
 
 /* Basin state panel */
+.basin-panel .section-card-body { padding: var(--space-4); }
 .basin-list { display: flex; flex-direction: column; gap: var(--space-3); }
 .basin-item {
   display: grid; grid-template-columns: 1fr auto; gap: var(--space-3);

@@ -177,6 +177,35 @@ class MCPServer:
             await memory.store_annotation(annotation)
             return json.dumps({"status": "stored", "annotation_id": annotation.annotation_id})
 
+        @self.mcp.tool(description="Search observations and annotations for an agent. Includes both human annotations (from add_observation) and agent emergence observations.")
+        async def search_observations(agent_id: str, query: str | None = None, n_results: int = 10) -> str:
+            results = await memory.search_observations(agent_id, query, n_results)
+            return json.dumps([
+                {
+                    "content_type": r.content_type,
+                    "session_id": r.session_id,
+                    "snippet": r.snippet,
+                    "relevance": r.relevance_score,
+                    "timestamp": r.timestamp,
+                }
+                for r in results
+            ])
+
+        @self.mcp.tool(description="Get all annotations for an agent, optionally filtered to a specific session.")
+        async def get_agent_annotations(agent_id: str, session_id: str | None = None) -> str:
+            annotations = await memory.get_annotations(agent_id, session_id=session_id)
+            return json.dumps([
+                {
+                    "annotation_id": a.annotation_id,
+                    "agent_id": a.agent_id,
+                    "session_id": a.session_id,
+                    "content": a.content,
+                    "tags": a.tags,
+                    "created_at": a.created_at,
+                }
+                for a in annotations
+            ])
+
         @self.mcp.tool(description="Approve a pending tier modification proposal.")
         async def approve_tier_proposal(proposal_id: str) -> str:
             await memory.update_proposal_status(

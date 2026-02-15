@@ -1076,6 +1076,23 @@ class MemoryService:
         except Exception as e:
             logger.warning("Emergence search failed: %s", e)
 
+        # Search annotations (written by MCP / human observer)
+        try:
+            annotation_results = await self._run_sync(
+                self.chroma.query,
+                "annotations",
+                query,
+                n_results,
+                {"agent_id": agent_id},
+            )
+            results.extend(
+                self._chroma_results_to_search_results(
+                    annotation_results, "annotation"
+                )
+            )
+        except Exception as e:
+            logger.warning("Annotation search failed: %s", e)
+
         # Sort by relevance and limit
         results.sort(key=lambda r: r.relevance_score, reverse=True)
         return results[:n_results]
@@ -1226,6 +1243,78 @@ class MemoryService:
                 self.sqlite.fetch_all, sql, (agent_id,)
             )
         return [self._row_to_annotation(r) for r in rows]
+
+    async def search_observations(
+        self,
+        agent_id: str,
+        query: str | None = None,
+        n_results: int = 10,
+    ) -> list[SearchResult]:
+        """Search annotations and emergent observations for an agent.
+
+        When query is None, returns recent entries from both collections.
+        When query is provided, performs semantic search across both.
+        """
+        results: list[SearchResult] = []
+
+        if query:
+            # Semantic search across both collections
+            for collection, content_type in [
+                ("annotations", "annotation"),
+                ("emergent_observations", "emergence"),
+            ]:
+                try:
+                    chroma_results = await self._run_sync(
+                        self.chroma.query,
+                        collection,
+                        query,
+                        n_results,
+                        {"agent_id": agent_id},
+                    )
+                    results.extend(
+                        self._chroma_results_to_search_results(
+                            chroma_results, content_type
+                        )
+                    )
+                except Exception as e:
+                    logger.warning("Observation search (%s) failed: %s", collection, e)
+        else:
+            # No query — return recent annotations from SQLite + emergence from ChromaDB
+            annotations = await self.get_annotations(agent_id)
+            for ann in annotations[:n_results]:
+                snippet = ann.content[:300]
+                if len(ann.content) > 300:
+                    snippet += "..."
+                results.append(
+                    SearchResult(
+                        content_type="annotation",
+                        agent_id=agent_id,
+                        session_id=ann.session_id or "",
+                        snippet=snippet,
+                        relevance_score=1.0,
+                        timestamp=ann.created_at,
+                    )
+                )
+
+            # Retrieve recent emergence observations via a broad query
+            try:
+                chroma_results = await self._run_sync(
+                    self.chroma.query,
+                    "emergent_observations",
+                    "emergence observation",
+                    n_results,
+                    {"agent_id": agent_id},
+                )
+                results.extend(
+                    self._chroma_results_to_search_results(
+                        chroma_results, "emergence"
+                    )
+                )
+            except Exception as e:
+                logger.warning("Emergence retrieval failed: %s", e)
+
+        results.sort(key=lambda r: r.relevance_score, reverse=True)
+        return results[:n_results]
 
     async def search_annotations(
         self, agent_id: str, query: str, n_results: int = 5

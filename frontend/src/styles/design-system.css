@@ -805,6 +805,46 @@
   font-family: var(--font-data); font-weight: 500; color: var(--text-primary);
 }
 
+/* Convergence detection panel */
+.convergence-panel {
+  background: var(--bg-surface); border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5);
+}
+.convergence-header {
+  display: flex; align-items: center; gap: var(--space-2);
+  font-size: 14px; font-weight: 600; color: var(--text-primary);
+  margin-bottom: var(--space-3);
+}
+.convergence-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.convergence-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-2) var(--space-3); background: var(--bg-raised);
+  border-radius: var(--radius-md); font-size: 14px;
+}
+.convergence-pair {
+  display: flex; align-items: center; gap: var(--space-1);
+  color: var(--text-primary);
+}
+.convergence-basin-link {
+  background: none; border: none; padding: 0; cursor: pointer;
+  font-family: var(--font-data); font-size: 13px; color: var(--accent-primary);
+  text-decoration: none;
+}
+.convergence-basin-link:hover { text-decoration: underline; }
+.convergence-meta {
+  display: flex; align-items: center; gap: var(--space-3);
+  font-family: var(--font-data); font-size: 13px;
+}
+.convergence-trend {
+  padding: 2px 8px; border-radius: var(--radius-sm); font-size: 12px;
+  font-weight: 500; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.convergence-trend--converging { background: rgba(59, 155, 142, 0.15); color: var(--brand-verdigris); }
+.convergence-trend--stable { background: rgba(var(--text-muted-rgb, 128, 128, 128), 0.15); color: var(--text-muted); }
+.convergence-trend--diverging { background: rgba(196, 120, 110, 0.15); color: var(--brand-clay); }
+.convergence-gap { color: var(--text-secondary); }
+.convergence-sessions { color: var(--text-muted); }
+
 /* Basin drawer */
 .basin-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; width: 360px;

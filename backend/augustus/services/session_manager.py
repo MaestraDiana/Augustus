@@ -617,6 +617,43 @@ class SessionManager:
                                     "YAML escaping needed)."
                                 ),
                             },
+                            "basin_proposals": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {
+                                            "type": "string",
+                                            "description": "Basin name",
+                                        },
+                                        "action": {
+                                            "type": "string",
+                                            "enum": ["create", "modify", "merge", "prune"],
+                                            "description": "Proposed action",
+                                        },
+                                        "rationale": {
+                                            "type": "string",
+                                            "description": "Why this change is proposed",
+                                        },
+                                        "basin_class": {
+                                            "type": "string",
+                                            "enum": ["core", "peripheral"],
+                                            "description": "Basin class (for create/modify)",
+                                        },
+                                        "suggested_alpha": {
+                                            "type": "number",
+                                            "description": "Suggested initial alpha value",
+                                        },
+                                    },
+                                    "required": ["name", "action", "rationale"],
+                                },
+                                "description": (
+                                    "Basin modification proposals (subject "
+                                    "to tier enforcement). Use this to "
+                                    "propose new basins, modifications, "
+                                    "merges, or pruning."
+                                ),
+                            },
                         },
                         "required": ["filename"],
                     },
@@ -661,6 +698,32 @@ class SessionManager:
                             "n_sessions": {
                                 "type": "integer",
                                 "description": "Number of recent sessions",
+                                "default": 10,
+                            },
+                        },
+                    },
+                },
+                {
+                    "name": "get_observations",
+                    "description": (
+                        "Retrieve observations and annotations left by the "
+                        "observer or by your own previous sessions. Returns "
+                        "the most recent entries, optionally filtered by a "
+                        "search query. Includes both your stored emergence "
+                        "observations and external annotations."
+                    ),
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": (
+                                    "Optional search query to filter observations"
+                                ),
+                            },
+                            "n_results": {
+                                "type": "integer",
+                                "description": "Maximum results to return",
                                 "default": 10,
                             },
                         },
@@ -781,6 +844,10 @@ class SessionManager:
             out, summary = await self._tool_get_trajectory(tool_input, agent_id)
             return out, summary, None
 
+        if tool_name == "get_observations":
+            out, summary = await self._tool_get_observations(tool_input, agent_id)
+            return out, summary, None
+
         if tool_name == "store_emergence":
             out, summary = await self._tool_store_emergence(
                 tool_input, agent_id, session_id
@@ -857,7 +924,14 @@ class SessionManager:
                 if k in allowed_keys and v is not None
             }
 
+            # Capture basin proposals from tool_input (not from YAML content)
+            basin_proposals = tool_input.get("basin_proposals")
+            if basin_proposals and isinstance(basin_proposals, list):
+                parsed_sections["basin_proposals"] = basin_proposals
+
             output = f"YAML validated and queued as {filename}"
+            if basin_proposals:
+                output += f" ({len(basin_proposals)} basin proposal(s) recorded)"
             summary = f"Queued YAML: {filename}"
             return output, summary, parsed_sections
 
@@ -932,6 +1006,37 @@ class SessionManager:
             )
 
         summary = f"Trajectory for {basin_name or 'all basins'}"
+        return output, summary
+
+    async def _tool_get_observations(
+        self, tool_input: dict, agent_id: str
+    ) -> tuple[str, str]:
+        """Handle get_observations tool call -- retrieve observer annotations and emergence data."""
+        query = tool_input.get("query") or None
+        n = tool_input.get("n_results", 10)
+
+        results = await self.memory.search_observations(agent_id, query, n)
+
+        if results:
+            output = json.dumps(
+                [
+                    {
+                        "content_type": r.content_type,
+                        "session_id": r.session_id,
+                        "snippet": r.snippet,
+                        "score": r.relevance_score,
+                        "timestamp": r.timestamp,
+                    }
+                    for r in results
+                ],
+                indent=2,
+            )
+        else:
+            output = "No observations found."
+
+        summary = f"Observations: {len(results)} results"
+        if query:
+            summary = f"Observations for '{query}': {len(results)} results"
         return output, summary
 
     async def _tool_store_emergence(
@@ -1133,6 +1238,19 @@ class SessionManager:
                 agent_id, handoff_result.co_activation_updates
             )
 
+        # 7b. Process basin proposals through tier enforcer
+        if (
+            agent_written_yaml
+            and "basin_proposals" in agent_written_yaml
+            and self.tier_enforcer is not None
+        ):
+            await self._process_basin_proposals(
+                agent_id=agent_id,
+                session_id=session_id,
+                proposals=agent_written_yaml["basin_proposals"],
+                current_basins=handoff_result.updated_basins,
+            )
+
         # 8. Generate and queue next-session YAML (handoff Step 8)
         await self._write_next_session_yaml(
             instruction=instruction,
@@ -1242,6 +1360,115 @@ class SessionManager:
                     detail=observation,
                     created_at=now,
                 )
+            )
+
+    # ------------------------------------------------------------------
+    # Basin proposal processing
+    # ------------------------------------------------------------------
+
+    async def _process_basin_proposals(
+        self,
+        agent_id: str,
+        session_id: str,
+        proposals: list[dict],
+        current_basins: list[BasinConfig],
+    ) -> None:
+        """Process agent basin proposals through the tier enforcer.
+
+        Converts raw proposal dicts from the write_yaml tool into
+        BasinConfig objects where applicable, then runs them through
+        check_yaml_modifications to create TierProposal records.
+        """
+        from augustus.models.enums import BasinClass, TierLevel
+
+        proposed_basins = list(current_basins)  # Start with current state
+        current_map = {b.name: b for b in current_basins}
+
+        for prop in proposals:
+            name = prop.get("name", "")
+            action = prop.get("action", "")
+            if not name or not action:
+                continue
+
+            if action == "create" and name not in current_map:
+                basin_class_str = prop.get("basin_class", "peripheral")
+                try:
+                    basin_class = BasinClass(basin_class_str)
+                except ValueError:
+                    basin_class = BasinClass.PERIPHERAL
+
+                alpha = prop.get("suggested_alpha", 0.3)
+                alpha = max(0.05, min(1.0, alpha))
+
+                proposed_basins.append(
+                    BasinConfig(
+                        name=name,
+                        basin_class=basin_class,
+                        alpha=alpha,
+                        lambda_=0.95,
+                        eta=0.1,
+                        tier=TierLevel.TIER_3,
+                    )
+                )
+
+            elif action == "prune" and name in current_map:
+                proposed_basins = [b for b in proposed_basins if b.name != name]
+
+            elif action == "modify" and name in current_map:
+                # Structural modifications (class, lambda, eta)
+                for i, b in enumerate(proposed_basins):
+                    if b.name == name:
+                        basin_class_str = prop.get("basin_class")
+                        if basin_class_str:
+                            try:
+                                proposed_basins[i] = BasinConfig(
+                                    name=b.name,
+                                    basin_class=BasinClass(basin_class_str),
+                                    alpha=b.alpha,
+                                    lambda_=b.lambda_,
+                                    eta=b.eta,
+                                    tier=b.tier,
+                                )
+                            except ValueError:
+                                pass
+                        break
+
+        # Get agent tier settings
+        agent = await self.memory.get_agent(agent_id)
+        if not agent or not agent.tier_settings:
+            logger.warning(
+                "Cannot process basin proposals: agent %s not found or no tier settings",
+                agent_id,
+            )
+            return
+
+        try:
+            result = await self.tier_enforcer.check_yaml_modifications(
+                agent_id, proposed_basins, current_basins, agent.tier_settings
+            )
+
+            # Store all proposals created by the tier enforcer
+            for proposal in result.proposals_created:
+                proposal.session_id = session_id
+                await self.memory.store_tier_proposal(proposal)
+
+            if result.proposals_created:
+                logger.info(
+                    "Created %d tier proposal(s) for agent %s from session %s",
+                    len(result.proposals_created),
+                    agent_id,
+                    session_id,
+                )
+
+            for warning in result.warnings:
+                logger.warning("Tier enforcer: %s", warning)
+
+        except Exception as e:
+            logger.error(
+                "Tier enforcer failed for agent %s: %s",
+                agent_id,
+                e,
+                exc_info=True,
             )
 
     # ------------------------------------------------------------------

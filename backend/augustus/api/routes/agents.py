@@ -616,3 +616,45 @@ async def get_agent_overview(
             else None
         ),
     }
+
+
+class DeprecateBasinRequest(BaseModel):
+    """Request body for deprecating a basin."""
+    basin_name: str
+    rationale: str
+
+
+@router.post("/{agent_id}/basins/deprecate")
+async def deprecate_basin(
+    agent_id: str,
+    body: DeprecateBasinRequest,
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Soft-deprecate a basin. Preserves history but excludes from future sessions."""
+    await memory.deprecate_basin(agent_id, body.basin_name, body.rationale)
+    return {
+        "status": "deprecated",
+        "basin_name": body.basin_name,
+        "rationale": body.rationale,
+    }
+
+
+@router.post("/{agent_id}/basins/undeprecate")
+async def undeprecate_basin(
+    agent_id: str,
+    basin_name: str = Query(..., description="Name of the basin to restore"),
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Restore a deprecated basin to active tracking."""
+    basin = await memory.undeprecate_basin(agent_id, basin_name)
+    if not basin:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Basin '{basin_name}' not found in basin_current for agent '{agent_id}'",
+        )
+    return {
+        "status": "restored",
+        "basin": basin.to_dict(),
+    }

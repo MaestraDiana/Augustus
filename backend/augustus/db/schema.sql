@@ -52,6 +52,9 @@ CREATE TABLE IF NOT EXISTS basin_current (
     lambda REAL NOT NULL,
     eta REAL NOT NULL,
     tier INTEGER NOT NULL DEFAULT 3,
+    deprecated INTEGER DEFAULT 0,
+    deprecated_at TEXT DEFAULT '',
+    deprecation_rationale TEXT DEFAULT '',
     PRIMARY KEY (agent_id, basin_name),
     FOREIGN KEY (agent_id) REFERENCES agents(agent_id) ON DELETE CASCADE
 );
@@ -68,6 +71,9 @@ CREATE TABLE IF NOT EXISTS tier_proposals (
     session_id TEXT DEFAULT '',
     consecutive_count INTEGER DEFAULT 0,
     proposed_config_json TEXT DEFAULT '',
+    rejection_rationale TEXT DEFAULT '',
+    modification_rationale TEXT DEFAULT '',
+    original_params_json TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now')),
     resolved_at TEXT DEFAULT '',
     resolved_by TEXT DEFAULT '',
@@ -116,6 +122,8 @@ CREATE TABLE IF NOT EXISTS flags (
     review_note TEXT DEFAULT '',
     reviewed_at TEXT DEFAULT '',
     reviewed_by TEXT DEFAULT '',
+    resolution TEXT DEFAULT '',
+    resolution_notes TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (agent_id) REFERENCES agents(agent_id) ON DELETE CASCADE
 );

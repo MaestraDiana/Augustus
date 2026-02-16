@@ -71,6 +71,17 @@ class SQLiteStore:
             "ALTER TABLE flags ADD COLUMN reviewed_by TEXT DEFAULT ''",
             # v0.9.1: Store proposed basin config with tier proposals
             "ALTER TABLE tier_proposals ADD COLUMN proposed_config_json TEXT DEFAULT ''",
+            # v0.9.3: Brain review workflow — proposal rejection/modification metadata
+            "ALTER TABLE tier_proposals ADD COLUMN rejection_rationale TEXT DEFAULT ''",
+            "ALTER TABLE tier_proposals ADD COLUMN modification_rationale TEXT DEFAULT ''",
+            "ALTER TABLE tier_proposals ADD COLUMN original_params_json TEXT DEFAULT ''",
+            # v0.9.3: Brain review workflow — flag resolution
+            "ALTER TABLE flags ADD COLUMN resolution TEXT DEFAULT ''",
+            "ALTER TABLE flags ADD COLUMN resolution_notes TEXT DEFAULT ''",
+            # v0.9.3: Brain review workflow — basin deprecation
+            "ALTER TABLE basin_current ADD COLUMN deprecated INTEGER DEFAULT 0",
+            "ALTER TABLE basin_current ADD COLUMN deprecated_at TEXT DEFAULT ''",
+            "ALTER TABLE basin_current ADD COLUMN deprecation_rationale TEXT DEFAULT ''",
         ]
         for sql in migrations:
             try:

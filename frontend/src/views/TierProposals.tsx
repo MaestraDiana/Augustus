@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApi } from '../hooks/useApi';
+import { useAgentBadges } from '../hooks/useAgentBadges';
 import { formatDate } from '../utils/time';
 import { toggleSetItem } from '../utils/collections';
 import type { TierProposal } from '../types';
@@ -17,6 +18,8 @@ export default function TierProposals() {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [rejectFormVisible, setRejectFormVisible] = useState<Set<string>>(new Set());
 
+  const { refreshBadges } = useAgentBadges();
+
   const { data, loading, error, refetch } = useApi<TierProposalWithTier[]>(
     () => api.proposals.list(agentId!) as Promise<TierProposalWithTier[]>,
     [agentId],
@@ -29,6 +32,7 @@ export default function TierProposals() {
     try {
       await api.proposals.approve(agentId, proposalId);
       refetch();
+      refreshBadges();
     } catch (err) {
       console.error('Failed to approve proposal:', err);
     }
@@ -39,6 +43,7 @@ export default function TierProposals() {
     try {
       await api.proposals.reject(agentId, proposalId, rationale);
       refetch();
+      refreshBadges();
     } catch (err) {
       console.error('Failed to reject proposal:', err);
     }

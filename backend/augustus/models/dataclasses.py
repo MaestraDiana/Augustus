@@ -167,6 +167,9 @@ class TierProposal:
     resolved_at: str = ""
     resolved_by: str = ""
     proposed_config: BasinConfig | None = None
+    rejection_rationale: str = ""
+    modification_rationale: str = ""
+    original_params: BasinConfig | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-friendly dict."""
@@ -186,6 +189,12 @@ class TierProposal:
         }
         if self.proposed_config:
             result["proposed_config"] = self.proposed_config.to_dict()
+        if self.rejection_rationale:
+            result["rejection_rationale"] = self.rejection_rationale
+        if self.modification_rationale:
+            result["modification_rationale"] = self.modification_rationale
+        if self.original_params:
+            result["original_params"] = self.original_params.to_dict()
         return result
 
 
@@ -237,11 +246,13 @@ class FlagRecord:
     review_note: str | None = None
     reviewed_at: str = ""
     reviewed_by: str = ""
+    resolution: str = ""
+    resolution_notes: str = ""
     created_at: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize to JSON-friendly dict."""
-        return {
+        result = {
             "flag_id": self.flag_id,
             "agent_id": self.agent_id,
             "session_id": self.session_id,
@@ -254,6 +265,10 @@ class FlagRecord:
             "reviewed_by": self.reviewed_by or None,
             "created_at": self.created_at,
         }
+        if self.resolution:
+            result["resolution"] = self.resolution
+            result["resolution_notes"] = self.resolution_notes
+        return result
 
 
 @dataclass

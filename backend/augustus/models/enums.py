@@ -29,6 +29,7 @@ class ProposalStatus(str, Enum):
     PENDING = "pending"
     APPROVED = "approved"
     AUTO_APPROVED = "auto_approved"
+    APPROVED_WITH_MODIFICATIONS = "approved_with_modifications"
     REJECTED = "rejected"
     EXPIRED = "expired"
 

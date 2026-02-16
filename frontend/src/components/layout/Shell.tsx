@@ -2,6 +2,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import AgentSubNav from './AgentSubNav';
+import { AgentBadgeProvider } from '../../hooks/useAgentBadges';
 
 export default function Shell() {
   const location = useLocation();
@@ -37,10 +38,18 @@ export default function Shell() {
       <Sidebar />
       <div className="main-content">
         <Topbar pageTitle={getPageTitle()} />
-        {showAgentSubNav && <AgentSubNav />}
-        <div className="page-content">
-          <Outlet />
-        </div>
+        {showAgentSubNav ? (
+          <AgentBadgeProvider>
+            <AgentSubNav />
+            <div className="page-content">
+              <Outlet />
+            </div>
+          </AgentBadgeProvider>
+        ) : (
+          <div className="page-content">
+            <Outlet />
+          </div>
+        )}
       </div>
     </div>
   );

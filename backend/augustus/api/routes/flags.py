@@ -1,4 +1,4 @@
-"""Evaluator flag listing and review endpoints."""
+"""Evaluator flag listing, review, and resolution endpoints."""
 from __future__ import annotations
 
 import logging
@@ -17,6 +17,12 @@ router = APIRouter(prefix="/api/agents/{agent_id}", tags=["flags"])
 class ReviewFlagRequest(BaseModel):
     """Request body for reviewing a flag."""
     note: str = ""
+
+
+class ResolveFlagRequest(BaseModel):
+    """Request body for resolving a flag."""
+    resolution: str  # acknowledged, addressed, dismissed
+    notes: str = ""
 
 
 @router.get("/evaluator-flags")
@@ -47,3 +53,20 @@ async def review_flag(
     note = body.note if body else ""
     await memory.update_flag_review(flag_id, reviewed=True, note=note, reviewed_by="human")
     return {"flag_id": flag_id, "reviewed": True, "review_note": note}
+
+
+@router.post("/evaluator-flags/{flag_id}/resolve")
+async def resolve_flag(
+    agent_id: str,
+    flag_id: str,
+    body: ResolveFlagRequest,
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Resolve a flag with resolution type and notes."""
+    await memory.resolve_flag(flag_id, body.resolution, body.notes, resolved_by="human")
+    return {
+        "flag_id": flag_id,
+        "resolution": body.resolution,
+        "resolved": True,
+    }

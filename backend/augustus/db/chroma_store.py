@@ -6,6 +6,7 @@ from typing import Any
 
 import chromadb
 from chromadb import Collection
+from chromadb.api.client import SharedSystemClient
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,20 @@ class ChromaStore:
         self.collections: dict[str, Collection] = {}
         self._init_collections()
         logger.info(f"ChromaDB store initialized at {data_dir}")
+
+    def refresh(self) -> None:
+        """Re-create the ChromaDB client to pick up data written by other processes.
+
+        ChromaDB's PersistentClient caches HNSW indexes in memory. When another
+        OS process (e.g. the Augustus backend) writes new documents, a long-lived
+        client (e.g. the MCP server) won't see them until it re-opens the database.
+        Call this before query operations in multi-process scenarios.
+        """
+        SharedSystemClient.clear_system_cache()
+        self.client = chromadb.PersistentClient(path=str(self.data_dir))
+        self.collections.clear()
+        self._init_collections()
+        logger.debug("ChromaDB client refreshed")
 
     def _init_collections(self) -> None:
         """Create or get all required collections."""

@@ -30,9 +30,10 @@ from augustus.models.dataclasses import (
     FlagRecord,
     ParsedInstruction,
     SessionRecord,
+    TierProposal,
     UsageRecord,
 )
-from augustus.models.enums import CoActivationCharacter, FlagType, ProposalStatus
+from augustus.models.enums import CoActivationCharacter, FlagType, ProposalStatus, ProposalType
 from augustus.services.evaluator import EvaluatorService
 from augustus.services.handoff_engine import HandoffEngine, HandoffResult
 from augustus.services.schema_parser import SchemaParser
@@ -643,6 +644,14 @@ class SessionManager:
                                         "suggested_alpha": {
                                             "type": "number",
                                             "description": "Suggested initial alpha value",
+                                        },
+                                        "lambda": {
+                                            "type": "number",
+                                            "description": "Decay rate (for modify)",
+                                        },
+                                        "eta": {
+                                            "type": "number",
+                                            "description": "Learning rate (for modify)",
                                         },
                                     },
                                     "required": ["name", "action", "rationale"],
@@ -1428,22 +1437,43 @@ class SessionManager:
                 proposed_basins = [b for b in proposed_basins if b.name != name]
 
             elif action == "modify" and name in current_map:
-                # Structural modifications (class, lambda, eta)
+                # Structural modifications (class, lambda, eta) and/or
+                # rationale-only conceptual reinterpretations.
                 for i, b in enumerate(proposed_basins):
                     if b.name == name:
+                        new_class = b.basin_class
+                        new_lambda = b.lambda_
+                        new_eta = b.eta
+                        new_tier = b.tier
+
                         basin_class_str = prop.get("basin_class")
                         if basin_class_str:
                             try:
-                                proposed_basins[i] = BasinConfig(
-                                    name=b.name,
-                                    basin_class=BasinClass(basin_class_str),
-                                    alpha=b.alpha,
-                                    lambda_=b.lambda_,
-                                    eta=b.eta,
-                                    tier=b.tier,
-                                )
+                                new_class = BasinClass(basin_class_str)
                             except ValueError:
                                 pass
+
+                        if "lambda" in prop:
+                            new_lambda = float(prop["lambda"])
+                        if "eta" in prop:
+                            new_eta = float(prop["eta"])
+
+                        has_structural_change = (
+                            new_class != b.basin_class
+                            or abs(new_lambda - b.lambda_) > 0.001
+                            or abs(new_eta - b.eta) > 0.001
+                            or new_tier != b.tier
+                        )
+
+                        if has_structural_change:
+                            proposed_basins[i] = BasinConfig(
+                                name=b.name,
+                                basin_class=new_class,
+                                alpha=b.alpha,
+                                lambda_=new_lambda,
+                                eta=new_eta,
+                                tier=new_tier,
+                            )
                         break
 
         # Build a map of agent-provided rationales keyed by basin name
@@ -1452,6 +1482,25 @@ class SessionManager:
             for p in proposals
             if p.get("rationale")
         }
+
+        # Track rationale-only modify proposals that won't produce
+        # structural diffs (detect_basin_changes won't see them).
+        rationale_only_modifies: list[dict] = []
+        for prop in proposals:
+            if prop.get("action") == "modify" and prop.get("name") in current_map:
+                name = prop["name"]
+                curr = current_map[name]
+                # Check whether _any_ structural field was actually changed
+                proposed_match = next(
+                    (b for b in proposed_basins if b.name == name), None
+                )
+                if proposed_match and (
+                    proposed_match.basin_class == curr.basin_class
+                    and abs(proposed_match.lambda_ - curr.lambda_) <= 0.001
+                    and abs(proposed_match.eta - curr.eta) <= 0.001
+                    and proposed_match.tier == curr.tier
+                ):
+                    rationale_only_modifies.append(prop)
 
         # Get agent tier settings
         agent = await self.memory.get_agent(agent_id)
@@ -1496,6 +1545,40 @@ class SessionManager:
 
             for warning in result.warnings:
                 logger.warning("Tier enforcer: %s", warning)
+
+            # Create pending proposals for rationale-only modify requests
+            # that didn't produce structural diffs.  These are conceptual
+            # reinterpretations the agent wants reviewed.
+            for prop in rationale_only_modifies:
+                name = prop["name"]
+                # Skip if the tier enforcer already created a proposal for
+                # this basin (shouldn't happen, but guard against it)
+                already_handled = any(
+                    p.basin_name == name for p in result.proposals_created
+                )
+                if already_handled:
+                    continue
+
+                curr = current_map[name]
+                rationale = prop.get("rationale", f"Modify proposal for '{name}'")
+                proposal = TierProposal(
+                    proposal_id=f"prop-{agent_id}-{name}-{utcnow_iso()}",
+                    agent_id=agent_id,
+                    basin_name=name,
+                    tier=curr.tier,
+                    proposal_type=ProposalType.MODIFY,
+                    status=ProposalStatus.PENDING,
+                    rationale=rationale,
+                    session_id=session_id,
+                    created_at=utcnow_iso(),
+                    proposed_config=curr,  # No structural change — config is same
+                )
+                await self.memory.store_tier_proposal(proposal)
+                logger.info(
+                    "Created rationale-only modify proposal for basin '%s' "
+                    "(agent %s, session %s): %s",
+                    name, agent_id, session_id, rationale[:80],
+                )
 
         except Exception as e:
             logger.error(

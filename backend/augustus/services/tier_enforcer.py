@@ -243,9 +243,20 @@ class TierEnforcer:
             )
 
     async def reject_proposal(self, proposal_id: str, rationale: str) -> None:
-        """Human-initiated rejection. Reset counter."""
-        await self.memory.update_proposal_status(
-            proposal_id, ProposalStatus.REJECTED, resolved_by="human"
+        """Human-initiated rejection. Store rationale and reset counter."""
+        await self.memory.reject_proposal_with_rationale(
+            proposal_id, rationale, resolved_by="human"
+        )
+
+    async def modify_proposal(
+        self,
+        proposal_id: str,
+        modifications: dict,
+        rationale: str,
+    ) -> None:
+        """Approve a proposal with modifications and apply the change."""
+        await self.memory.modify_and_apply_proposal(
+            proposal_id, modifications, rationale, resolved_by="human"
         )
 
     def detect_basin_changes(

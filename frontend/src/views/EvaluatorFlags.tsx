@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApi } from '../hooks/useApi';
+import { useAgentBadges } from '../hooks/useAgentBadges';
 import { formatDate } from '../utils/time';
 import { toggleSetItem } from '../utils/collections';
 import { FlagRecord, FlagType } from '../types';
@@ -18,6 +19,8 @@ export default function EvaluatorFlags() {
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkReviewing, setBulkReviewing] = useState(false);
+
+  const { refreshBadges } = useAgentBadges();
 
   const { data, loading, error, refetch } = useApi<FlagRecord[]>(
     () => api.flags.list(agentId!),
@@ -58,6 +61,7 @@ export default function EvaluatorFlags() {
     try {
       await api.flags.review(agentId, flagId, reviewNotes[flagId] || '');
       refetch();
+      refreshBadges();
       setSelected(prev => { const next = new Set(prev); next.delete(flagId); return next; });
       setExpandedRow(null);
       setShowReviewed(true);
@@ -84,6 +88,7 @@ export default function EvaluatorFlags() {
 
       // Re-fetch to get authoritative state from server
       refetch();
+      refreshBadges();
 
       // Batch all state updates together to avoid intermediate renders
       // where reviewed flags might flash out of view

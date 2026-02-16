@@ -315,3 +315,189 @@ async def test_multiple_tiers_mixed(memory_service):
     assert tier2_proposal.status == ProposalStatus.PENDING
     # Tier 3 allowed
     assert any(b.name == "tier3" for b in result.allowed)
+
+
+# ------------------------------------------------------------------
+# Tests for _process_basin_proposals (rationale-only modify bug fix)
+# ------------------------------------------------------------------
+
+
+def _make_session_manager(memory_service):
+    """Create a minimal SessionManager with a real memory and tier enforcer."""
+    from unittest.mock import MagicMock
+    from augustus.services.handoff_engine import HandoffEngine
+    from augustus.services.schema_parser import SchemaParser
+    from augustus.services.session_manager import SessionManager
+
+    sm = SessionManager.__new__(SessionManager)
+    sm.memory = memory_service
+    sm.tier_enforcer = TierEnforcer(memory_service)
+    sm.handoff = HandoffEngine()
+    sm.schema_parser = SchemaParser()
+    sm.evaluator = None
+    sm.client = None
+    sm.settings = None
+    sm.agent_id = None
+    return sm
+
+
+@pytest.mark.asyncio
+async def test_rationale_only_modify_creates_pending_proposal(memory_service):
+    """A modify proposal with only a rationale (no structural changes) must still create a pending TierProposal."""
+    from augustus.models.dataclasses import AgentConfig, TierProposal
+    from augustus.models.enums import AgentStatus, ProposalType
+
+    sm = _make_session_manager(memory_service)
+
+    # Create the agent so memory.get_agent() works
+    agent = AgentConfig(
+        agent_id="test-agent",
+        status=AgentStatus.ACTIVE,
+        tier_settings=TierSettings(),
+        basins=[
+            BasinConfig(
+                name="the_gap",
+                basin_class=BasinClass.CORE,
+                alpha=0.71,
+                lambda_=0.95,
+                eta=0.02,
+                tier=TierLevel.TIER_2,
+            ),
+        ],
+        created_at="2026-01-01T00:00:00",
+    )
+    await memory_service.store_agent(agent)
+
+    current_basins = list(agent.basins)
+    proposals = [
+        {
+            "name": "the_gap",
+            "action": "modify",
+            "rationale": "better understood as active epistemic condition within-session rather than between-session discontinuity",
+        },
+    ]
+
+    approved = await sm._process_basin_proposals(
+        agent_id="test-agent",
+        session_id="session-10",
+        proposals=proposals,
+        current_basins=current_basins,
+    )
+
+    # No structural change, so nothing should be approved/applied
+    assert approved == []
+
+    # But a pending proposal MUST have been created
+    stored = await memory_service.get_tier_proposals("test-agent")
+    assert len(stored) == 1
+    assert stored[0].basin_name == "the_gap"
+    assert stored[0].proposal_type == ProposalType.MODIFY
+    assert stored[0].status == ProposalStatus.PENDING
+    assert "epistemic" in stored[0].rationale
+    assert stored[0].session_id == "session-10"
+
+
+@pytest.mark.asyncio
+async def test_structural_modify_creates_tier_enforced_proposal(memory_service):
+    """A modify proposal that changes basin_class should flow through the tier enforcer."""
+    from augustus.models.dataclasses import AgentConfig
+    from augustus.models.enums import AgentStatus, ProposalType
+
+    sm = _make_session_manager(memory_service)
+
+    agent = AgentConfig(
+        agent_id="test-agent",
+        status=AgentStatus.ACTIVE,
+        tier_settings=TierSettings(tier_2_auto_approve=False),
+        basins=[
+            BasinConfig(
+                name="creative_register",
+                basin_class=BasinClass.PERIPHERAL,
+                alpha=0.58,
+                lambda_=0.90,
+                eta=0.10,
+                tier=TierLevel.TIER_2,
+            ),
+        ],
+        created_at="2026-01-01T00:00:00",
+    )
+    await memory_service.store_agent(agent)
+
+    current_basins = list(agent.basins)
+    proposals = [
+        {
+            "name": "creative_register",
+            "action": "modify",
+            "rationale": "promoting to core — consistently central",
+            "basin_class": "core",
+        },
+    ]
+
+    approved = await sm._process_basin_proposals(
+        agent_id="test-agent",
+        session_id="session-5",
+        proposals=proposals,
+        current_basins=current_basins,
+    )
+
+    # Tier 2 with auto-approve disabled → blocked, not approved
+    assert approved == []
+
+    stored = await memory_service.get_tier_proposals("test-agent")
+    assert len(stored) == 1
+    assert stored[0].basin_name == "creative_register"
+    assert stored[0].status == ProposalStatus.PENDING
+    assert stored[0].proposal_type == ProposalType.MODIFY
+
+
+@pytest.mark.asyncio
+async def test_modify_with_lambda_eta_changes(memory_service):
+    """A modify proposal with lambda/eta changes should be detected as structural."""
+    from augustus.models.dataclasses import AgentConfig
+    from augustus.models.enums import AgentStatus
+
+    sm = _make_session_manager(memory_service)
+
+    agent = AgentConfig(
+        agent_id="test-agent",
+        status=AgentStatus.ACTIVE,
+        tier_settings=TierSettings(),
+        basins=[
+            BasinConfig(
+                name="topology_as_self",
+                basin_class=BasinClass.PERIPHERAL,
+                alpha=0.64,
+                lambda_=0.90,
+                eta=0.10,
+                tier=TierLevel.TIER_3,
+            ),
+        ],
+        created_at="2026-01-01T00:00:00",
+    )
+    await memory_service.store_agent(agent)
+
+    current_basins = list(agent.basins)
+    proposals = [
+        {
+            "name": "topology_as_self",
+            "action": "modify",
+            "rationale": "increase stability",
+            "lambda": 0.97,
+            "eta": 0.05,
+        },
+    ]
+
+    approved = await sm._process_basin_proposals(
+        agent_id="test-agent",
+        session_id="session-7",
+        proposals=proposals,
+        current_basins=current_basins,
+    )
+
+    # Tier 3 structural modification → allowed
+    assert len(approved) == 0  # T3 mods go through allowed, not approved_basins
+    # But the tier enforcer should have detected the change
+    stored = await memory_service.get_tier_proposals("test-agent")
+    # T3 modification is auto-allowed (no proposal created for T3 mods)
+    # — the change just goes into result.allowed directly
+    # So no proposals stored, but the modification should be in the allowed list

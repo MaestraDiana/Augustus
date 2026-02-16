@@ -74,6 +74,10 @@ class MemoryService:
             return loop.run_in_executor(None, partial(func, *args, **kwargs))
         return loop.run_in_executor(None, func, *args)
 
+    async def refresh_chroma(self) -> None:
+        """Re-open ChromaDB to pick up data written by other processes."""
+        await self._run_sync(self.chroma.refresh)
+
     @staticmethod
     def _now() -> str:
         """Return current UTC timestamp as ISO string."""
@@ -573,6 +577,8 @@ class MemoryService:
             review_note=row.get("review_note") or None,
             reviewed_at=row.get("reviewed_at", ""),
             reviewed_by=row.get("reviewed_by", ""),
+            resolution=row.get("resolution", ""),
+            resolution_notes=row.get("resolution_notes", ""),
             created_at=row.get("created_at", ""),
         )
 
@@ -717,6 +723,35 @@ class MemoryService:
             proposal.proposal_id,
             proposal.agent_id,
             proposal.basin_name,
+        )
+
+        # Auto-notify brain via annotation for pending proposals
+        if status_val == "pending":
+            await self._notify_pending_proposal(proposal)
+
+    async def _notify_pending_proposal(self, proposal: TierProposal) -> None:
+        """Auto-generate an annotation to notify brain of a pending proposal."""
+        action = (
+            proposal.proposal_type.value
+            if hasattr(proposal.proposal_type, "value")
+            else str(proposal.proposal_type)
+        )
+        content = (
+            f"PENDING REVIEW: New basin proposal '{proposal.basin_name}' "
+            f"({action}) from session {proposal.session_id}. "
+            f"Use get_pending_review_items to review."
+        )
+        annotation = Annotation(
+            annotation_id=str(uuid.uuid4()),
+            agent_id=proposal.agent_id,
+            session_id=proposal.session_id or None,
+            content=content,
+            tags=["system", "pending-review", "auto-generated"],
+            created_at=self._now(),
+        )
+        await self.store_annotation(annotation)
+        logger.debug(
+            "Auto-notified brain of pending proposal %s", proposal.proposal_id
         )
 
     async def get_tier_proposals(
@@ -881,6 +916,34 @@ class MemoryService:
             except (json.JSONDecodeError, TypeError):
                 pass
 
+        # Parse original_params if stored (preserved when a proposal is modified)
+        original_params = None
+        original_json = row.get("original_params_json", "")
+        if original_json:
+            try:
+                ocfg = json.loads(original_json)
+                if isinstance(ocfg, dict) and "name" in ocfg:
+                    obc_val = ocfg.get("basin_class", "peripheral")
+                    try:
+                        obc = BasinClass(obc_val)
+                    except ValueError:
+                        obc = BasinClass.PERIPHERAL
+                    ot_val = ocfg.get("tier", 3)
+                    try:
+                        ot = TierLevel(int(ot_val))
+                    except (ValueError, TypeError):
+                        ot = TierLevel.TIER_3
+                    original_params = BasinConfig(
+                        name=ocfg["name"],
+                        basin_class=obc,
+                        alpha=ocfg.get("alpha", 0.3),
+                        lambda_=ocfg.get("lambda", ocfg.get("lambda_", 0.95)),
+                        eta=ocfg.get("eta", 0.1),
+                        tier=ot,
+                    )
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         return TierProposal(
             proposal_id=row["proposal_id"],
             agent_id=row["agent_id"],
@@ -895,6 +958,9 @@ class MemoryService:
             resolved_at=row.get("resolved_at", ""),
             resolved_by=row.get("resolved_by", ""),
             proposed_config=proposed_config,
+            rejection_rationale=row.get("rejection_rationale", ""),
+            modification_rationale=row.get("modification_rationale", ""),
+            original_params=original_params,
         )
 
     async def get_tier_proposal(self, proposal_id: str) -> TierProposal | None:
@@ -988,6 +1054,369 @@ class MemoryService:
                 basin.name,
                 agent.agent_id,
             )
+
+    # ------------------------------------------------------------------
+    # Brain review workflow
+    # ------------------------------------------------------------------
+
+    async def reject_proposal_with_rationale(
+        self,
+        proposal_id: str,
+        rationale: str,
+        resolved_by: str = "brain",
+    ) -> TierProposal | None:
+        """Reject a proposal and store the rejection rationale."""
+        resolved_at = self._now()
+        sql = """
+            UPDATE tier_proposals
+            SET status = ?, resolved_at = ?, resolved_by = ?,
+                rejection_rationale = ?
+            WHERE proposal_id = ?
+        """
+        await self._run_sync(
+            self.sqlite.execute,
+            sql,
+            (
+                ProposalStatus.REJECTED.value,
+                resolved_at,
+                resolved_by,
+                rationale,
+                proposal_id,
+            ),
+        )
+        logger.info("Rejected proposal %s with rationale", proposal_id)
+        return await self.get_tier_proposal(proposal_id)
+
+    async def modify_and_apply_proposal(
+        self,
+        proposal_id: str,
+        modifications: dict,
+        rationale: str,
+        resolved_by: str = "brain",
+    ) -> TierProposal | None:
+        """Approve a proposal with modifications.
+
+        Stores original params, applies modifications to proposed_config,
+        marks as approved_with_modifications, and applies the change.
+        """
+        proposal = await self.get_tier_proposal(proposal_id)
+        if not proposal:
+            logger.warning("Cannot modify proposal %s: not found", proposal_id)
+            return None
+
+        if not proposal.proposed_config:
+            logger.warning("Cannot modify proposal %s: no proposed_config", proposal_id)
+            return None
+
+        # Save original params
+        original_json = json.dumps(proposal.proposed_config.to_dict())
+
+        # Apply modifications to the proposed config
+        cfg = proposal.proposed_config
+        if "alpha" in modifications or "suggested_alpha" in modifications:
+            cfg.alpha = modifications.get("alpha", modifications.get("suggested_alpha", cfg.alpha))
+        if "lambda" in modifications or "lambda_decay" in modifications:
+            cfg.lambda_ = modifications.get("lambda", modifications.get("lambda_decay", cfg.lambda_))
+        if "eta" in modifications:
+            cfg.eta = modifications["eta"]
+        if "tier" in modifications:
+            try:
+                cfg.tier = TierLevel(int(modifications["tier"]))
+            except (ValueError, TypeError):
+                pass
+        if "basin_class" in modifications:
+            try:
+                cfg.basin_class = BasinClass(modifications["basin_class"])
+            except ValueError:
+                pass
+
+        modified_config_json = json.dumps(cfg.to_dict())
+        resolved_at = self._now()
+
+        sql = """
+            UPDATE tier_proposals
+            SET status = ?, resolved_at = ?, resolved_by = ?,
+                modification_rationale = ?, original_params_json = ?,
+                proposed_config_json = ?
+            WHERE proposal_id = ?
+        """
+        await self._run_sync(
+            self.sqlite.execute,
+            sql,
+            (
+                ProposalStatus.APPROVED_WITH_MODIFICATIONS.value,
+                resolved_at,
+                resolved_by,
+                rationale,
+                original_json,
+                modified_config_json,
+                proposal_id,
+            ),
+        )
+
+        # Re-fetch to get the updated proposal and apply it
+        updated = await self.get_tier_proposal(proposal_id)
+        if updated:
+            await self.apply_approved_proposal(updated)
+        logger.info(
+            "Modified and applied proposal %s: %s", proposal_id, rationale
+        )
+        return updated
+
+    async def get_pending_review_items(self, agent_id: str) -> dict:
+        """Get all items awaiting brain review for an agent."""
+        # Pending proposals with full context
+        proposals = await self.get_tier_proposals(agent_id, status="pending")
+        pending_proposals = []
+        for p in proposals:
+            # Get current basin state for context
+            current_state = None
+            if p.proposal_type != ProposalType.CREATE:
+                current_basins = await self.get_current_basins(agent_id)
+                for b in current_basins:
+                    if b.name == p.basin_name:
+                        current_state = b.to_dict()
+                        break
+
+            suggested_params = None
+            if p.proposed_config:
+                suggested_params = p.proposed_config.to_dict()
+
+            pending_proposals.append({
+                "proposal_id": p.proposal_id,
+                "basin_name": p.basin_name,
+                "action": enum_val(p.proposal_type),
+                "proposed_by_session": p.session_id,
+                "proposed_at": p.created_at,
+                "rationale": p.rationale,
+                "suggested_params": suggested_params,
+                "current_basin_state": current_state,
+                "consecutive_count": p.consecutive_count,
+            })
+
+        # Unresolved flags (not reviewed)
+        flags = await self.get_evaluator_flags(agent_id, reviewed=False)
+        unresolved_flags = [
+            {
+                "flag_id": f.flag_id,
+                "session_id": f.session_id,
+                "flag_type": enum_val(f.flag_type),
+                "severity": f.severity,
+                "detail": f.detail,
+                "flagged_at": f.created_at,
+            }
+            for f in flags
+        ]
+
+        # Summary with last brain review time
+        last_review_sql = """
+            SELECT MAX(resolved_at) as last_review
+            FROM tier_proposals
+            WHERE agent_id = ? AND resolved_by IN ('brain', 'human', 'mcp_user')
+              AND resolved_at != ''
+        """
+        row = await self._run_sync(
+            self.sqlite.fetch_one, last_review_sql, (agent_id,)
+        )
+        last_brain_review = (row.get("last_review") or None) if row else None
+
+        return {
+            "pending_proposals": pending_proposals,
+            "unresolved_flags": unresolved_flags,
+            "summary": {
+                "pending_proposals": len(pending_proposals),
+                "unresolved_flags": len(unresolved_flags),
+                "last_brain_review": last_brain_review,
+            },
+        }
+
+    async def resolve_flag(
+        self,
+        flag_id: str,
+        resolution: str,
+        notes: str = "",
+        resolved_by: str = "brain",
+    ) -> None:
+        """Resolve a flag with a resolution type and notes."""
+        resolved_at = self._now()
+        sql = """
+            UPDATE flags
+            SET reviewed = 1, review_note = ?, reviewed_at = ?,
+                reviewed_by = ?, resolution = ?, resolution_notes = ?
+            WHERE flag_id = ?
+        """
+        await self._run_sync(
+            self.sqlite.execute,
+            sql,
+            (notes, resolved_at, resolved_by, resolution, notes, flag_id),
+        )
+        logger.info("Resolved flag %s: %s", flag_id, resolution)
+
+    async def create_basin_direct(
+        self,
+        agent_id: str,
+        basin_name: str,
+        basin_class: str,
+        tier: int,
+        alpha: float,
+        lambda_decay: float,
+        eta: float,
+        rationale: str,
+    ) -> BasinConfig:
+        """Brain-initiated basin creation (bypasses proposal flow)."""
+        try:
+            bc = BasinClass(basin_class)
+        except ValueError:
+            bc = BasinClass.PERIPHERAL
+        try:
+            tl = TierLevel(tier)
+        except (ValueError, TypeError):
+            tl = TierLevel.TIER_3
+
+        basin = BasinConfig(
+            name=basin_name,
+            basin_class=bc,
+            alpha=max(0.05, min(1.0, alpha)),
+            lambda_=lambda_decay,
+            eta=eta,
+            tier=tl,
+        )
+
+        agent = await self.get_agent(agent_id)
+        if not agent:
+            raise ValueError(f"Agent {agent_id} not found")
+
+        # Check for duplicates
+        if any(b.name == basin_name for b in agent.basins):
+            raise ValueError(f"Basin '{basin_name}' already exists for agent {agent_id}")
+
+        new_basins = list(agent.basins) + [basin]
+        await self.update_agent(agent_id, {"basins": [b.to_dict() for b in new_basins]})
+        await self.update_current_basins(agent_id, new_basins)
+
+        logger.info(
+            "Brain created basin '%s' for agent %s: %s",
+            basin_name, agent_id, rationale,
+        )
+        return basin
+
+    async def modify_basin_direct(
+        self,
+        agent_id: str,
+        basin_name: str,
+        modifications: dict,
+        rationale: str,
+    ) -> BasinConfig | None:
+        """Brain-initiated direct basin modification (bypasses proposal flow)."""
+        agent = await self.get_agent(agent_id)
+        if not agent:
+            raise ValueError(f"Agent {agent_id} not found")
+
+        target = None
+        for b in agent.basins:
+            if b.name == basin_name:
+                target = b
+                break
+
+        if not target:
+            raise ValueError(f"Basin '{basin_name}' not found for agent {agent_id}")
+
+        # Apply modifications
+        if "alpha" in modifications:
+            target.alpha = max(0.05, min(1.0, modifications["alpha"]))
+        if "lambda" in modifications or "lambda_decay" in modifications:
+            target.lambda_ = modifications.get("lambda", modifications.get("lambda_decay", target.lambda_))
+        if "eta" in modifications:
+            target.eta = modifications["eta"]
+        if "tier" in modifications:
+            try:
+                target.tier = TierLevel(int(modifications["tier"]))
+            except (ValueError, TypeError):
+                pass
+        if "basin_class" in modifications:
+            try:
+                target.basin_class = BasinClass(modifications["basin_class"])
+            except ValueError:
+                pass
+
+        # Persist
+        await self.update_agent(
+            agent_id, {"basins": [b.to_dict() for b in agent.basins]}
+        )
+        await self.update_current_basins(agent_id, agent.basins)
+
+        logger.info(
+            "Brain modified basin '%s' for agent %s: %s",
+            basin_name, agent_id, rationale,
+        )
+        return target
+
+    async def deprecate_basin(
+        self,
+        agent_id: str,
+        basin_name: str,
+        rationale: str,
+    ) -> None:
+        """Soft-deprecate a basin (preserve history, exclude from active tracking)."""
+        deprecated_at = self._now()
+        sql = """
+            UPDATE basin_current
+            SET deprecated = 1, deprecated_at = ?, deprecation_rationale = ?
+            WHERE agent_id = ? AND basin_name = ?
+        """
+        await self._run_sync(
+            self.sqlite.execute,
+            sql,
+            (deprecated_at, rationale, agent_id, basin_name),
+        )
+
+        # Also remove from agent config basins (so it won't appear in sessions)
+        agent = await self.get_agent(agent_id)
+        if agent:
+            new_basins = [b for b in agent.basins if b.name != basin_name]
+            await self.update_agent(
+                agent_id, {"basins": [b.to_dict() for b in new_basins]}
+            )
+
+        logger.info(
+            "Deprecated basin '%s' for agent %s: %s",
+            basin_name, agent_id, rationale,
+        )
+
+    async def undeprecate_basin(
+        self,
+        agent_id: str,
+        basin_name: str,
+    ) -> BasinConfig | None:
+        """Restore a deprecated basin to active tracking."""
+        sql = """
+            UPDATE basin_current
+            SET deprecated = 0, deprecated_at = '', deprecation_rationale = ''
+            WHERE agent_id = ? AND basin_name = ?
+        """
+        await self._run_sync(
+            self.sqlite.execute, sql, (agent_id, basin_name)
+        )
+
+        # Fetch the basin config from basin_current and add back to agent
+        row = await self._run_sync(
+            self.sqlite.fetch_one,
+            "SELECT * FROM basin_current WHERE agent_id = ? AND basin_name = ?",
+            (agent_id, basin_name),
+        )
+        if not row:
+            return None
+
+        basin = self._row_to_basin_config(row)
+        agent = await self.get_agent(agent_id)
+        if agent and not any(b.name == basin_name for b in agent.basins):
+            new_basins = list(agent.basins) + [basin]
+            await self.update_agent(
+                agent_id, {"basins": [b.to_dict() for b in new_basins]}
+            )
+
+        logger.info("Undeprecated basin '%s' for agent %s", basin_name, agent_id)
+        return basin
 
     # ------------------------------------------------------------------
     # Co-activation

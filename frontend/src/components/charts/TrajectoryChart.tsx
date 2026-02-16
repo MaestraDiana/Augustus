@@ -1,18 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea } from 'recharts';
 import { BasinSnapshot } from '../../types';
+import { BASIN_COLOR_HEX } from '../../utils/constants';
 
-// Trajectory colors from brand guide
-const BASIN_COLORS: Record<string, string> = {
-  'identity_continuity': '#3B9B8E',  // Verdigris
-  'relational_core': '#2E7D9B',      // Deep Water
-  'the_gap': '#5B8C6F',              // Forest
-  'topology_as_self': '#D4915D',     // Amber
-  'creative_register': '#C4786E',    // Clay
-  'basin_6': '#9B8B5A',              // Lichen
-  'basin_7': '#8B7EC8',              // Dusk
-  'basin_8': '#7A9BB8',              // Haze
-};
+/** Simple string hash → positive integer. */
+function hashName(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
 
 interface TrajectoryChartProps {
   basinNames: string[];
@@ -37,6 +35,27 @@ export default function TrajectoryChart({
 }: TrajectoryChartProps) {
   const [hoveredBasin, setHoveredBasin] = useState<string | null>(null);
 
+  // Build a stable name→hex color map for every basin in this chart.
+  // Uses deterministic hashing so the same basin name always gets the
+  // same color, but also avoids collisions within a single chart by
+  // assigning sequentially when hashes collide.
+  const colorMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    const usedIndices = new Set<number>();
+
+    for (const name of basinNames) {
+      let idx = hashName(name) % BASIN_COLOR_HEX.length;
+      // If this index is already taken by another basin in the chart,
+      // walk forward to find the next unused slot.
+      while (usedIndices.has(idx)) {
+        idx = (idx + 1) % BASIN_COLOR_HEX.length;
+      }
+      usedIndices.add(idx);
+      map[name] = BASIN_COLOR_HEX[idx];
+    }
+    return map;
+  }, [basinNames]);
+
   // Group snapshots by session
   const sessionGroups = trajectoryData.reduce((acc, snapshot) => {
     if (!acc[snapshot.session_id]) {
@@ -53,6 +72,22 @@ export default function TrajectoryChart({
     (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
   );
 
+  // Detect emergence points: the first session where each basin has data,
+  // but only if it's NOT the very first session in the chart (those aren't emergent).
+  const emergenceIndices = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const basinName of basinNames) {
+      for (let i = 0; i < chartData.length; i++) {
+        if (chartData[i][basinName] !== undefined) {
+          // Only mark as emergence if it doesn't start at session 0
+          if (i > 0) map[basinName] = i;
+          break;
+        }
+      }
+    }
+    return map;
+  }, [basinNames, chartData]);
+
   // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
@@ -67,7 +102,7 @@ export default function TrajectoryChart({
               <div key={p.dataKey} className="tooltip-row">
                 <div
                   className="tooltip-dot"
-                  style={{ background: BASIN_COLORS[p.dataKey] || 'var(--text-muted)' }}
+                  style={{ background: colorMap[p.dataKey] }}
                 />
                 <span className="tooltip-name">{p.dataKey}</span>
                 <span className="tooltip-value">{p.value?.toFixed(2)}</span>
@@ -81,28 +116,36 @@ export default function TrajectoryChart({
   return (
     <div className="chart-wrapper">
       <div className="chart-area">
-        <ResponsiveContainer width="100%" height={420}>
-          <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 10 }}>
+        <ResponsiveContainer width="100%" height={460}>
+          <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
+            {/* Full chart background */}
+            <ReferenceArea y1={0} y2={1} fill="var(--chart-bg)" fillOpacity={1} />
+
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
 
-            {/* Emphasis bands */}
-            <ReferenceArea y1={0.8} y2={1.0} fill="var(--emphasis-band-1)" fillOpacity={1} />
-            <ReferenceArea y1={0.6} y2={0.8} fill="var(--emphasis-band-2)" fillOpacity={1} />
-            <ReferenceArea y1={0.4} y2={0.6} fill="var(--emphasis-band-3)" fillOpacity={1} />
+            {/* Emphasis bands — layered over base background */}
+            <ReferenceArea y1={0.8} y2={1.0} fill="var(--emphasis-band-high)" fillOpacity={1} />
+            <ReferenceArea y1={0.6} y2={0.8} fill="var(--emphasis-band-mid)" fillOpacity={1} />
+            <ReferenceArea y1={0.4} y2={0.6} fill="var(--emphasis-band-low)" fillOpacity={1} />
 
             <XAxis
               dataKey="session_id"
-              tick={{ fill: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--font-data)' }}
+              tick={{ fill: 'var(--text-secondary)', fontSize: 11, fontFamily: 'var(--font-data)' }}
               tickLine={{ stroke: 'var(--border-color)' }}
               axisLine={{ stroke: 'var(--border-color)' }}
+              tickFormatter={(sid: string) => {
+                // Extract session number from IDs like "slon-003-20260215-225348"
+                const match = sid.match(/(\d{3,})/);
+                return match ? `Session ${match[1]}` : sid;
+              }}
               angle={-45}
               textAnchor="end"
-              height={80}
+              height={60}
             />
 
             <YAxis
               domain={[0, 1]}
-              tick={{ fill: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-data)' }}
+              tick={{ fill: 'var(--text-secondary)', fontSize: 12, fontFamily: 'var(--font-data)' }}
               tickLine={{ stroke: 'var(--border-color)' }}
               axisLine={{ stroke: 'var(--border-color)' }}
             />
@@ -110,24 +153,42 @@ export default function TrajectoryChart({
             <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'var(--accent-primary)', strokeWidth: 1 }} />
 
             {/* Basin lines */}
-            {basinNames.map((basinName) => (
-              <Line
-                key={basinName}
-                type="monotone"
-                dataKey={basinName}
-                stroke={BASIN_COLORS[basinName] || 'var(--text-muted)'}
-                strokeWidth={visibleBasins.has(basinName) ? 2.5 : 0}
-                dot={false}
-                activeDot={{
-                  r: 5,
-                  fill: BASIN_COLORS[basinName],
-                  stroke: 'var(--bg-surface)',
-                  strokeWidth: 2,
-                }}
-                opacity={hoveredBasin ? (hoveredBasin === basinName ? 1 : 0.3) : 1}
-                isAnimationActive={false}
-              />
-            ))}
+            {basinNames.map((basinName) => {
+              const emergeIdx = emergenceIndices[basinName];
+              return (
+                <Line
+                  key={basinName}
+                  type="monotone"
+                  dataKey={basinName}
+                  stroke={colorMap[basinName]}
+                  strokeWidth={visibleBasins.has(basinName) ? 2.5 : 0}
+                  dot={emergeIdx !== undefined ? (props: any) => {
+                    if (props.index !== emergeIdx) return <g key={props.key} />;
+                    return (
+                      <g key={props.key}>
+                        <circle
+                          cx={props.cx}
+                          cy={props.cy}
+                          r={5}
+                          fill={colorMap[basinName]}
+                          stroke="var(--bg-surface)"
+                          strokeWidth={2}
+                        />
+                        <title>{`${basinName} emerged — ${chartData[emergeIdx]?.session_id}`}</title>
+                      </g>
+                    );
+                  } : false}
+                  activeDot={{
+                    r: 5,
+                    fill: colorMap[basinName],
+                    stroke: 'var(--bg-surface)',
+                    strokeWidth: 2,
+                  }}
+                  opacity={hoveredBasin ? (hoveredBasin === basinName ? 1 : 0.3) : 1}
+                  isAnimationActive={false}
+                />
+              );
+            })}
           </ComposedChart>
         </ResponsiveContainer>
 
@@ -151,7 +212,7 @@ export default function TrajectoryChart({
           >
             <div
               className="legend-line"
-              style={{ background: BASIN_COLORS[basinName] || 'var(--text-muted)' }}
+              style={{ background: colorMap[basinName] }}
             />
             <span className="legend-label">{basinName}</span>
           </div>

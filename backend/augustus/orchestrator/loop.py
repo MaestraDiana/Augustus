@@ -311,6 +311,13 @@ class Orchestrator:
                     await asyncio.sleep(poll_interval)
                     continue
 
+                # Reconcile basins: ensure any basins approved since the
+                # YAML was written are present in the instruction.  The YAML
+                # may have been generated *before* a tier-proposal was approved,
+                # so basin_current (the canonical DB source) can contain basins
+                # the YAML doesn't know about yet.
+                instruction = await self._reconcile_basins(agent_id, instruction)
+
                 # Execute session
                 session_id = instruction.framework.session_id
                 self._active_sessions[agent_id] = session_id
@@ -366,6 +373,47 @@ class Orchestrator:
         finally:
             self._active_sessions.pop(agent_id, None)
             logger.info("AGENT LOOP EXIT: %s", agent_id)
+
+    async def _reconcile_basins(self, agent_id: str, instruction):
+        """Ensure all basins in basin_current appear in the instruction.
+
+        The YAML file that produced *instruction* may have been written before
+        a tier-proposal was approved — so the canonical basin_current table in
+        the DB can contain basins that the parsed YAML knows nothing about.
+
+        This method reads basin_current, compares against
+        ``instruction.framework.basin_params``, and injects any missing
+        basins so they participate in the full pipeline: evaluator scoring,
+        handoff decay/boost, snapshot storage, and next-YAML generation.
+
+        Returns the (possibly mutated) instruction.
+        """
+        try:
+            canonical_basins = await self.memory.get_current_basins(agent_id)
+            if not canonical_basins:
+                return instruction
+
+            yaml_names = {b.name for b in instruction.framework.basin_params}
+            injected = []
+            for cb in canonical_basins:
+                if cb.name not in yaml_names:
+                    instruction.framework.basin_params.append(cb)
+                    injected.append(cb.name)
+
+            if injected:
+                logger.info(
+                    "RECONCILE BASINS: %s — injected %d basin(s) from "
+                    "basin_current into instruction: %s",
+                    agent_id, len(injected), ", ".join(injected),
+                )
+        except Exception as e:
+            logger.error(
+                "RECONCILE BASINS: %s — failed: %s (proceeding with "
+                "original instruction)",
+                agent_id, e, exc_info=True,
+            )
+
+        return instruction
 
     async def _regenerate_yaml_for_agent(self, agent_id: str, agent) -> None:
         """Regenerate a YAML instruction when the queue is empty.

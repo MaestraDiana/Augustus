@@ -25,7 +25,7 @@ from augustus.utils import enum_val
 
 logger = logging.getLogger(__name__)
 
-SCHEMA_VERSION = "0.5"
+SCHEMA_VERSION = "0.6"
 
 
 def merge_close_protocol(

@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 import yaml
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
@@ -597,10 +597,14 @@ async def get_agent_overview(
     recent = await memory.list_sessions(agent_id, limit=1)
     last_session = recent[0] if recent else None
 
+    # Also include basin_definitions if migrated (v0.9.5)
+    basin_defs = await memory.get_basin_definitions(agent_id, include_deprecated=True)
+
     return {
         "agent": agent.to_dict(),
         "session_count": session_count,
         "current_basins": [b.to_dict() for b in current_basins],
+        "basin_definitions": [d.to_dict() for d in basin_defs],
         "recent_flags": [f.to_dict() for f in flags],
         "pending_proposal_count": len(proposals),
         "queue_status": _get_queue_status(agent_id),
@@ -658,3 +662,93 @@ async def undeprecate_basin(
         "status": "restored",
         "basin": basin.to_dict(),
     }
+
+
+# ── Basin Definitions (v0.9.5) ────────────────────────────────────────
+
+
+@router.get("/{agent_id}/basin-definitions")
+async def get_basin_definitions(
+    agent_id: str,
+    include_deprecated: bool = False,
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Get all basin definitions for an agent."""
+    await memory.ensure_basin_migration(agent_id)
+    defs = await memory.get_basin_definitions(agent_id, include_deprecated=include_deprecated)
+    return {"basin_definitions": [d.to_dict() for d in defs]}
+
+
+@router.get("/{agent_id}/basin-definitions/{basin_name}/history")
+async def get_basin_definition_history(
+    agent_id: str,
+    basin_name: str,
+    limit: int = Query(20, ge=1, le=200),
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Get modification history for a basin."""
+    mods = await memory.get_basin_modifications(agent_id, basin_name, limit)
+    return {"modifications": [m.to_dict() for m in mods]}
+
+
+@router.put("/{agent_id}/basin-definitions/{basin_name}")
+async def update_basin_definition(
+    agent_id: str,
+    basin_name: str,
+    request: Request,
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Update a basin definition (brain-level operation)."""
+    body = await request.json()
+    modifications = body.get("modifications", {})
+    rationale = body.get("rationale", "")
+    result = await memory.update_basin_definition(
+        agent_id, basin_name, modifications,
+        modified_by="brain", rationale=rationale, override_lock=True,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Basin '{basin_name}' not found")
+    return result.to_dict()
+
+
+@router.post("/{agent_id}/basin-definitions/{basin_name}/lock")
+async def lock_basin(
+    agent_id: str,
+    basin_name: str,
+    request: Request,
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Lock a basin to prevent body modifications."""
+    body = await request.json()
+    rationale = body.get("rationale", "Locked by brain")
+    result = await memory.update_basin_definition(
+        agent_id, basin_name, {"locked_by_brain": 1},
+        modified_by="brain", rationale=rationale, override_lock=True,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Basin '{basin_name}' not found")
+    return {"status": "locked", "basin": result.to_dict()}
+
+
+@router.post("/{agent_id}/basin-definitions/{basin_name}/unlock")
+async def unlock_basin(
+    agent_id: str,
+    basin_name: str,
+    request: Request,
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Unlock a basin to allow body modifications."""
+    body = await request.json()
+    rationale = body.get("rationale", "Unlocked by brain")
+    result = await memory.update_basin_definition(
+        agent_id, basin_name, {"locked_by_brain": 0},
+        modified_by="brain", rationale=rationale, override_lock=True,
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Basin '{basin_name}' not found")
+    return {"status": "unlocked", "basin": result.to_dict()}

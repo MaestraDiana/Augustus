@@ -25,6 +25,8 @@ from augustus.models import (
     Annotation,
     BasinClass,
     BasinConfig,
+    BasinDefinition,
+    BasinModification,
     BasinSnapshot,
     CoActivationCharacter,
     CoActivationEntry,
@@ -406,6 +408,372 @@ class MemoryService:
             lambda_=row["lambda"],
             eta=row["eta"],
             tier=tier,
+        )
+
+    # ------------------------------------------------------------------
+    # Basin Definitions (v0.9.5)
+    # ------------------------------------------------------------------
+
+    async def get_basin_definitions(
+        self, agent_id: str, include_deprecated: bool = False
+    ) -> list[BasinDefinition]:
+        """Get all basin definitions for an agent."""
+        if include_deprecated:
+            sql = "SELECT * FROM basin_definitions WHERE agent_id = ? ORDER BY name"
+            rows = await self._run_sync(self.sqlite.fetch_all, sql, (agent_id,))
+        else:
+            sql = "SELECT * FROM basin_definitions WHERE agent_id = ? AND deprecated = 0 ORDER BY name"
+            rows = await self._run_sync(self.sqlite.fetch_all, sql, (agent_id,))
+        return [self._row_to_basin_definition(r) for r in rows]
+
+    async def get_basin_definition(
+        self, agent_id: str, basin_name: str
+    ) -> BasinDefinition | None:
+        """Get a single basin definition by agent and name."""
+        sql = "SELECT * FROM basin_definitions WHERE agent_id = ? AND name = ?"
+        row = await self._run_sync(self.sqlite.fetch_one, sql, (agent_id, basin_name))
+        return self._row_to_basin_definition(row) if row else None
+
+    async def insert_basin_definition(
+        self,
+        agent_id: str,
+        name: str,
+        basin_class: str = "peripheral",
+        alpha: float = 0.5,
+        lambda_decay: float = 0.95,
+        eta: float = 0.10,
+        tier: int = 3,
+        created_by: str = "import",
+        rationale: str | None = None,
+    ) -> BasinDefinition:
+        """Insert a new basin definition and create an audit entry."""
+        now = self._now()
+        sql = """INSERT INTO basin_definitions
+            (agent_id, name, basin_class, alpha, lambda, eta, tier,
+             created_at, created_by, last_modified_at, last_modified_by, last_rationale)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"""
+        cursor = await self._run_sync(
+            self.sqlite.execute, sql,
+            (agent_id, name, basin_class, alpha, lambda_decay, eta, tier,
+             now, created_by, now, created_by, rationale),
+        )
+        basin_id = cursor.lastrowid
+
+        # Create audit entry
+        new_vals = json.dumps({
+            "basin_class": basin_class, "alpha": alpha, "lambda": lambda_decay,
+            "eta": eta, "tier": tier,
+        })
+        await self._insert_basin_modification(
+            basin_id=basin_id, agent_id=agent_id, session_id=None,
+            modified_by=created_by, modification_type="create",
+            previous_values=None, new_values=new_vals, rationale=rationale,
+        )
+
+        return await self.get_basin_definition(agent_id, name)
+
+    async def update_basin_definition(
+        self,
+        agent_id: str,
+        basin_name: str,
+        modifications: dict,
+        modified_by: str = "brain",
+        rationale: str | None = None,
+        session_id: str | None = None,
+        override_lock: bool = False,
+    ) -> BasinDefinition | None:
+        """Update a basin definition with audit trail.
+
+        Args:
+            modifications: dict of field->value pairs. Valid keys:
+                basin_class, alpha, lambda, eta, tier,
+                locked_by_brain, alpha_floor, alpha_ceiling,
+                deprecated, deprecated_at, deprecation_rationale
+        """
+        basin = await self.get_basin_definition(agent_id, basin_name)
+        if not basin:
+            return None
+
+        if basin.locked_by_brain and not override_lock and modified_by != "brain":
+            logger.warning(
+                "Basin %s is locked by brain; rejecting modification by %s",
+                basin_name, modified_by,
+            )
+            return None
+
+        # Build previous values snapshot
+        prev = {}
+        allowed_cols = {
+            "basin_class", "alpha", "lambda", "eta", "tier",
+            "locked_by_brain", "alpha_floor", "alpha_ceiling",
+            "deprecated", "deprecated_at", "deprecation_rationale",
+        }
+
+        set_clauses = []
+        params: list[Any] = []
+        for key, val in modifications.items():
+            if key not in allowed_cols:
+                continue
+            # Map to current value for prev snapshot
+            if key == "lambda":
+                prev[key] = basin.lambda_
+            elif key == "alpha":
+                prev[key] = basin.alpha
+            elif key == "eta":
+                prev[key] = basin.eta
+            elif key == "tier":
+                prev[key] = basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier)
+            elif key == "basin_class":
+                prev[key] = enum_val(basin.basin_class)
+            elif key == "locked_by_brain":
+                prev[key] = basin.locked_by_brain
+            elif key == "alpha_floor":
+                prev[key] = basin.alpha_floor
+            elif key == "alpha_ceiling":
+                prev[key] = basin.alpha_ceiling
+            elif key == "deprecated":
+                prev[key] = basin.deprecated
+            else:
+                prev[key] = getattr(basin, key, None)
+
+            set_clauses.append(f"{key} = ?")
+            params.append(val)
+
+        if not set_clauses:
+            return basin
+
+        # Always update last_modified metadata
+        now = self._now()
+        set_clauses.extend([
+            "last_modified_at = ?", "last_modified_by = ?", "last_rationale = ?",
+        ])
+        params.extend([now, modified_by, rationale])
+        params.extend([agent_id, basin_name])
+
+        sql = f"UPDATE basin_definitions SET {', '.join(set_clauses)} WHERE agent_id = ? AND name = ?"
+        await self._run_sync(self.sqlite.execute, sql, tuple(params))
+
+        # Determine modification type
+        mod_type = "update"
+        if "deprecated" in modifications and modifications["deprecated"]:
+            mod_type = "deprecate"
+        elif "deprecated" in modifications and not modifications["deprecated"]:
+            mod_type = "undeprecate"
+        elif "locked_by_brain" in modifications and modifications["locked_by_brain"]:
+            mod_type = "lock"
+        elif "locked_by_brain" in modifications and not modifications["locked_by_brain"]:
+            mod_type = "unlock"
+        elif "alpha_floor" in modifications or "alpha_ceiling" in modifications:
+            mod_type = "set_bounds"
+
+        await self._insert_basin_modification(
+            basin_id=basin.id, agent_id=agent_id, session_id=session_id,
+            modified_by=modified_by, modification_type=mod_type,
+            previous_values=json.dumps(prev), new_values=json.dumps(modifications),
+            rationale=rationale,
+        )
+
+        return await self.get_basin_definition(agent_id, basin_name)
+
+    async def upsert_basin_definition(
+        self,
+        agent_id: str,
+        name: str,
+        params: dict,
+        modified_by: str = "import",
+        rationale: str | None = None,
+    ) -> BasinDefinition:
+        """Insert or update a basin definition. Used by YAML import with overwrite."""
+        existing = await self.get_basin_definition(agent_id, name)
+        if existing:
+            return await self.update_basin_definition(
+                agent_id, name, params, modified_by=modified_by,
+                rationale=rationale, override_lock=True,
+            )
+        else:
+            return await self.insert_basin_definition(
+                agent_id=agent_id, name=name,
+                basin_class=params.get("basin_class", params.get("class", "peripheral")),
+                alpha=params.get("alpha", 0.5),
+                lambda_decay=params.get("lambda", params.get("lambda_decay", 0.95)),
+                eta=params.get("eta", 0.10),
+                tier=params.get("tier", 3),
+                created_by=modified_by, rationale=rationale,
+            )
+
+    async def get_basin_modifications(
+        self,
+        agent_id: str,
+        basin_name: str | None = None,
+        limit: int = 20,
+    ) -> list[BasinModification]:
+        """Get basin modification audit trail."""
+        if basin_name:
+            basin = await self.get_basin_definition(agent_id, basin_name)
+            if not basin:
+                return []
+            sql = """SELECT * FROM basin_modifications
+                     WHERE basin_id = ? ORDER BY created_at DESC LIMIT ?"""
+            rows = await self._run_sync(
+                self.sqlite.fetch_all, sql, (basin.id, limit)
+            )
+        else:
+            sql = """SELECT * FROM basin_modifications
+                     WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?"""
+            rows = await self._run_sync(
+                self.sqlite.fetch_all, sql, (agent_id, limit)
+            )
+        return [self._row_to_basin_modification(r) for r in rows]
+
+    async def get_agent_basin_source(self, agent_id: str) -> str:
+        """Get the basin_source for an agent ('yaml' or 'database')."""
+        row = await self._run_sync(
+            self.sqlite.fetch_one,
+            "SELECT basin_source FROM agents WHERE agent_id = ?",
+            (agent_id,),
+        )
+        return row["basin_source"] if row else "yaml"
+
+    async def set_agent_basin_source(self, agent_id: str, source: str) -> None:
+        """Set the basin_source for an agent."""
+        await self._run_sync(
+            self.sqlite.execute,
+            "UPDATE agents SET basin_source = ? WHERE agent_id = ?",
+            (source, agent_id),
+        )
+
+    async def ensure_basin_migration(self, agent_id: str) -> bool:
+        """Lazily migrate an agent's basins from YAML/basin_current to basin_definitions.
+
+        Returns True if migration was performed, False if already migrated.
+        """
+        source = await self.get_agent_basin_source(agent_id)
+        if source == "database":
+            return False
+
+        # Get current basin state — prefer basin_current, fall back to agent config
+        current_basins = await self.get_current_basins(agent_id)
+        if not current_basins:
+            agent = await self.get_agent(agent_id)
+            if agent:
+                current_basins = agent.basins
+
+        for basin in current_basins:
+            # Check if already exists in basin_definitions (idempotent)
+            existing = await self.get_basin_definition(agent_id, basin.name)
+            if existing:
+                continue
+
+            await self.insert_basin_definition(
+                agent_id=agent_id,
+                name=basin.name,
+                basin_class=enum_val(basin.basin_class),
+                alpha=basin.alpha,
+                lambda_decay=basin.lambda_,
+                eta=basin.eta,
+                tier=basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier),
+                created_by="migration",
+                rationale="Automated migration from YAML-based configuration (v0.9.5 upgrade)",
+            )
+
+        # Also migrate deprecation status from basin_current
+        rows = await self._run_sync(
+            self.sqlite.fetch_all,
+            "SELECT basin_name, deprecated, deprecated_at, deprecation_rationale FROM basin_current WHERE agent_id = ? AND deprecated = 1",
+            (agent_id,),
+        )
+        for row in rows:
+            await self.update_basin_definition(
+                agent_id, row["basin_name"],
+                {
+                    "deprecated": 1,
+                    "deprecated_at": row["deprecated_at"],
+                    "deprecation_rationale": row["deprecation_rationale"],
+                },
+                modified_by="migration",
+                rationale="Migrated deprecation status from basin_current",
+                override_lock=True,
+            )
+
+        await self.set_agent_basin_source(agent_id, "database")
+        logger.info("Migrated basins for agent %s to database", agent_id)
+        return True
+
+    async def _insert_basin_modification(
+        self,
+        basin_id: int,
+        agent_id: str,
+        session_id: str | None,
+        modified_by: str,
+        modification_type: str,
+        previous_values: str | None,
+        new_values: str,
+        rationale: str | None,
+    ) -> int:
+        """Insert a basin modification audit entry."""
+        sql = """INSERT INTO basin_modifications
+            (basin_id, agent_id, session_id, modified_by, modification_type,
+             previous_values, new_values, rationale)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)"""
+        return await self._run_sync(
+            self.sqlite.execute, sql,
+            (basin_id, agent_id, session_id, modified_by, modification_type,
+             previous_values, new_values, rationale),
+        )
+
+    @staticmethod
+    def _row_to_basin_definition(row: dict[str, Any]) -> BasinDefinition:
+        """Convert a database row to a BasinDefinition."""
+        basin_class_val = row.get("basin_class", "peripheral")
+        try:
+            basin_class = BasinClass(basin_class_val)
+        except ValueError:
+            basin_class = BasinClass.PERIPHERAL
+
+        tier_val = row.get("tier", 3)
+        try:
+            tier = TierLevel(int(tier_val))
+        except (ValueError, TypeError):
+            tier = TierLevel.TIER_3
+
+        return BasinDefinition(
+            id=row["id"],
+            agent_id=row["agent_id"],
+            name=row["name"],
+            basin_class=basin_class,
+            alpha=row["alpha"],
+            lambda_=row["lambda"],
+            eta=row["eta"],
+            tier=tier,
+            locked_by_brain=bool(row["locked_by_brain"]),
+            alpha_floor=row["alpha_floor"],
+            alpha_ceiling=row["alpha_ceiling"],
+            deprecated=bool(row["deprecated"]),
+            deprecated_at=row["deprecated_at"],
+            deprecation_rationale=row["deprecation_rationale"],
+            created_at=row["created_at"],
+            created_by=row["created_by"],
+            last_modified_at=row["last_modified_at"],
+            last_modified_by=row["last_modified_by"],
+            last_rationale=row["last_rationale"],
+        )
+
+    @staticmethod
+    def _row_to_basin_modification(row: dict[str, Any]) -> BasinModification:
+        """Convert a database row to a BasinModification."""
+        prev = row["previous_values"]
+        new = row["new_values"]
+        return BasinModification(
+            id=row["id"],
+            basin_id=row["basin_id"],
+            agent_id=row["agent_id"],
+            session_id=row["session_id"],
+            modified_by=row["modified_by"],
+            modification_type=row["modification_type"],
+            previous_values=json.loads(prev) if prev else None,
+            new_values=json.loads(new) if new else {},
+            rationale=row["rationale"],
+            created_at=row["created_at"],
         )
 
     # ------------------------------------------------------------------

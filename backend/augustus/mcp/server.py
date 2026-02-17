@@ -362,6 +362,15 @@ class MCPServer:
                 basin = await memory.create_basin_direct(
                     agent_id, basin_name, basin_class, tier, alpha, lambda_decay, eta, rationale
                 )
+                # Also create in basin_definitions (v0.9.5)
+                source = await memory.get_agent_basin_source(agent_id)
+                if source == "database":
+                    await memory.insert_basin_definition(
+                        agent_id=agent_id, name=basin_name,
+                        basin_class=basin_class, alpha=alpha,
+                        lambda_decay=lambda_decay, eta=eta, tier=tier,
+                        created_by="brain", rationale=rationale,
+                    )
                 return json.dumps({
                     "status": "created",
                     "basin": basin.to_dict(),
@@ -371,13 +380,35 @@ class MCPServer:
                 return json.dumps({"error": str(e)})
 
         @self.mcp.tool(description="Direct basin parameter adjustment (bypasses proposal flow). Modifiable fields: alpha, lambda_decay, eta, tier, basin_class.")
-        async def modify_basin(agent_id: str, basin_name: str, modifications: dict, rationale: str) -> str:
+        async def modify_basin(agent_id: str, basin_name: str, modifications: dict, rationale: str, override_lock: bool = False) -> str:
             try:
+                # Check lock status
+                basin_def = await memory.get_basin_definition(agent_id, basin_name)
+                if basin_def and basin_def.locked_by_brain and not override_lock:
+                    return json.dumps({"error": f"Basin '{basin_name}' is locked by brain. Use override_lock=True to force."})
+
                 basin = await memory.modify_basin_direct(
                     agent_id, basin_name, modifications, rationale
                 )
                 if not basin:
                     return json.dumps({"error": "Basin not found"})
+
+                # Sync to basin_definitions (v0.9.5)
+                source = await memory.get_agent_basin_source(agent_id)
+                if source == "database":
+                    # Map modifications keys for DB column names
+                    db_mods = {}
+                    for k, v in modifications.items():
+                        if k == "lambda_decay":
+                            db_mods["lambda"] = v
+                        else:
+                            db_mods[k] = v
+                    await memory.update_basin_definition(
+                        agent_id, basin_name, db_mods,
+                        modified_by="brain", rationale=rationale,
+                        override_lock=True,
+                    )
+
                 return json.dumps({
                     "status": "modified",
                     "basin": basin.to_dict(),
@@ -389,6 +420,14 @@ class MCPServer:
         @self.mcp.tool(description="Soft-deprecate a basin. Preserves history but excludes from future sessions. Can be undeprecated.")
         async def deprecate_basin(agent_id: str, basin_name: str, rationale: str) -> str:
             await memory.deprecate_basin(agent_id, basin_name, rationale)
+            # Sync to basin_definitions (v0.9.5)
+            source = await memory.get_agent_basin_source(agent_id)
+            if source == "database":
+                await memory.update_basin_definition(
+                    agent_id, basin_name,
+                    {"deprecated": 1, "deprecated_at": utcnow_iso(), "deprecation_rationale": rationale},
+                    modified_by="brain", rationale=rationale, override_lock=True,
+                )
             return json.dumps({
                 "status": "deprecated",
                 "basin_name": basin_name,
@@ -400,10 +439,76 @@ class MCPServer:
             basin = await memory.undeprecate_basin(agent_id, basin_name)
             if not basin:
                 return json.dumps({"error": f"Basin '{basin_name}' not found in basin_current"})
+            # Sync to basin_definitions (v0.9.5)
+            source = await memory.get_agent_basin_source(agent_id)
+            if source == "database":
+                await memory.update_basin_definition(
+                    agent_id, basin_name,
+                    {"deprecated": 0, "deprecated_at": None, "deprecation_rationale": None},
+                    modified_by="brain", rationale="Undeprecated basin", override_lock=True,
+                )
             return json.dumps({
                 "status": "restored",
                 "basin": basin.to_dict(),
             })
+
+        # ------------------------------------------------------------------
+        # Basin access control + audit tools (v0.9.5)
+        # ------------------------------------------------------------------
+
+        @self.mcp.tool(description="Lock a basin so body cannot modify it. Brain can still modify with override_lock=True.")
+        async def lock_basin(agent_id: str, basin_name: str, rationale: str) -> str:
+            result = await memory.update_basin_definition(
+                agent_id, basin_name,
+                {"locked_by_brain": 1},
+                modified_by="brain", rationale=rationale, override_lock=True,
+            )
+            if not result:
+                return json.dumps({"error": f"Basin '{basin_name}' not found"})
+            return json.dumps({"status": "locked", "basin_name": basin_name, "rationale": rationale})
+
+        @self.mcp.tool(description="Remove brain lock from a basin, allowing body modifications.")
+        async def unlock_basin(agent_id: str, basin_name: str, rationale: str) -> str:
+            result = await memory.update_basin_definition(
+                agent_id, basin_name,
+                {"locked_by_brain": 0},
+                modified_by="brain", rationale=rationale, override_lock=True,
+            )
+            if not result:
+                return json.dumps({"error": f"Basin '{basin_name}' not found"})
+            return json.dumps({"status": "unlocked", "basin_name": basin_name, "rationale": rationale})
+
+        @self.mcp.tool(description="Set alpha bounds that body must respect. None removes the bound.")
+        async def set_basin_bounds(
+            agent_id: str, basin_name: str,
+            floor: float | None = None, ceiling: float | None = None,
+            rationale: str = "",
+        ) -> str:
+            mods: dict[str, Any] = {}
+            if floor is not None:
+                mods["alpha_floor"] = floor
+            if ceiling is not None:
+                mods["alpha_ceiling"] = ceiling
+            if not mods:
+                return json.dumps({"error": "Must provide floor and/or ceiling"})
+            result = await memory.update_basin_definition(
+                agent_id, basin_name, mods,
+                modified_by="brain", rationale=rationale, override_lock=True,
+            )
+            if not result:
+                return json.dumps({"error": f"Basin '{basin_name}' not found"})
+            return json.dumps({
+                "status": "bounds_set",
+                "basin_name": basin_name,
+                "alpha_floor": result.alpha_floor,
+                "alpha_ceiling": result.alpha_ceiling,
+                "rationale": rationale,
+            })
+
+        @self.mcp.tool(description="Get recent modifications for a specific basin (audit trail).")
+        async def get_basin_history(agent_id: str, basin_name: str, limit: int = 20) -> str:
+            mods = await memory.get_basin_modifications(agent_id, basin_name, limit)
+            return json.dumps([m.to_dict() for m in mods])
 
         # ------------------------------------------------------------------
         # Proposal creation tool

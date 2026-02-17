@@ -52,6 +52,22 @@ class AgentRegistry:
         if config.basins:
             await self.memory.update_current_basins(config.agent_id, config.basins)
 
+        # Seed basin_definitions for new agents (v0.9.5)
+        if config.basins:
+            for basin in config.basins:
+                await self.memory.insert_basin_definition(
+                    agent_id=config.agent_id,
+                    name=basin.name,
+                    basin_class=enum_val(basin.basin_class),
+                    alpha=basin.alpha,
+                    lambda_decay=basin.lambda_,
+                    eta=basin.eta,
+                    tier=basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier),
+                    created_by="import",
+                    rationale="Created with agent",
+                )
+            await self.memory.set_agent_basin_source(config.agent_id, "database")
+
         # Generate bootstrap YAML and write to queue/pending/
         self._write_bootstrap_yaml(config, agent_dir)
 
@@ -225,7 +241,13 @@ class AgentRegistry:
             # Add importable split-schema YAML (primary export artifact)
             from augustus.services.yaml_generator import generate_bootstrap_yaml
 
-            agent.basins = await self.memory.get_current_basins(agent_id) or agent.basins
+            # Use basin_definitions when agent is migrated (v0.9.5+)
+            basin_source = await self.memory.get_agent_basin_source(agent_id)
+            if basin_source == "database":
+                basin_defs = await self.memory.get_basin_definitions(agent_id, include_deprecated=False)
+                agent.basins = [bd.to_basin_config() for bd in basin_defs] if basin_defs else (agent.basins or [])
+            else:
+                agent.basins = await self.memory.get_current_basins(agent_id) or agent.basins
             yaml_content = generate_bootstrap_yaml(agent)
             zf.writestr(f"{agent_id}/{agent_id}.yaml", yaml_content)
 

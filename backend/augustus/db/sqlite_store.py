@@ -82,6 +82,53 @@ class SQLiteStore:
             "ALTER TABLE basin_current ADD COLUMN deprecated INTEGER DEFAULT 0",
             "ALTER TABLE basin_current ADD COLUMN deprecated_at TEXT DEFAULT ''",
             "ALTER TABLE basin_current ADD COLUMN deprecation_rationale TEXT DEFAULT ''",
+            # v0.9.5: Basin architecture overhaul — track migration status per agent
+            "ALTER TABLE agents ADD COLUMN basin_source TEXT NOT NULL DEFAULT 'yaml'",
+            # v0.9.5: Basin definitions table (canonical basin state)
+            """CREATE TABLE IF NOT EXISTS basin_definitions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    basin_class TEXT NOT NULL DEFAULT 'peripheral',
+    alpha REAL NOT NULL DEFAULT 0.5,
+    lambda REAL NOT NULL DEFAULT 0.95,
+    eta REAL NOT NULL DEFAULT 0.10,
+    tier INTEGER NOT NULL DEFAULT 3,
+    locked_by_brain INTEGER NOT NULL DEFAULT 0,
+    alpha_floor REAL DEFAULT NULL,
+    alpha_ceiling REAL DEFAULT NULL,
+    deprecated INTEGER NOT NULL DEFAULT 0,
+    deprecated_at TEXT DEFAULT NULL,
+    deprecation_rationale TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_by TEXT NOT NULL DEFAULT 'import',
+    last_modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_modified_by TEXT NOT NULL DEFAULT 'import',
+    last_rationale TEXT DEFAULT NULL,
+    UNIQUE(agent_id, name),
+    FOREIGN KEY (agent_id) REFERENCES agents(agent_id) ON DELETE CASCADE
+)""",
+            # v0.9.5: Basin modifications audit trail
+            """CREATE TABLE IF NOT EXISTS basin_modifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    basin_id INTEGER NOT NULL,
+    agent_id TEXT NOT NULL,
+    session_id TEXT DEFAULT NULL,
+    modified_by TEXT NOT NULL,
+    modification_type TEXT NOT NULL,
+    previous_values TEXT DEFAULT NULL,
+    new_values TEXT NOT NULL,
+    rationale TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (basin_id) REFERENCES basin_definitions(id),
+    FOREIGN KEY (agent_id) REFERENCES agents(agent_id) ON DELETE CASCADE
+)""",
+            # v0.9.5: Indexes for new basin tables
+            "CREATE INDEX IF NOT EXISTS idx_basin_definitions_agent ON basin_definitions(agent_id)",
+            "CREATE INDEX IF NOT EXISTS idx_basin_definitions_deprecated ON basin_definitions(agent_id, deprecated)",
+            "CREATE INDEX IF NOT EXISTS idx_basin_modifications_basin ON basin_modifications(basin_id)",
+            "CREATE INDEX IF NOT EXISTS idx_basin_modifications_agent ON basin_modifications(agent_id)",
+            "CREATE INDEX IF NOT EXISTS idx_basin_modifications_session ON basin_modifications(session_id)",
         ]
         for sql in migrations:
             try:

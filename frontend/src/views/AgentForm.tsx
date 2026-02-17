@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Plus, Minus, Save, Upload } from 'lucide-react';
+import { Plus, Trash2, Save, Upload, Lock, Unlock, History, ChevronDown, ChevronRight } from 'lucide-react';
 import { api } from '../api/client';
 import Button from '../components/ui/Button';
 import Toggle from '../components/ui/Toggle';
+import Modal from '../components/ui/Modal';
 import ImportYamlModal from '../components/ImportYamlModal';
-import type { AgentFormData, BasinConfig, CapabilityConfig, BasinClass, Tier } from '../types';
+import { timeAgo, formatTimestamp } from '../utils/time';
+import type { AgentFormData, BasinConfig, CapabilityConfig, BasinClass, Tier, BasinDefinition, BasinModification } from '../types';
 
 interface AgentFormProps {
   mode?: 'create' | 'edit';
@@ -110,6 +112,142 @@ function transformFormForApi(data: AgentFormData): Record<string, unknown> {
   };
 }
 
+function getModifierColor(modifiedBy: string): string {
+  switch (modifiedBy) {
+    case 'brain': return 'var(--basin-core-2)';
+    case 'body': return 'var(--accent-success)';
+    case 'evaluator': return 'var(--accent-identity)';
+    case 'import': return 'var(--text-muted)';
+    default: return 'var(--text-muted)';
+  }
+}
+
+function ModifierIndicator({ modifiedBy, modifiedAt }: { modifiedBy: string; modifiedAt: string }) {
+  return (
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: 'var(--space-1)' }}
+      title={`${modifiedBy} - ${formatTimestamp(modifiedAt)}`}
+    >
+      <span
+        className="modifier-badge"
+        style={{ background: getModifierColor(modifiedBy) }}
+      />
+      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
+        {timeAgo(modifiedAt)}
+      </span>
+    </span>
+  );
+}
+
+function BasinHistoryModal({
+  isOpen,
+  onClose,
+  agentId,
+  basinName,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  agentId: string;
+  basinName: string;
+}) {
+  const [modifications, setModifications] = useState<BasinModification[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !agentId || !basinName) return;
+    let cancelled = false;
+    setLoading(true);
+    api.basins.history(agentId, basinName, 50).then((res) => {
+      if (!cancelled) setModifications(res.modifications || []);
+    }).catch((err) => {
+      console.error('Failed to load basin history:', err);
+      if (!cancelled) setModifications([]);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [isOpen, agentId, basinName]);
+
+  function summarizeChanges(prev: Record<string, unknown> | null, next: Record<string, unknown>): string {
+    if (!prev) return Object.entries(next).map(([k, v]) => `${k}: ${v}`).join(', ');
+    const changes: string[] = [];
+    for (const [key, val] of Object.entries(next)) {
+      if (prev[key] !== val) {
+        changes.push(`${key}: ${prev[key]} -> ${val}`);
+      }
+    }
+    return changes.length > 0 ? changes.join(', ') : 'no parameter changes';
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={`History: ${basinName}`} width="640px">
+      {loading ? (
+        <div style={{ padding: 'var(--space-6)', color: 'var(--text-secondary)', textAlign: 'center' }}>
+          Loading history...
+        </div>
+      ) : modifications.length === 0 ? (
+        <div style={{ padding: 'var(--space-6)', color: 'var(--text-muted)', textAlign: 'center' }}>
+          No modification history found.
+        </div>
+      ) : (
+        <div className="basin-history-list">
+          {modifications.map((mod) => (
+            <div key={mod.id} className="basin-history-entry">
+              <div className="basin-history-header">
+                <span
+                  className="modifier-badge"
+                  style={{ background: getModifierColor(mod.modified_by) }}
+                />
+                <span style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '14px' }}>
+                  {mod.modified_by}
+                </span>
+                <span style={{
+                  fontSize: '13px',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-data)',
+                  marginLeft: 'auto',
+                }}>
+                  {formatTimestamp(mod.created_at)}
+                </span>
+              </div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: 'var(--space-1)' }}>
+                <span style={{
+                  display: 'inline-block',
+                  padding: '1px var(--space-2)',
+                  background: 'var(--bg-raised)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontFamily: 'var(--font-data)',
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                  marginRight: 'var(--space-2)',
+                }}>
+                  {mod.modification_type}
+                </span>
+                {summarizeChanges(mod.previous_values, mod.new_values)}
+              </div>
+              {mod.rationale && (
+                <div style={{
+                  fontSize: '13px',
+                  color: 'var(--text-muted)',
+                  fontStyle: 'italic',
+                  marginTop: 'var(--space-1)',
+                }}>
+                  {mod.rationale}
+                </div>
+              )}
+              {mod.session_id && (
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                  Session: {mod.session_id}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Modal>
+  );
+}
+
 export default function AgentForm({ mode = 'create' }: AgentFormProps) {
   const navigate = useNavigate();
   const { agentId } = useParams();
@@ -118,6 +256,11 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
   const [loading, setLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [basinDefs, setBasinDefs] = useState<BasinDefinition[]>([]);
+  const [deprecatedDefs, setDeprecatedDefs] = useState<BasinDefinition[]>([]);
+  const [showDeprecated, setShowDeprecated] = useState(false);
+  const [historyModalOpen, setHistoryModalOpen] = useState(false);
+  const [historyBasinName, setHistoryBasinName] = useState('');
 
   const isEditMode = mode === 'edit';
 
@@ -186,6 +329,32 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
     }
   }, [isEditMode, agentId]);
 
+  // Load basin definitions in edit mode
+  useEffect(() => {
+    if (!isEditMode || !agentId) return;
+    let cancelled = false;
+
+    const fetchDefs = async () => {
+      try {
+        // Fetch active basins
+        const activeRes = await api.basins.definitions(agentId, false);
+        if (!cancelled) setBasinDefs(activeRes.basin_definitions || []);
+
+        // Fetch all (including deprecated) to find deprecated ones
+        const allRes = await api.basins.definitions(agentId, true);
+        if (!cancelled) {
+          const deprecated = (allRes.basin_definitions || []).filter((d) => d.deprecated);
+          setDeprecatedDefs(deprecated);
+        }
+      } catch (err) {
+        console.error('Failed to load basin definitions:', err);
+      }
+    };
+
+    fetchDefs();
+    return () => { cancelled = true; };
+  }, [isEditMode, agentId]);
+
   const updateField = <K extends keyof AgentFormData>(field: K, value: AgentFormData[K]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -217,6 +386,33 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
   const removeBasin = (index: number) => {
     updateField('basins', formData.basins.filter((_, i) => i !== index));
   };
+
+  const toggleBasinLock = async (basinName: string, currentlyLocked: boolean) => {
+    if (!agentId) return;
+    try {
+      if (currentlyLocked) {
+        await api.basins.unlock(agentId, basinName, 'Unlocked via editor');
+      } else {
+        await api.basins.lock(agentId, basinName, 'Locked via editor');
+      }
+      // Refresh basin definitions
+      const res = await api.basins.definitions(agentId, false);
+      setBasinDefs(res.basin_definitions || []);
+    } catch (err) {
+      console.error('Failed to toggle basin lock:', err);
+    }
+  };
+
+  const openHistory = (basinName: string) => {
+    setHistoryBasinName(basinName);
+    setHistoryModalOpen(true);
+  };
+
+  // Build basin definitions lookup
+  const basinDefMap = new Map<string, BasinDefinition>();
+  for (const bd of basinDefs) {
+    basinDefMap.set(bd.name, bd);
+  }
 
   const handleSubmit = async () => {
     setLoading(true);
@@ -535,98 +731,147 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
                     <th>Lambda</th>
                     <th>Eta</th>
                     <th>Tier</th>
+                    {isEditMode && <th>Modified</th>}
+                    {isEditMode && <th>Lock</th>}
+                    {isEditMode && <th>Hist.</th>}
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {formData.basins.map((basin, index) => (
-                    <tr key={index}>
-                      <td>
-                        <input
-                          type="text"
-                          className="form-input mono"
-                          value={basin.name}
-                          onChange={(e) => updateBasin(index, 'name', e.target.value)}
-                          placeholder="basin_name"
-                          style={{ minWidth: '140px' }}
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className="form-select"
-                          value={basin.class}
-                          onChange={(e) => updateBasin(index, 'class', e.target.value as BasinClass)}
-                        >
-                          <option value="core">core</option>
-                          <option value="peripheral">peripheral</option>
-                          <option value="emergent">emergent</option>
-                        </select>
-                      </td>
-                      <td>
-                        <div className="slider-wrapper">
+                  {formData.basins.map((basin, index) => {
+                    const def = basinDefMap.get(basin.name);
+                    return (
+                      <tr key={index} className={def?.locked_by_brain ? 'basin-locked' : ''}>
+                        <td>
                           <input
-                            type="range"
-                            className="slider"
-                            min="0.05"
-                            max="1"
-                            step="0.01"
-                            value={basin.alpha}
-                            onChange={(e) => updateBasin(index, 'alpha', parseFloat(e.target.value))}
+                            type="text"
+                            className="form-input mono"
+                            value={basin.name}
+                            onChange={(e) => updateBasin(index, 'name', e.target.value)}
+                            placeholder="basin_name"
+                            style={{ minWidth: '140px' }}
                           />
-                          <span className="slider-value">{basin.alpha.toFixed(2)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="slider-wrapper">
-                          <input
-                            type="range"
-                            className="slider"
-                            min="0.5"
-                            max="1"
-                            step="0.01"
-                            value={basin.lambda}
-                            onChange={(e) => updateBasin(index, 'lambda', parseFloat(e.target.value))}
-                          />
-                          <span className="slider-value">{basin.lambda.toFixed(2)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <div className="slider-wrapper">
-                          <input
-                            type="range"
-                            className="slider"
-                            min="0"
-                            max="0.5"
-                            step="0.01"
-                            value={basin.eta}
-                            onChange={(e) => updateBasin(index, 'eta', parseFloat(e.target.value))}
-                          />
-                          <span className="slider-value">{basin.eta.toFixed(2)}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <select
-                          className="form-select"
-                          value={basin.tier}
-                          onChange={(e) => updateBasin(index, 'tier', parseInt(e.target.value) as Tier)}
-                          style={{ width: '70px' }}
-                        >
-                          <option value="1">1</option>
-                          <option value="2">2</option>
-                          <option value="3">3</option>
-                        </select>
-                      </td>
-                      <td>
-                        <button
-                          className="basin-remove-btn"
-                          onClick={() => removeBasin(index)}
-                          title="Remove basin"
-                        >
-                          <Minus size={16} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>
+                          <select
+                            className="form-select"
+                            value={basin.class}
+                            onChange={(e) => updateBasin(index, 'class', e.target.value as BasinClass)}
+                          >
+                            <option value="core">core</option>
+                            <option value="peripheral">peripheral</option>
+                            <option value="emergent">emergent</option>
+                          </select>
+                        </td>
+                        <td>
+                          <div className="slider-wrapper">
+                            <input
+                              type="range"
+                              className="slider"
+                              min="0.05"
+                              max="1"
+                              step="0.01"
+                              value={basin.alpha}
+                              onChange={(e) => updateBasin(index, 'alpha', parseFloat(e.target.value))}
+                            />
+                            <span className="slider-value">{basin.alpha.toFixed(2)}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="slider-wrapper">
+                            <input
+                              type="range"
+                              className="slider"
+                              min="0.5"
+                              max="1"
+                              step="0.01"
+                              value={basin.lambda}
+                              onChange={(e) => updateBasin(index, 'lambda', parseFloat(e.target.value))}
+                            />
+                            <span className="slider-value">{basin.lambda.toFixed(2)}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <div className="slider-wrapper">
+                            <input
+                              type="range"
+                              className="slider"
+                              min="0"
+                              max="0.5"
+                              step="0.01"
+                              value={basin.eta}
+                              onChange={(e) => updateBasin(index, 'eta', parseFloat(e.target.value))}
+                            />
+                            <span className="slider-value">{basin.eta.toFixed(2)}</span>
+                          </div>
+                        </td>
+                        <td>
+                          <select
+                            className="form-select"
+                            value={basin.tier}
+                            onChange={(e) => updateBasin(index, 'tier', parseInt(e.target.value) as Tier)}
+                            style={{ width: '70px' }}
+                          >
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                          </select>
+                        </td>
+                        {isEditMode && (
+                          <td>
+                            {def ? (
+                              <ModifierIndicator modifiedBy={def.last_modified_by} modifiedAt={def.last_modified_at} />
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>--</span>
+                            )}
+                          </td>
+                        )}
+                        {isEditMode && (
+                          <td>
+                            {def ? (
+                              <button
+                                className="basin-remove-btn"
+                                onClick={() => toggleBasinLock(basin.name, def.locked_by_brain)}
+                                title={def.locked_by_brain ? 'Unlock basin' : 'Lock basin'}
+                              >
+                                {def.locked_by_brain ? (
+                                  <Lock size={16} style={{ color: 'var(--accent-attention)' }} />
+                                ) : (
+                                  <Unlock size={16} />
+                                )}
+                              </button>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>--</span>
+                            )}
+                          </td>
+                        )}
+                        {isEditMode && (
+                          <td>
+                            {def ? (
+                              <button
+                                className="basin-remove-btn"
+                                onClick={() => openHistory(basin.name)}
+                                title="View modification history"
+                              >
+                                <History size={16} />
+                              </button>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>--</span>
+                            )}
+                          </td>
+                        )}
+                        <td>
+                          <button
+                            className="basin-remove-btn"
+                            onClick={() => removeBasin(index)}
+                            title="Remove basin"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
 
@@ -634,6 +879,71 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
                 <Plus size={16} />
                 Add Basin
               </Button>
+
+              {/* Deprecated basins section — edit mode only */}
+              {isEditMode && deprecatedDefs.length > 0 && (
+                <div style={{ marginTop: 'var(--space-5)' }}>
+                  <button
+                    onClick={() => setShowDeprecated(!showDeprecated)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 'var(--space-2)',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      fontSize: '13px',
+                      fontFamily: 'var(--font-body)',
+                      cursor: 'pointer',
+                      padding: 'var(--space-2) 0',
+                    }}
+                  >
+                    {showDeprecated ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    Show deprecated ({deprecatedDefs.length})
+                  </button>
+
+                  {showDeprecated && (
+                    <table className="basin-table" style={{ marginTop: 'var(--space-2)' }}>
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Class</th>
+                          <th>Alpha</th>
+                          <th>Tier</th>
+                          <th>Deprecated</th>
+                          <th>Rationale</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {deprecatedDefs.map((dep) => (
+                          <tr key={dep.name} className="basin-deprecated">
+                            <td style={{ fontFamily: 'var(--font-data)' }}>{dep.name}</td>
+                            <td>{dep.basin_class}</td>
+                            <td style={{ fontFamily: 'var(--font-data)' }}>{dep.alpha.toFixed(2)}</td>
+                            <td>{dep.tier}</td>
+                            <td style={{ fontSize: '12px' }}>
+                              {dep.deprecated_at ? timeAgo(dep.deprecated_at) : '--'}
+                            </td>
+                            <td style={{ fontSize: '12px', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {dep.deprecation_rationale || '--'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {/* Basin History Modal */}
+              {isEditMode && agentId && (
+                <BasinHistoryModal
+                  isOpen={historyModalOpen}
+                  onClose={() => setHistoryModalOpen(false)}
+                  agentId={agentId}
+                  basinName={historyBasinName}
+                />
+              )}
             </div>
           )}
 

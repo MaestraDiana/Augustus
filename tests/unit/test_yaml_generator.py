@@ -61,12 +61,12 @@ SAMPLE_RELATIONAL_GROUNDING = {
 
 
 class TestSchemaVersion:
-    def test_schema_version_is_0_5(self):
-        """SCHEMA_VERSION should be 0.5."""
-        assert SCHEMA_VERSION == "0.5"
+    def test_schema_version_is_0_6(self):
+        """SCHEMA_VERSION should be 0.6 (bumped in v0.9.5 basin overhaul)."""
+        assert SCHEMA_VERSION == "0.6"
 
     def test_generated_yaml_has_correct_version(self):
-        """Generated YAML should have version 0.5."""
+        """Generated YAML should have version 0.6."""
         output = generate_instruction_yaml(
             agent_id="test",
             session_id="test-001",
@@ -76,7 +76,7 @@ class TestSchemaVersion:
             session_task="test task",
         )
         doc = yaml.safe_load(output)
-        assert doc["framework"]["version"] == "0.5"
+        assert doc["framework"]["version"] == "0.6"
 
 
 # ── Structural Sections ──────────────────────────────────────────────────

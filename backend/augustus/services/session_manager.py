@@ -37,7 +37,7 @@ from augustus.models.enums import CoActivationCharacter, FlagType, ProposalStatu
 from augustus.services.evaluator import EvaluatorService
 from augustus.services.handoff_engine import HandoffEngine, HandoffResult
 from augustus.services.schema_parser import SchemaParser
-from augustus.utils import DEFAULT_CONTINUATION_TASK, flatten_transcript, normalize_model, utcnow_iso
+from augustus.utils import DEFAULT_CONTINUATION_TASK, enum_val, flatten_transcript, normalize_model, utcnow_iso
 
 logger = logging.getLogger(__name__)
 
@@ -1266,6 +1266,33 @@ class SessionManager:
             agent_id, handoff_result.updated_basins
         )
 
+        # Sync updated basins to basin_definitions (v0.9.5)
+        try:
+            source = await self.memory.get_agent_basin_source(agent_id)
+            if source == "database":
+                for basin in handoff_result.updated_basins:
+                    await self.memory.update_basin_definition(
+                        agent_id=agent_id,
+                        basin_name=basin.name,
+                        modifications={
+                            "alpha": basin.alpha,
+                            "lambda": basin.lambda_,
+                            "eta": basin.eta,
+                            "basin_class": enum_val(basin.basin_class),
+                            "tier": basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier),
+                        },
+                        modified_by="body",
+                        rationale="Post-handoff update",
+                        session_id=session_id,
+                        override_lock=True,  # Handoff updates always apply
+                    )
+        except Exception as e:
+            logger.error(
+                "Failed to sync basin_definitions after handoff for "
+                "session %s: %s",
+                session_id, e, exc_info=True,
+            )
+
         # Update co-activation data if available
         if handoff_result.co_activation_updates:
             await self.memory.update_co_activation(
@@ -1537,6 +1564,53 @@ class SessionManager:
                 ) and proposal.proposed_config:
                     await self.memory.apply_approved_proposal(proposal)
                     approved_basins.append(proposal.proposed_config)
+
+                    # Sync to basin_definitions (v0.9.5)
+                    try:
+                        source = await self.memory.get_agent_basin_source(agent_id)
+                        if source == "database":
+                            if proposal.proposal_type == ProposalType.CREATE:
+                                await self.memory.insert_basin_definition(
+                                    agent_id=agent_id,
+                                    name=proposal.proposed_config.name,
+                                    basin_class=enum_val(proposal.proposed_config.basin_class),
+                                    alpha=proposal.proposed_config.alpha,
+                                    lambda_decay=proposal.proposed_config.lambda_,
+                                    eta=proposal.proposed_config.eta,
+                                    tier=proposal.proposed_config.tier.value if hasattr(proposal.proposed_config.tier, "value") else int(proposal.proposed_config.tier),
+                                    created_by="body",
+                                    rationale=proposal.rationale,
+                                )
+                            elif proposal.proposal_type == ProposalType.MODIFY:
+                                await self.memory.update_basin_definition(
+                                    agent_id=agent_id,
+                                    basin_name=proposal.basin_name,
+                                    modifications={
+                                        "basin_class": enum_val(proposal.proposed_config.basin_class),
+                                        "alpha": proposal.proposed_config.alpha,
+                                        "lambda": proposal.proposed_config.lambda_,
+                                        "eta": proposal.proposed_config.eta,
+                                        "tier": proposal.proposed_config.tier.value if hasattr(proposal.proposed_config.tier, "value") else int(proposal.proposed_config.tier),
+                                    },
+                                    modified_by="body",
+                                    rationale=proposal.rationale,
+                                    session_id=session_id,
+                                )
+                            elif proposal.proposal_type == ProposalType.PRUNE:
+                                await self.memory.update_basin_definition(
+                                    agent_id=agent_id,
+                                    basin_name=proposal.basin_name,
+                                    modifications={"deprecated": 1, "deprecated_at": utcnow_iso(), "deprecation_rationale": proposal.rationale},
+                                    modified_by="body",
+                                    rationale=proposal.rationale,
+                                    session_id=session_id,
+                                )
+                    except Exception as e:
+                        logger.error(
+                            "Failed to sync approved proposal to basin_definitions "
+                            "for basin '%s' (agent %s): %s",
+                            proposal.basin_name, agent_id, e, exc_info=True,
+                        )
 
             if result.proposals_created:
                 logger.info(

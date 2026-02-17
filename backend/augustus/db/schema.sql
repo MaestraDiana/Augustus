@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS agents (
     description TEXT DEFAULT '',
     status TEXT DEFAULT 'idle',
     config_json TEXT DEFAULT '{}',
+    basin_source TEXT NOT NULL DEFAULT 'yaml',
     created_at TEXT DEFAULT (datetime('now')),
     last_active TEXT DEFAULT ''
 );
@@ -128,6 +129,47 @@ CREATE TABLE IF NOT EXISTS flags (
     FOREIGN KEY (agent_id) REFERENCES agents(agent_id) ON DELETE CASCADE
 );
 
+-- Basin Definitions (canonical source of truth for basin state)
+CREATE TABLE IF NOT EXISTS basin_definitions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    basin_class TEXT NOT NULL DEFAULT 'peripheral',
+    alpha REAL NOT NULL DEFAULT 0.5,
+    lambda REAL NOT NULL DEFAULT 0.95,
+    eta REAL NOT NULL DEFAULT 0.10,
+    tier INTEGER NOT NULL DEFAULT 3,
+    locked_by_brain INTEGER NOT NULL DEFAULT 0,
+    alpha_floor REAL DEFAULT NULL,
+    alpha_ceiling REAL DEFAULT NULL,
+    deprecated INTEGER NOT NULL DEFAULT 0,
+    deprecated_at TEXT DEFAULT NULL,
+    deprecation_rationale TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    created_by TEXT NOT NULL DEFAULT 'import',
+    last_modified_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_modified_by TEXT NOT NULL DEFAULT 'import',
+    last_rationale TEXT DEFAULT NULL,
+    UNIQUE(agent_id, name),
+    FOREIGN KEY (agent_id) REFERENCES agents(agent_id) ON DELETE CASCADE
+);
+
+-- Basin Modifications (audit trail)
+CREATE TABLE IF NOT EXISTS basin_modifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    basin_id INTEGER NOT NULL,
+    agent_id TEXT NOT NULL,
+    session_id TEXT DEFAULT NULL,
+    modified_by TEXT NOT NULL,
+    modification_type TEXT NOT NULL,
+    previous_values TEXT DEFAULT NULL,
+    new_values TEXT NOT NULL,
+    rationale TEXT DEFAULT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (basin_id) REFERENCES basin_definitions(id),
+    FOREIGN KEY (agent_id) REFERENCES agents(agent_id) ON DELETE CASCADE
+);
+
 -- Co-Activation Log
 CREATE TABLE IF NOT EXISTS co_activation_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -200,6 +242,15 @@ CREATE INDEX IF NOT EXISTS idx_usage_session ON usage(session_id);
 CREATE INDEX IF NOT EXISTS idx_activity_timestamp ON activity_feed(timestamp);
 CREATE INDEX IF NOT EXISTS idx_activity_type ON activity_feed(event_type);
 CREATE INDEX IF NOT EXISTS idx_activity_agent ON activity_feed(agent_id);
+
+-- Basin Definitions
+CREATE INDEX IF NOT EXISTS idx_basin_definitions_agent ON basin_definitions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_basin_definitions_deprecated ON basin_definitions(agent_id, deprecated);
+
+-- Basin Modifications
+CREATE INDEX IF NOT EXISTS idx_basin_modifications_basin ON basin_modifications(basin_id);
+CREATE INDEX IF NOT EXISTS idx_basin_modifications_agent ON basin_modifications(agent_id);
+CREATE INDEX IF NOT EXISTS idx_basin_modifications_session ON basin_modifications(session_id);
 
 -- Co-Activation
 CREATE INDEX IF NOT EXISTS idx_co_activation_agent ON co_activation_log(agent_id);

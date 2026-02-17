@@ -20,6 +20,8 @@ import type {
   AgentOverviewResponse,
   EvaluatorPrompt,
   Annotation,
+  BasinDefinition,
+  BasinModification,
 } from '../types';
 
 const API_BASE = '/api';
@@ -198,5 +200,31 @@ export const api = {
   annotations: {
     create: (agentId: string, data: { content: string; session_id?: string; tags?: string[] }) =>
       post<Annotation>(`/agents/${agentId}/annotations`, data),
+  },
+
+  basins: {
+    definitions: (agentId: string, includeDeprecated = false) =>
+      get<{ basin_definitions: BasinDefinition[] }>(
+        `/agents/${agentId}/basin-definitions?include_deprecated=${includeDeprecated}`
+      ),
+    history: (agentId: string, basinName: string, limit = 20) =>
+      get<{ modifications: BasinModification[] }>(
+        `/agents/${agentId}/basin-definitions/${encodeURIComponent(basinName)}/history?limit=${limit}`
+      ),
+    update: (agentId: string, basinName: string, modifications: Record<string, unknown>, rationale: string) =>
+      put<BasinDefinition>(
+        `/agents/${agentId}/basin-definitions/${encodeURIComponent(basinName)}`,
+        { modifications, rationale }
+      ),
+    lock: (agentId: string, basinName: string, rationale: string) =>
+      post<{ status: string; basin: BasinDefinition }>(
+        `/agents/${agentId}/basin-definitions/${encodeURIComponent(basinName)}/lock`,
+        { rationale }
+      ),
+    unlock: (agentId: string, basinName: string, rationale: string) =>
+      post<{ status: string; basin: BasinDefinition }>(
+        `/agents/${agentId}/basin-definitions/${encodeURIComponent(basinName)}/unlock`,
+        { rationale }
+      ),
   },
 };

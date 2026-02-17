@@ -41,6 +41,95 @@ class BasinConfig:
 
 
 @dataclass
+class BasinDefinition:
+    """Basin definition with access control and audit trail (from basin_definitions table)."""
+    id: int
+    agent_id: str
+    name: str
+    basin_class: BasinClass
+    alpha: float
+    lambda_: float
+    eta: float
+    tier: TierLevel
+    locked_by_brain: bool = False
+    alpha_floor: float | None = None
+    alpha_ceiling: float | None = None
+    deprecated: bool = False
+    deprecated_at: str | None = None
+    deprecation_rationale: str | None = None
+    created_at: str = ""
+    created_by: str = "import"
+    last_modified_at: str = ""
+    last_modified_by: str = "import"
+    last_rationale: str | None = None
+
+    def to_basin_config(self) -> BasinConfig:
+        """Convert to BasinConfig for use in handoff engine and session manager."""
+        return BasinConfig(
+            name=self.name,
+            basin_class=self.basin_class,
+            alpha=self.alpha,
+            lambda_=self.lambda_,
+            eta=self.eta,
+            tier=self.tier,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict."""
+        return {
+            "id": self.id,
+            "agent_id": self.agent_id,
+            "name": self.name,
+            "basin_class": enum_val(self.basin_class),
+            "alpha": self.alpha,
+            "lambda": self.lambda_,
+            "eta": self.eta,
+            "tier": self.tier.value if hasattr(self.tier, "value") else int(self.tier),
+            "locked_by_brain": self.locked_by_brain,
+            "alpha_floor": self.alpha_floor,
+            "alpha_ceiling": self.alpha_ceiling,
+            "deprecated": self.deprecated,
+            "deprecated_at": self.deprecated_at,
+            "deprecation_rationale": self.deprecation_rationale,
+            "created_at": self.created_at,
+            "created_by": self.created_by,
+            "last_modified_at": self.last_modified_at,
+            "last_modified_by": self.last_modified_by,
+            "last_rationale": self.last_rationale,
+        }
+
+
+@dataclass
+class BasinModification:
+    """Audit trail entry for a basin modification (from basin_modifications table)."""
+    id: int
+    basin_id: int
+    agent_id: str
+    session_id: str | None
+    modified_by: str
+    modification_type: str
+    previous_values: dict | None
+    new_values: dict
+    rationale: str | None
+    created_at: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize to JSON-friendly dict."""
+        return {
+            "id": self.id,
+            "basin_id": self.basin_id,
+            "agent_id": self.agent_id,
+            "session_id": self.session_id,
+            "modified_by": self.modified_by,
+            "modification_type": self.modification_type,
+            "previous_values": self.previous_values,
+            "new_values": self.new_values,
+            "rationale": self.rationale,
+            "created_at": self.created_at,
+        }
+
+
+@dataclass
 class CapabilityConfig:
     """Capability configuration with turn-gated availability."""
     name: str

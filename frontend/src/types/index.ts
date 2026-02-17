@@ -390,6 +390,41 @@ export interface ValidateKeyResponse {
   message: string;
 }
 
+export interface BasinDefinition {
+  id: number;
+  agent_id: string;
+  name: string;
+  basin_class: BasinClass;
+  alpha: number;
+  lambda: number;
+  eta: number;
+  tier: Tier;
+  locked_by_brain: boolean;
+  alpha_floor: number | null;
+  alpha_ceiling: number | null;
+  deprecated: boolean;
+  deprecated_at: string | null;
+  deprecation_rationale: string | null;
+  created_at: string;
+  created_by: string;
+  last_modified_at: string;
+  last_modified_by: string;
+  last_rationale: string | null;
+}
+
+export interface BasinModification {
+  id: number;
+  basin_id: number;
+  agent_id: string;
+  session_id: string | null;
+  modified_by: string;
+  modification_type: string;
+  previous_values: Record<string, unknown> | null;
+  new_values: Record<string, unknown>;
+  rationale: string | null;
+  created_at: string;
+}
+
 export interface AgentOverviewResponse {
   agent: {
     agent_id: string;
@@ -445,4 +480,5 @@ export interface AgentOverviewResponse {
     turn_count: number;
     status: string;
   } | null;
+  basin_definitions?: BasinDefinition[];
 }

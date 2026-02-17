@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Edit, ArrowRight } from 'lucide-react';
+import { Edit, ArrowRight, Lock } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import { api } from '../api/client';
-import { formatTimestamp, formatDuration } from '../utils/time';
+import { formatTimestamp, formatDuration, timeAgo } from '../utils/time';
 import { getBasinColor } from '../utils/constants';
-import type { Agent } from '../types';
+import type { Agent, BasinDefinition } from '../types';
 
 interface OverviewBasin {
   name: string;
@@ -36,6 +36,7 @@ interface OverviewData {
     turn_count: number;
     status: string;
   } | null;
+  basin_definitions?: BasinDefinition[];
 }
 
 interface RecentSession {
@@ -57,6 +58,26 @@ function getBasinEmphasis(alpha: number): 'high' | 'medium' | 'low' {
 
 function getTrendIcon() {
   return <ArrowRight size={16} className="basin-trend stable" />;
+}
+
+function getModifierColor(modifiedBy: string): string {
+  switch (modifiedBy) {
+    case 'brain': return 'var(--basin-core-2)';
+    case 'body': return 'var(--accent-success)';
+    case 'evaluator': return 'var(--accent-identity)';
+    case 'import': return 'var(--text-muted)';
+    default: return 'var(--text-muted)';
+  }
+}
+
+function ModifierBadge({ modifiedBy, modifiedAt }: { modifiedBy: string; modifiedAt: string }) {
+  return (
+    <span
+      className="modifier-badge"
+      title={`${modifiedBy} - ${timeAgo(modifiedAt)}`}
+      style={{ background: getModifierColor(modifiedBy) }}
+    />
+  );
 }
 
 export default function AgentOverview() {
@@ -123,6 +144,7 @@ export default function AgentOverview() {
     );
   }
 
+  const basinDefs = overview?.basin_definitions;
   const basins = overview?.current_basins ?? agent.basins.map((b) => ({
     name: b.name,
     basin_class: b.class,
@@ -131,6 +153,14 @@ export default function AgentOverview() {
     eta: b.eta,
     tier: b.tier,
   }));
+
+  // Build a lookup from basin_definitions keyed by name
+  const basinDefMap = new Map<string, BasinDefinition>();
+  if (basinDefs) {
+    for (const bd of basinDefs) {
+      basinDefMap.set(bd.name, bd);
+    }
+  }
 
   const sessionCount = overview?.session_count ?? 0;
   const lastSession = overview?.last_session ?? null;
@@ -211,11 +241,22 @@ export default function AgentOverview() {
                   const basinClass = basin.basin_class || 'peripheral';
                   const basinTier = basin.tier || 3;
                   const color = getBasinColor(idx);
+                  const def = basinDefMap.get(basin.name);
+                  const isDeprecated = def?.deprecated ?? false;
+                  const isLocked = def?.locked_by_brain ?? false;
 
                   return (
-                    <div key={basin.name} className="basin-item" data-emphasis={getBasinEmphasis(basin.alpha)}>
+                    <div
+                      key={basin.name}
+                      className={`basin-item${isDeprecated ? ' basin-deprecated' : ''}${isLocked ? ' basin-locked' : ''}`}
+                      data-emphasis={isDeprecated ? undefined : getBasinEmphasis(basin.alpha)}
+                      title={def?.last_rationale || undefined}
+                    >
                       <div className="basin-main">
                         <div className="basin-header">
+                          {isLocked && (
+                            <Lock size={14} style={{ color: 'var(--accent-attention)', flexShrink: 0 }} />
+                          )}
                           <span className="basin-name">{basin.name}</span>
                           <Badge variant={basinClass === 'core' ? 'active' : 'paused'}>
                             {basinClass}
@@ -223,6 +264,9 @@ export default function AgentOverview() {
                           <Badge variant={basinTier === 2 ? 'tier-2' : 'tier-3'}>
                             Tier {basinTier}
                           </Badge>
+                          {def && (
+                            <ModifierBadge modifiedBy={def.last_modified_by} modifiedAt={def.last_modified_at} />
+                          )}
                         </div>
                         <div className="basin-alpha-row">
                           <span className="basin-alpha-value">{basin.alpha.toFixed(2)}</span>
@@ -240,11 +284,11 @@ export default function AgentOverview() {
                       </div>
                       <div className="basin-params">
                         <div className="basin-param">
-                          <span className="basin-param-label">λ</span>
+                          <span className="basin-param-label">{'\u03BB'}</span>
                           <span className="basin-param-value">{basin.lambda.toFixed(2)}</span>
                         </div>
                         <div className="basin-param">
-                          <span className="basin-param-label">η</span>
+                          <span className="basin-param-label">{'\u03B7'}</span>
                           <span className="basin-param-value">{basin.eta.toFixed(2)}</span>
                         </div>
                       </div>

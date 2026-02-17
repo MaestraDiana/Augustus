@@ -375,21 +375,35 @@ class Orchestrator:
             logger.info("AGENT LOOP EXIT: %s", agent_id)
 
     async def _reconcile_basins(self, agent_id: str, instruction):
-        """Ensure all basins in basin_current appear in the instruction.
+        """Ensure all canonical basins appear in the instruction.
 
         The YAML file that produced *instruction* may have been written before
-        a tier-proposal was approved — so the canonical basin_current table in
-        the DB can contain basins that the parsed YAML knows nothing about.
+        a tier-proposal was approved — so the canonical basin source (either
+        basin_definitions or basin_current) can contain basins that the parsed
+        YAML knows nothing about.
 
-        This method reads basin_current, compares against
-        ``instruction.framework.basin_params``, and injects any missing
-        basins so they participate in the full pipeline: evaluator scoring,
-        handoff decay/boost, snapshot storage, and next-YAML generation.
+        This method ensures basin_definitions is migrated (v0.9.5), then reads
+        from basin_definitions as the canonical source.  It compares against
+        ``instruction.framework.basin_params`` and injects any missing basins
+        so they participate in the full pipeline: evaluator scoring, handoff
+        decay/boost, snapshot storage, and next-YAML generation.
+
+        Falls back to basin_current if basin_definitions yields no results.
 
         Returns the (possibly mutated) instruction.
         """
         try:
-            canonical_basins = await self.memory.get_current_basins(agent_id)
+            # Ensure basin_definitions is populated (v0.9.5 migration)
+            await self.memory.ensure_basin_migration(agent_id)
+
+            # Read from basin_definitions as canonical source
+            basin_defs = await self.memory.get_basin_definitions(agent_id)
+            if basin_defs:
+                canonical_basins = [bd.to_basin_config() for bd in basin_defs]
+            else:
+                # Fallback to basin_current for backward compatibility
+                canonical_basins = await self.memory.get_current_basins(agent_id)
+
             if not canonical_basins:
                 return instruction
 
@@ -403,7 +417,7 @@ class Orchestrator:
             if injected:
                 logger.info(
                     "RECONCILE BASINS: %s — injected %d basin(s) from "
-                    "basin_current into instruction: %s",
+                    "basin_definitions into instruction: %s",
                     agent_id, len(injected), ", ".join(injected),
                 )
         except Exception as e:
@@ -432,7 +446,15 @@ class Orchestrator:
                 yaml_content = generate_bootstrap_yaml(agent)
             else:
                 # Has history — write continuation
-                basins = await self.memory.get_current_basins(agent_id)
+                # Ensure basin_definitions is populated (v0.9.5 migration)
+                await self.memory.ensure_basin_migration(agent_id)
+
+                # Read from basin_definitions as canonical source
+                basin_defs = await self.memory.get_basin_definitions(agent_id)
+                basins = [bd.to_basin_config() for bd in basin_defs]
+                if not basins:
+                    # Fallback to basin_current, then agent config
+                    basins = await self.memory.get_current_basins(agent_id)
                 if not basins:
                     basins = agent.basins or []
 

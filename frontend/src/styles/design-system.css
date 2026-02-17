@@ -702,6 +702,55 @@
   font-family: var(--font-data); font-size: 13px; color: var(--text-secondary);
 }
 
+/* Basin locked state */
+.basin-item.basin-locked {
+  background: rgba(212, 145, 93, 0.06);
+}
+tr.basin-locked {
+  background: rgba(212, 145, 93, 0.06);
+}
+
+/* Basin deprecated state */
+.basin-item.basin-deprecated {
+  opacity: 0.5;
+}
+.basin-item.basin-deprecated .basin-name {
+  font-style: italic;
+  color: var(--text-muted);
+}
+tr.basin-deprecated td {
+  color: var(--text-muted);
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* Modifier badge — small colored circle indicating who last modified */
+.modifier-badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Basin history modal list */
+.basin-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.basin-history-entry {
+  padding: var(--space-3);
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--border-color);
+}
+.basin-history-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 /* Recent sessions table */
 .sessions-table { width: 100%; border-collapse: collapse; }
 .sessions-table th {

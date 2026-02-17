@@ -1579,6 +1579,9 @@ class MemoryService:
         self, agent_id: str, query: str, n_results: int = 5
     ) -> list[SearchResult]:
         """Semantic search across session transcripts and close reports for an agent."""
+        # Refresh ChromaDB to see annotations written by the MCP server process
+        await self.refresh_chroma()
+
         results: list[SearchResult] = []
 
         # Search transcripts
@@ -1806,11 +1809,18 @@ class MemoryService:
 
         When query is None, returns recent entries from both collections.
         When query is provided, performs semantic search across both.
+
+        Annotations may be written by the MCP server (a separate process),
+        so we refresh ChromaDB to pick up cross-process writes and also
+        merge SQLite annotation results to guard against indexing lag.
         """
+        # Refresh ChromaDB to see annotations written by the MCP server process
+        await self.refresh_chroma()
+
         results: list[SearchResult] = []
 
         if query:
-            # Semantic search across both collections
+            # Semantic search across both ChromaDB collections
             for collection, content_type in [
                 ("annotations", "annotation"),
                 ("emergent_observations", "emergence"),
@@ -1830,6 +1840,32 @@ class MemoryService:
                     )
                 except Exception as e:
                     logger.warning("Observation search (%s) failed: %s", collection, e)
+
+            # Also merge SQLite annotations as fallback — ChromaDB indexing
+            # from another process may lag even after refresh.
+            chroma_ann_ids = {
+                r.snippet[:100] for r in results if r.content_type == "annotation"
+            }
+            sqlite_annotations = await self.get_annotations(agent_id)
+            for ann in sqlite_annotations:
+                snippet = ann.content[:300]
+                if len(ann.content) > 300:
+                    snippet += "..."
+                # Avoid duplicating annotations already found via ChromaDB
+                if snippet[:100] in chroma_ann_ids:
+                    continue
+                # Simple keyword match for SQLite fallback
+                if query.lower() in ann.content.lower():
+                    results.append(
+                        SearchResult(
+                            content_type="annotation",
+                            agent_id=agent_id,
+                            session_id=ann.session_id or "",
+                            snippet=snippet,
+                            relevance_score=0.7,  # reasonable default for keyword match
+                            timestamp=ann.created_at,
+                        )
+                    )
         else:
             # No query — return recent annotations from SQLite + emergence from ChromaDB
             annotations = await self.get_annotations(agent_id)

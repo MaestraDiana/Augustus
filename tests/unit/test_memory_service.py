@@ -465,3 +465,86 @@ async def test_system_alerts(memory_service):
     alerts = await memory_service.get_system_alerts()
     assert len(alerts) > 0
     assert any(a["type"] == "unreviewed_flags" for a in alerts)
+
+
+# ------------------------------------------------------------------
+# Observation retrieval (cross-process annotation visibility)
+# ------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_search_observations_finds_annotations_with_query(memory_service):
+    """search_observations with a query should return matching annotations."""
+    ann = Annotation(
+        annotation_id="ann-search-1",
+        agent_id="test-agent",
+        session_id="s1",
+        content="STANDING PROTOCOL - Brain/Body Timing coordination",
+        tags=["protocol"],
+    )
+    await memory_service.store_annotation(ann)
+
+    results = await memory_service.search_observations(
+        "test-agent", query="brain body timing", n_results=10
+    )
+    annotation_results = [r for r in results if r.content_type == "annotation"]
+    assert len(annotation_results) >= 1
+    assert "STANDING PROTOCOL" in annotation_results[0].snippet
+
+
+@pytest.mark.asyncio
+async def test_search_observations_finds_annotations_without_session_id(memory_service):
+    """Annotations without session_id should still be retrievable."""
+    ann = Annotation(
+        annotation_id="ann-no-sid",
+        agent_id="test-agent",
+        session_id=None,
+        content="Brain response to session 013 artifact - What It's Like",
+        tags=["brain-response"],
+    )
+    await memory_service.store_annotation(ann)
+
+    results = await memory_service.search_observations(
+        "test-agent", query="session 013", n_results=10
+    )
+    annotation_results = [r for r in results if r.content_type == "annotation"]
+    assert len(annotation_results) >= 1
+    assert "session 013" in annotation_results[0].snippet.lower()
+
+
+@pytest.mark.asyncio
+async def test_search_observations_no_query_returns_annotations(memory_service):
+    """search_observations without a query should return recent annotations from SQLite."""
+    ann = Annotation(
+        annotation_id="ann-recent",
+        agent_id="test-agent",
+        session_id=None,
+        content="Recent brain observation about emergence patterns",
+        tags=[],
+    )
+    await memory_service.store_annotation(ann)
+
+    results = await memory_service.search_observations("test-agent", query=None)
+    annotation_results = [r for r in results if r.content_type == "annotation"]
+    assert len(annotation_results) >= 1
+    assert "emergence patterns" in annotation_results[0].snippet
+
+
+@pytest.mark.asyncio
+async def test_search_observations_sqlite_fallback_on_keyword_match(memory_service):
+    """SQLite fallback should find annotations by keyword even if ChromaDB misses them."""
+    ann = Annotation(
+        annotation_id="ann-fallback",
+        agent_id="test-agent",
+        session_id=None,
+        content="XYZZY-UNIQUE-TOKEN protocol note for the body",
+        tags=[],
+    )
+    await memory_service.store_annotation(ann)
+
+    results = await memory_service.search_observations(
+        "test-agent", query="XYZZY-UNIQUE-TOKEN", n_results=10
+    )
+    annotation_results = [r for r in results if r.content_type == "annotation"]
+    assert len(annotation_results) >= 1
+    assert "XYZZY-UNIQUE-TOKEN" in annotation_results[0].snippet

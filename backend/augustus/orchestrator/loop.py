@@ -352,6 +352,31 @@ class Orchestrator:
                         agent_id, session_id, e, exc_info=True,
                     )
                     await queue.fail_session(session_id, str(e))
+
+                    # Surface the failure to the frontend via activity feed + SSE
+                    try:
+                        from augustus.models.dataclasses import ActivityEvent as AE
+                        import uuid as _uuid
+                        error_msg = str(e)
+                        if len(error_msg) > 200:
+                            error_msg = error_msg[:200] + "…"
+                        await self.memory.log_activity(AE(
+                            event_id=f"evt-{_uuid.uuid4().hex[:12]}",
+                            event_type="session_failed",
+                            agent_id=agent_id,
+                            session_id=session_id,
+                            detail=f"Session {session_id} failed: {error_msg}",
+                            timestamp=utcnow_iso(),
+                        ))
+                        await self.memory.emit_event(
+                            "session_failed", agent_id,
+                            {"session_id": session_id, "error": error_msg},
+                        )
+                    except Exception as alert_err:
+                        logger.error(
+                            "AGENT LOOP: %s — failed to emit session_failed alert: %s",
+                            agent_id, alert_err,
+                        )
                 finally:
                     self._active_sessions.pop(agent_id, None)
                     # Always update last_active, even on error — the agent

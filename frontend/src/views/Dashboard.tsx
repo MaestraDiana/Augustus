@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { LineChart, Line } from 'recharts';
 import {
@@ -21,6 +21,7 @@ import EmptyState from '../components/ui/EmptyState';
 import { api } from '../api/client';
 import { timeAgo } from '../utils/time';
 import { getAgentColor, DEFAULT_MODEL } from '../utils/constants';
+import { useDataEvents } from '../hooks/useEventStream';
 import type { Agent, ActivityEvent, SystemAlert, BasinClass } from '../types';
 
 interface TrajectoryResponse {
@@ -343,6 +344,8 @@ const AlertItem: React.FC<{ alert: SystemAlert }> = ({ alert }) => {
         return agentId ? `/agents/${agentId}/flags` : null;
       case 'agent_errors':
         return agentId ? `/agents/${agentId}` : '/agents';
+      case 'session_failed':
+        return agentId ? `/agents/${agentId}/sessions` : '/agents';
       case 'budget_warning':
         return '/usage';
       default:
@@ -382,6 +385,26 @@ export default function Dashboard() {
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [_error, setError] = useState<string | null>(null);
+
+  const refreshAlerts = useCallback(() => {
+    api.activity.alerts()
+      .then(data => setAlerts(data as SystemAlert[]))
+      .catch(() => {});
+    api.activity.feed(20)
+      .then(data => setActivity(data))
+      .catch(() => {});
+  }, []);
+
+  // Auto-refresh alerts + activity when real-time events arrive via SSE
+  useDataEvents(
+    [
+      'session_failed',
+      'flag_resolved', 'flag_created',
+      'proposal_resolved', 'proposal_created',
+      'basin_updated',
+    ],
+    refreshAlerts,
+  );
 
   useEffect(() => {
     let cancelled = false;

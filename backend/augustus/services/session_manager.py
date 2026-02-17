@@ -1257,11 +1257,31 @@ class SessionManager:
                     }
                 )
             elif block.type == "web_search_tool_result":
+                # block.content contains Anthropic SDK Pydantic objects
+                # (WebSearchResultBlock) that are not JSON-serializable.
+                # Convert them to plain dicts for transcript storage.
+                raw_content = getattr(block, "content", [])
+                if isinstance(raw_content, list):
+                    serialized = []
+                    for item in raw_content:
+                        if hasattr(item, "model_dump"):
+                            serialized.append(item.model_dump())
+                        elif hasattr(item, "dict"):
+                            serialized.append(item.dict())
+                        elif isinstance(item, dict):
+                            serialized.append(item)
+                        else:
+                            serialized.append({"type": "unknown", "text": str(item)})
+                    content = serialized
+                elif isinstance(raw_content, dict):
+                    content = raw_content
+                else:
+                    content = str(raw_content)
                 assistant_content.append(
                     {
                         "type": "web_search_tool_result",
                         "tool_use_id": getattr(block, "tool_use_id", ""),
-                        "content": getattr(block, "content", []),
+                        "content": content,
                     }
                 )
             else:

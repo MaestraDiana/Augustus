@@ -2873,6 +2873,38 @@ class MemoryService:
                 }
             )
 
+        # Check for recent session failures (last 24 hours)
+        session_fail_sql = """
+            SELECT COUNT(*) as count,
+                   MIN(agent_id) as first_agent,
+                   MAX(detail) as last_detail
+            FROM activity_feed
+            WHERE event_type = 'session_failed'
+              AND timestamp >= ?
+        """
+        fail_cutoff = (
+            datetime.now(timezone.utc) - timedelta(hours=24)
+        ).strftime("%Y-%m-%d %H:%M:%S")
+        fail_row = await self._run_sync(
+            self.sqlite.fetch_one, session_fail_sql, (fail_cutoff,)
+        )
+        if fail_row and fail_row["count"] > 0:
+            count = fail_row["count"]
+            detail = fail_row.get("last_detail", "")
+            alerts.append(
+                {
+                    "type": "session_failed",
+                    "severity": "error",
+                    "message": (
+                        f"{count} session failure(s) in the last 24 hours"
+                        if count > 1
+                        else "Session failure in the last 24 hours"
+                    ),
+                    "detail": detail or "Check session logs for details.",
+                    "agent_id": fail_row.get("first_agent", ""),
+                }
+            )
+
         # Check daily budget usage
         today_start = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0

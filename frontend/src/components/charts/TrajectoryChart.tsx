@@ -56,21 +56,22 @@ export default function TrajectoryChart({
     return map;
   }, [basinNames]);
 
-  // Group snapshots by session
-  const sessionGroups = trajectoryData.reduce((acc, snapshot) => {
-    if (!acc[snapshot.session_id]) {
-      acc[snapshot.session_id] = {
+  // Group snapshots by session, preserving backend chronological order.
+  // The backend returns snapshots ordered by session start_time ASC, so
+  // we track insertion order rather than attempting to parse timestamps.
+  const sessionOrder: string[] = [];
+  const sessionGroups: Record<string, any> = {};
+  for (const snapshot of trajectoryData) {
+    if (!sessionGroups[snapshot.session_id]) {
+      sessionGroups[snapshot.session_id] = {
         session_id: snapshot.session_id,
-        timestamp: snapshot.timestamp,
       };
+      sessionOrder.push(snapshot.session_id);
     }
-    acc[snapshot.session_id][snapshot.basin_name] = snapshot.alpha;
-    return acc;
-  }, {} as Record<string, any>);
+    sessionGroups[snapshot.session_id][snapshot.basin_name] = snapshot.alpha;
+  }
 
-  const chartData = Object.values(sessionGroups).sort(
-    (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-  );
+  const chartData = sessionOrder.map(sid => sessionGroups[sid]);
 
   // Detect emergence points: the first session where each basin has data,
   // but only if it's NOT the very first session in the chart (those aren't emergent).
@@ -134,9 +135,14 @@ export default function TrajectoryChart({
               tickLine={{ stroke: 'var(--border-color)' }}
               axisLine={{ stroke: 'var(--border-color)' }}
               tickFormatter={(sid: string) => {
-                // Extract session number from IDs like "slon-003-20260215-225348"
-                const match = sid.match(/(\d{3,})/);
-                return match ? `Session ${match[1]}` : sid;
+                // Extract session number from IDs like "qlaude-015-20260215-225348".
+                // The session number is the first short digit group (typically 3 digits)
+                // after the agent name prefix, NOT the 8-digit date or 6-digit time.
+                const match = sid.match(/-(\d{2,4})-\d{8}/);
+                if (match) return `Session ${match[1]}`;
+                // Fallback: first 3-digit group that isn't 8+ digits (date)
+                const fallback = sid.match(/(?<!\d)(\d{2,4})(?!\d)/);
+                return fallback ? `Session ${fallback[1]}` : sid;
               }}
               angle={-45}
               textAnchor="end"

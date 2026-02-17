@@ -137,24 +137,39 @@ export default function TrajectoryDashboard() {
         setBasins(agentData.basins);
         setVisibleBasins(new Set(agentData.basins.map(b => b.name)));
 
-        // Transform backend trajectory response to flat BasinSnapshot array
-        const snapshots: BasinSnapshot[] = [];
+        // Transform backend trajectory response to flat BasinSnapshot array.
+        // Backend returns per-basin points already in chronological order.
+        // We interleave them into session-ordered sequence so the chart
+        // receives snapshots grouped by session in the correct time order.
+        const pointsBySession: Record<string, BasinSnapshot[]> = {};
+        const sessionOrderSet: string[] = [];
         if (trajectories.trajectories) {
           for (const [basinName, basinData] of Object.entries(trajectories.trajectories)) {
             const typedBasinData = basinData as any;
             if (typedBasinData.points) {
               for (const point of typedBasinData.points) {
-                snapshots.push({
+                const sid = point.session_id as string;
+                if (!pointsBySession[sid]) {
+                  pointsBySession[sid] = [];
+                  sessionOrderSet.push(sid);
+                }
+                pointsBySession[sid].push({
                   basin_name: basinName,
                   alpha: point.alpha_end,
                   relevance_score: point.relevance_score,
                   delta: point.delta,
-                  session_id: point.session_id,
-                  timestamp: point.session_id, // Backend doesn't include timestamp in trajectory points
+                  session_id: sid,
+                  timestamp: sid,
                 });
               }
             }
           }
+        }
+        // Flatten in session order so all basins for session N appear
+        // before any basins for session N+1.
+        const snapshots: BasinSnapshot[] = [];
+        for (const sid of sessionOrderSet) {
+          snapshots.push(...pointsBySession[sid]);
         }
         setTrajectoryData(snapshots);
 
@@ -183,10 +198,9 @@ export default function TrajectoryDashboard() {
     fetchData();
   }, [agentId, timeRange]);
 
-  // Filter trajectory data by time range
-  const filteredData = timeRange === 'all'
-    ? trajectoryData
-    : trajectoryData.slice(-timeRange * 5); // 5 data points per session
+  // The backend already filters to n_sessions via the API query parameter,
+  // so no client-side slicing is needed. Pass the full dataset through.
+  const filteredData = trajectoryData;
 
   const handleBasinClick = (basinName: string) => {
     setSelectedBasin(basinName);

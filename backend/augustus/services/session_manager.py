@@ -41,6 +41,59 @@ from augustus.utils import DEFAULT_CONTINUATION_TASK, enum_val, flatten_transcri
 
 logger = logging.getLogger(__name__)
 
+# ── Transmission hygiene ─────────────────────────────────────────────────
+# Instruction YAML sections (identity_core, session_task, close_protocol)
+# are operational text, not creative artifacts.  Unicode typography serves
+# no purpose in them and actively causes problems: Claude models sometimes
+# produce mojibake when echoing Unicode punctuation through tool_use JSON.
+# These helpers normalise at the capture boundary so corruption never enters
+# the session lineage.
+
+# Map of Unicode typography → ASCII equivalents for instruction sections.
+_TYPOGRAPHY_MAP: dict[str, str] = {
+    "\u2014": "--",   # em-dash  —
+    "\u2013": "-",    # en-dash  –
+    "\u2018": "'",    # left single curly quote  '
+    "\u2019": "'",    # right single curly quote '
+    "\u201c": '"',    # left double curly quote  "
+    "\u201d": '"',    # right double curly quote "
+    "\u2026": "...",  # horizontal ellipsis …
+    "\u00a0": " ",    # non-breaking space
+}
+
+
+def _normalize_to_ascii(text: str) -> str:
+    """Normalize Unicode typography to ASCII equivalents.
+
+    Applied to instruction YAML sections (identity_core, session_task,
+    close_protocol) at the capture boundary — before the body's output is
+    stored in the session lineage.  This is transmission hygiene, not
+    semantic modification: a double-hyphen serves the same intent as an
+    em-dash in operational text.
+    """
+    for unicode_char, ascii_equiv in _TYPOGRAPHY_MAP.items():
+        text = text.replace(unicode_char, ascii_equiv)
+    return text
+
+
+def _repair_mojibake(text: str) -> str:
+    """Repair UTF-8 → Latin-1 double-encoding artifacts.
+
+    When Claude generates mojibake (e.g. ``â€"`` instead of ``—``), the
+    text contains Latin-1 codepoints that are actually UTF-8 byte values.
+    Re-encoding as Latin-1 and decoding as UTF-8 recovers the original
+    characters, which are then ASCII-normalised.
+
+    Falls through silently if the text is not mojibake.
+    """
+    try:
+        repaired = text.encode("latin-1").decode("utf-8")
+        # If decode succeeded, the text was mojibake — normalise the
+        # recovered Unicode characters to ASCII as well.
+        return _normalize_to_ascii(repaired)
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return text
+
 
 class SessionManager:
     """Execute multi-turn Claude sessions via the Anthropic API.
@@ -992,11 +1045,15 @@ class SessionManager:
         filename = tool_input.get("filename", f"session-{session_id}")
 
         # Check for structured input (preferred path)
+        # Normalise at the capture boundary: repair any mojibake first,
+        # then flatten Unicode typography to ASCII so the corruption
+        # never enters the session lineage.
         structured_sections: dict[str, str] = {}
         for key in ("identity_core", "session_task", "close_protocol"):
             val = tool_input.get(key)
             if val is not None and str(val).strip():
-                structured_sections[key] = str(val)
+                clean = _repair_mojibake(str(val))
+                structured_sections[key] = _normalize_to_ascii(clean)
 
         try:
             if structured_sections:
@@ -1024,8 +1081,11 @@ class SessionManager:
                 )
 
             # Extract only agent-writable sections (ignore any framework etc.)
+            # Apply mojibake repair + ASCII normalisation to catch the legacy
+            # raw-content path (structured path was already cleaned above).
             parsed_sections = {
-                k: str(v) for k, v in data.items()
+                k: _normalize_to_ascii(_repair_mojibake(str(v)))
+                for k, v in data.items()
                 if k in allowed_keys and v is not None
             }
 
@@ -1858,24 +1918,39 @@ class SessionManager:
             # Determine session number from completed session count
             session_number = await self.memory.count_sessions(agent_id) + 1
 
-            # Resolve next-session content: agent-written YAML wins over defaults
+            # Resolve next-session content: agent-written YAML wins over defaults.
+            # Apply mojibake repair + ASCII normalisation as a fallback for
+            # content already corrupted in the current lineage.  The primary
+            # defence is in _tool_write_yaml (catches it at capture); this
+            # second pass catches corruption inherited from older handoffs
+            # that pre-date the fix.
             if agent_written_yaml:
-                next_identity_core = agent_written_yaml.get(
-                    "identity_core", instruction.identity_core
-                )
-                next_task = agent_written_yaml.get(
-                    "session_task", DEFAULT_CONTINUATION_TASK
-                )
+                next_identity_core = _normalize_to_ascii(_repair_mojibake(
+                    agent_written_yaml.get(
+                        "identity_core", instruction.identity_core
+                    )
+                ))
+                next_task = _normalize_to_ascii(_repair_mojibake(
+                    agent_written_yaml.get(
+                        "session_task", DEFAULT_CONTINUATION_TASK
+                    )
+                ))
                 next_close_protocol = agent_written_yaml.get(
                     "close_protocol", None
                 )
+                if isinstance(next_close_protocol, str):
+                    next_close_protocol = _normalize_to_ascii(
+                        _repair_mojibake(next_close_protocol)
+                    )
                 logger.info(
                     "Using agent-written YAML for next session of %s (sections: %s)",
                     agent_id,
                     list(agent_written_yaml.keys()),
                 )
             else:
-                next_identity_core = instruction.identity_core
+                next_identity_core = _normalize_to_ascii(_repair_mojibake(
+                    instruction.identity_core
+                ))
                 next_task = DEFAULT_CONTINUATION_TASK
                 next_close_protocol = None
                 logger.info(

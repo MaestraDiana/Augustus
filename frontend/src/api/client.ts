@@ -198,6 +198,7 @@ export const api = {
   },
 
   annotations: {
+    list: (agentId: string) => get<Annotation[]>(`/agents/${agentId}/annotations`),
     create: (agentId: string, data: { content: string; session_id?: string; tags?: string[] }) =>
       post<Annotation>(`/agents/${agentId}/annotations`, data),
   },

@@ -1,7 +1,8 @@
 import { useState, useMemo } from 'react';
-import { ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea } from 'recharts';
+import { ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, Customized } from 'recharts';
 import { BasinSnapshot } from '../../types';
 import { BASIN_COLOR_HEX } from '../../utils/constants';
+import type { SessionEventInfo, SessionEventsMap } from '../../views/TrajectoryDashboard';
 
 /** Simple string hash → positive integer. */
 function hashName(name: string): number {
@@ -12,6 +13,132 @@ function hashName(name: string): number {
   return Math.abs(h);
 }
 
+/** Marker colors for each event type. */
+const MARKER_COLORS: Record<string, string> = {
+  flag: '#e05252',       // alert red
+  annotation: '#5b9fd6', // info blue
+  proposal: '#a87fd4',   // accent purple
+};
+
+/** Marker shapes rendered as SVG paths centered at (0, 0). */
+function MarkerShape({ type, x, y, size = 5 }: { type: string; x: number; y: number; size?: number }) {
+  const color = MARKER_COLORS[type] || '#888';
+  if (type === 'flag') {
+    // Diamond
+    return (
+      <polygon
+        points={`${x},${y - size} ${x + size},${y} ${x},${y + size} ${x - size},${y}`}
+        fill={color}
+        stroke="var(--bg-base)"
+        strokeWidth={1}
+      />
+    );
+  }
+  if (type === 'annotation') {
+    // Circle
+    return <circle cx={x} cy={y} r={size - 1} fill={color} stroke="var(--bg-base)" strokeWidth={1} />;
+  }
+  // Proposal: square
+  const half = size - 1;
+  return (
+    <rect
+      x={x - half}
+      y={y - half}
+      width={half * 2}
+      height={half * 2}
+      fill={color}
+      stroke="var(--bg-base)"
+      strokeWidth={1}
+      rx={1}
+    />
+  );
+}
+
+interface MarkerLaneProps {
+  formattedGraphicalItems?: any[];
+  xAxisMap?: any;
+  yAxisMap?: any;
+  offset?: any;
+  sessionEvents: SessionEventsMap;
+  showFlags: boolean;
+  showAnnotations: boolean;
+  showProposals: boolean;
+  chartData: Array<Record<string, any>>;
+  hoveredMarkerSession: string | null;
+  onMarkerHover: (sessionId: string | null, events?: SessionEventInfo[]) => void;
+}
+
+/** Renders event markers in a lane at y=0.02 (bottom of chart). */
+function MarkerLane({
+  xAxisMap,
+  sessionEvents,
+  showFlags,
+  showAnnotations,
+  showProposals,
+  chartData,
+  hoveredMarkerSession,
+  onMarkerHover,
+}: MarkerLaneProps) {
+  if (!xAxisMap) return null;
+  const xAxis = Object.values(xAxisMap)[0] as any;
+  if (!xAxis || !xAxis.scale) return null;
+
+  const markers: JSX.Element[] = [];
+  const MARKER_Y_BASE = 12; // pixels from top of chart area (within the top margin)
+
+  for (let i = 0; i < chartData.length; i++) {
+    const sid = chartData[i].session_id;
+    const events = sessionEvents[sid];
+    if (!events || events.length === 0) continue;
+
+    // Filter by toggle state
+    const visible = events.filter(e =>
+      (e.type === 'flag' && showFlags) ||
+      (e.type === 'annotation' && showAnnotations) ||
+      (e.type === 'proposal' && showProposals)
+    );
+    if (visible.length === 0) continue;
+
+    const x = xAxis.scale(sid) + (xAxis.bandSize ? xAxis.bandSize / 2 : 0);
+    if (typeof x !== 'number' || isNaN(x)) continue;
+
+    // Deduplicate types for this session
+    const types = [...new Set(visible.map(e => e.type))];
+    const isHovered = hoveredMarkerSession === sid;
+    const totalWidth = types.length * 12;
+    const startX = x - totalWidth / 2 + 6;
+
+    markers.push(
+      <g
+        key={`marker-group-${sid}`}
+        style={{ cursor: 'pointer' }}
+        onMouseEnter={() => onMarkerHover(sid, visible)}
+        onMouseLeave={() => onMarkerHover(null)}
+      >
+        {/* Invisible hit area */}
+        <rect
+          x={startX - 6}
+          y={MARKER_Y_BASE - 8}
+          width={totalWidth + 4}
+          height={16}
+          fill="transparent"
+        />
+        {types.map((type, idx) => (
+          <MarkerShape
+            key={`${sid}-${type}`}
+            type={type}
+            x={startX + idx * 12}
+            y={MARKER_Y_BASE}
+            size={isHovered ? 7 : 5}
+          />
+        ))}
+      </g>
+    );
+  }
+
+  return <g className="marker-lane">{markers}</g>;
+}
+
 interface TrajectoryChartProps {
   basinNames: string[];
   trajectoryData: BasinSnapshot[];
@@ -20,6 +147,7 @@ interface TrajectoryChartProps {
   showFlags?: boolean;
   showAnnotations?: boolean;
   showProposals?: boolean;
+  sessionEvents?: SessionEventsMap;
   onMarkerClick?: (sessionId: string, type: 'flag' | 'annotation' | 'proposal') => void;
 }
 
@@ -28,25 +156,23 @@ export default function TrajectoryChart({
   trajectoryData,
   visibleBasins,
   onBasinClick,
-  showFlags: _showFlags = true,
-  showAnnotations: _showAnnotations = true,
-  showProposals: _showProposals = true,
+  showFlags = true,
+  showAnnotations = true,
+  showProposals = true,
+  sessionEvents = {},
   onMarkerClick: _onMarkerClick,
 }: TrajectoryChartProps) {
   const [hoveredBasin, setHoveredBasin] = useState<string | null>(null);
+  const [hoveredMarkerSession, setHoveredMarkerSession] = useState<string | null>(null);
+  const [hoveredMarkerEvents, setHoveredMarkerEvents] = useState<SessionEventInfo[]>([]);
 
   // Build a stable name→hex color map for every basin in this chart.
-  // Uses deterministic hashing so the same basin name always gets the
-  // same color, but also avoids collisions within a single chart by
-  // assigning sequentially when hashes collide.
   const colorMap = useMemo(() => {
     const map: Record<string, string> = {};
     const usedIndices = new Set<number>();
 
     for (const name of basinNames) {
       let idx = hashName(name) % BASIN_COLOR_HEX.length;
-      // If this index is already taken by another basin in the chart,
-      // walk forward to find the next unused slot.
       while (usedIndices.has(idx)) {
         idx = (idx + 1) % BASIN_COLOR_HEX.length;
       }
@@ -57,8 +183,6 @@ export default function TrajectoryChart({
   }, [basinNames]);
 
   // Group snapshots by session, preserving backend chronological order.
-  // The backend returns snapshots ordered by session start_time ASC, so
-  // we track insertion order rather than attempting to parse timestamps.
   const sessionOrder: string[] = [];
   const sessionGroups: Record<string, any> = {};
   for (const snapshot of trajectoryData) {
@@ -73,14 +197,28 @@ export default function TrajectoryChart({
 
   const chartData = sessionOrder.map(sid => sessionGroups[sid]);
 
-  // Detect emergence points: the first session where each basin has data,
-  // but only if it's NOT the very first session in the chart (those aren't emergent).
+  // Check if there are any visible session events
+  const hasEvents = useMemo(() => {
+    for (const sid of sessionOrder) {
+      const events = sessionEvents[sid];
+      if (!events) continue;
+      for (const e of events) {
+        if ((e.type === 'flag' && showFlags) ||
+            (e.type === 'annotation' && showAnnotations) ||
+            (e.type === 'proposal' && showProposals)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [sessionOrder, sessionEvents, showFlags, showAnnotations, showProposals]);
+
+  // Detect emergence points
   const emergenceIndices = useMemo(() => {
     const map: Record<string, number> = {};
     for (const basinName of basinNames) {
       for (let i = 0; i < chartData.length; i++) {
         if (chartData[i][basinName] !== undefined) {
-          // Only mark as emergence if it doesn't start at session 0
           if (i > 0) map[basinName] = i;
           break;
         }
@@ -89,13 +227,26 @@ export default function TrajectoryChart({
     return map;
   }, [basinNames, chartData]);
 
+  const handleMarkerHover = (sessionId: string | null, events?: SessionEventInfo[]) => {
+    setHoveredMarkerSession(sessionId);
+    setHoveredMarkerEvents(events || []);
+  };
+
   // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload || payload.length === 0) return null;
 
+    const sid = payload[0].payload.session_id;
+    const events = sessionEvents[sid] || [];
+    const visibleEvents = events.filter(e =>
+      (e.type === 'flag' && showFlags) ||
+      (e.type === 'annotation' && showAnnotations) ||
+      (e.type === 'proposal' && showProposals)
+    );
+
     return (
       <div className="chart-tooltip visible">
-        <div className="tooltip-header">{payload[0].payload.session_id}</div>
+        <div className="tooltip-header">{sid}</div>
         <div className="tooltip-values">
           {payload
             .filter((p: any) => visibleBasins.has(p.dataKey))
@@ -110,6 +261,19 @@ export default function TrajectoryChart({
               </div>
             ))}
         </div>
+        {visibleEvents.length > 0 && (
+          <div className="tooltip-events">
+            {visibleEvents.map(e => (
+              <div key={e.id} className="tooltip-event-row">
+                <span
+                  className="tooltip-event-dot"
+                  style={{ background: MARKER_COLORS[e.type] }}
+                />
+                <span className="tooltip-event-text">{e.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -118,13 +282,13 @@ export default function TrajectoryChart({
     <div className="chart-wrapper">
       <div className="chart-area">
         <ResponsiveContainer width="100%" height={460}>
-          <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
+          <ComposedChart data={chartData} margin={{ top: hasEvents ? 28 : 20, right: 30, left: 10, bottom: 5 }}>
             {/* Full chart background */}
             <ReferenceArea y1={0} y2={1} fill="var(--chart-bg)" fillOpacity={1} />
 
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" />
 
-            {/* Emphasis bands — layered over base background */}
+            {/* Emphasis bands */}
             <ReferenceArea y1={0.8} y2={1.0} fill="var(--emphasis-band-high)" fillOpacity={1} />
             <ReferenceArea y1={0.6} y2={0.8} fill="var(--emphasis-band-mid)" fillOpacity={1} />
             <ReferenceArea y1={0.4} y2={0.6} fill="var(--emphasis-band-low)" fillOpacity={1} />
@@ -135,12 +299,8 @@ export default function TrajectoryChart({
               tickLine={{ stroke: 'var(--border-color)' }}
               axisLine={{ stroke: 'var(--border-color)' }}
               tickFormatter={(sid: string) => {
-                // Extract session number from IDs like "qlaude-015-20260215-225348".
-                // The session number is the first short digit group (typically 3 digits)
-                // after the agent name prefix, NOT the 8-digit date or 6-digit time.
                 const match = sid.match(/-(\d{2,4})-\d{8}/);
                 if (match) return `Session ${match[1]}`;
-                // Fallback: first 3-digit group that isn't 8+ digits (date)
                 const fallback = sid.match(/(?<!\d)(\d{2,4})(?!\d)/);
                 return fallback ? `Session ${fallback[1]}` : sid;
               }}
@@ -195,6 +355,24 @@ export default function TrajectoryChart({
                 />
               );
             })}
+
+            {/* Event marker lane — rendered in the chart's top margin area */}
+            {hasEvents && (
+              <Customized
+                component={(props: any) => (
+                  <MarkerLane
+                    {...props}
+                    sessionEvents={sessionEvents}
+                    showFlags={showFlags}
+                    showAnnotations={showAnnotations}
+                    showProposals={showProposals}
+                    chartData={chartData}
+                    hoveredMarkerSession={hoveredMarkerSession}
+                    onMarkerHover={handleMarkerHover}
+                  />
+                )}
+              />
+            )}
           </ComposedChart>
         </ResponsiveContainer>
 
@@ -205,6 +383,19 @@ export default function TrajectoryChart({
           <div className="emphasis-label">Low</div>
         </div>
       </div>
+
+      {/* Marker tooltip (positioned above chart when hovering markers) */}
+      {hoveredMarkerSession && hoveredMarkerEvents.length > 0 && (
+        <div className="marker-tooltip">
+          {hoveredMarkerEvents.map(e => (
+            <div key={e.id} className="marker-tooltip-row">
+              <span className="marker-tooltip-dot" style={{ background: MARKER_COLORS[e.type] }} />
+              <span className="marker-tooltip-type">{e.type}</span>
+              <span className="marker-tooltip-detail">{e.detail}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Legend */}
       <div className="chart-legend">

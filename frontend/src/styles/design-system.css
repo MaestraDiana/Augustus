@@ -883,6 +883,76 @@ tr.basin-deprecated td {
   font-family: var(--font-data); font-weight: 500; color: var(--text-primary);
 }
 
+/* Tooltip event section (shown when hovering chart data points with events) */
+.tooltip-events {
+  margin-top: var(--space-2); padding-top: var(--space-2);
+  border-top: 1px solid var(--border-color);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.tooltip-event-row {
+  display: flex; align-items: center; gap: var(--space-2); font-size: 12px;
+}
+.tooltip-event-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.tooltip-event-text {
+  color: var(--text-muted); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis; max-width: 200px;
+}
+
+/* Marker tooltip (positioned above chart when hovering event markers) */
+.marker-tooltip {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  background: var(--bg-raised); border: 1px solid var(--border-color);
+  border-radius: var(--radius-md); padding: var(--space-2) var(--space-3);
+  box-shadow: var(--shadow-dropdown); z-index: 100;
+  display: flex; flex-direction: column; gap: 2px;
+  max-width: 360px; pointer-events: none;
+}
+.marker-tooltip-row {
+  display: flex; align-items: center; gap: var(--space-2); font-size: 12px;
+}
+.marker-tooltip-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+}
+.marker-tooltip-type {
+  font-weight: 600; color: var(--text-secondary); text-transform: capitalize;
+  flex-shrink: 0;
+}
+.marker-tooltip-detail {
+  color: var(--text-muted); white-space: nowrap; overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Marker toggle checkboxes */
+.marker-toggles {
+  display: flex; align-items: center; gap: var(--space-3);
+}
+.marker-toggle {
+  display: flex; align-items: center; gap: var(--space-1);
+  font-size: 13px; color: var(--text-secondary); cursor: pointer;
+  user-select: none;
+}
+.marker-toggle input[type="checkbox"] {
+  position: absolute; opacity: 0; width: 0; height: 0;
+}
+.marker-toggle-box {
+  width: 16px; height: 16px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color); background: var(--bg-surface);
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition-color);
+}
+.marker-toggle-box svg {
+  width: 10px; height: 10px; color: transparent;
+  transition: color var(--transition-color);
+}
+.marker-toggle input[type="checkbox"]:checked + .marker-toggle-box {
+  background: var(--accent-primary); border-color: var(--accent-primary);
+}
+.marker-toggle input[type="checkbox"]:checked + .marker-toggle-box svg {
+  color: var(--bg-base);
+}
+
 /* Convergence detection panel */
 .convergence-panel {
   background: var(--bg-surface); border: 1px solid var(--border-color);

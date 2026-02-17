@@ -6,7 +6,7 @@ import TrajectoryChart from '../components/charts/TrajectoryChart';
 import BasinDrawer from '../components/charts/BasinDrawer';
 import EmptyState from '../components/ui/EmptyState';
 import LoadingSkeleton from '../components/ui/LoadingSkeleton';
-import type { BasinConfig, BasinSnapshot } from '../types';
+import type { BasinConfig, BasinSnapshot, FlagRecord, TierProposal, Annotation } from '../types';
 
 interface ConvergencePair {
   basin_a: string;
@@ -100,6 +100,15 @@ function detectConvergences(
 
 type TimeRange = 10 | 25 | 50 | 100 | 'all';
 
+export interface SessionEventInfo {
+  type: 'flag' | 'annotation' | 'proposal';
+  detail: string;
+  id: string;
+}
+
+/** Map from session_id to array of events at that session. */
+export type SessionEventsMap = Record<string, SessionEventInfo[]>;
+
 export default function TrajectoryDashboard() {
   const { agentId } = useParams<{ agentId: string }>();
   const [timeRange, setTimeRange] = useState<TimeRange>(25);
@@ -113,6 +122,7 @@ export default function TrajectoryDashboard() {
   const [showAnnotations, setShowAnnotations] = useState(true);
   const [showProposals, setShowProposals] = useState(true);
   const [selectedBasin, setSelectedBasin] = useState<string | null>(null);
+  const [sessionEvents, setSessionEvents] = useState<SessionEventsMap>({});
 
   useEffect(() => {
     if (!agentId) return;
@@ -188,6 +198,47 @@ export default function TrajectoryDashboard() {
           }
         }
         setCoActivation(coactivationMap);
+
+        // Fetch session events (flags, annotations, proposals) for markers.
+        // These are non-critical — failures don't block the view.
+        const eventsMap: SessionEventsMap = {};
+        try {
+          const [flags, annotations, proposals] = await Promise.all([
+            api.flags.list(agentId).catch(() => [] as FlagRecord[]),
+            api.annotations.list(agentId).catch(() => [] as Annotation[]),
+            api.proposals.list(agentId).catch(() => [] as TierProposal[]),
+          ]);
+          for (const f of flags) {
+            if (!f.session_id) continue;
+            if (!eventsMap[f.session_id]) eventsMap[f.session_id] = [];
+            eventsMap[f.session_id].push({
+              type: 'flag',
+              detail: `${f.flag_type}: ${f.detail?.slice(0, 120) || 'No detail'}`,
+              id: f.flag_id,
+            });
+          }
+          for (const a of annotations) {
+            if (!a.session_id) continue;
+            if (!eventsMap[a.session_id]) eventsMap[a.session_id] = [];
+            eventsMap[a.session_id].push({
+              type: 'annotation',
+              detail: a.content?.slice(0, 120) || 'Annotation',
+              id: a.annotation_id,
+            });
+          }
+          for (const p of proposals) {
+            if (!p.session_id) continue;
+            if (!eventsMap[p.session_id]) eventsMap[p.session_id] = [];
+            eventsMap[p.session_id].push({
+              type: 'proposal',
+              detail: `${p.proposal_type} ${p.basin_name}: ${p.rationale?.slice(0, 100) || 'No rationale'}`,
+              id: p.proposal_id,
+            });
+          }
+        } catch (err) {
+          console.warn('Failed to load session events:', err);
+        }
+        setSessionEvents(eventsMap);
       } catch (err) {
         console.error('Failed to load trajectory data:', err);
         setError(err instanceof Error ? err.message : 'Failed to load trajectory data');
@@ -350,6 +401,7 @@ export default function TrajectoryDashboard() {
         showFlags={showFlags}
         showAnnotations={showAnnotations}
         showProposals={showProposals}
+        sessionEvents={sessionEvents}
       />
 
       {/* Convergence Detection */}

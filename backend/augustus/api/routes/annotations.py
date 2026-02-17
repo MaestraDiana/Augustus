@@ -23,6 +23,27 @@ class CreateAnnotationRequest(BaseModel):
     tags: list[str] = []
 
 
+@router.get("/annotations")
+async def list_annotations(
+    agent_id: str,
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> list[dict]:
+    """List all annotations for an agent."""
+    annotations = await memory.get_annotations(agent_id)
+    return [
+        {
+            "annotation_id": a.annotation_id,
+            "agent_id": a.agent_id,
+            "session_id": a.session_id,
+            "content": a.content,
+            "tags": a.tags,
+            "created_at": a.created_at,
+        }
+        for a in annotations
+    ]
+
+
 @router.post("/annotations", status_code=201)
 async def create_annotation(
     agent_id: str,

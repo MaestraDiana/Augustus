@@ -261,3 +261,15 @@ CREATE INDEX IF NOT EXISTS idx_evaluator_outputs_session ON evaluator_outputs(se
 
 -- Evaluator Prompts
 CREATE INDEX IF NOT EXISTS idx_evaluator_prompts_active ON evaluator_prompts(is_active);
+
+-- Event Bus (cross-process notifications for real-time frontend updates)
+CREATE TABLE IF NOT EXISTS event_bus (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    agent_id TEXT DEFAULT '',
+    payload TEXT DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_event_bus_id ON event_bus(id);
+CREATE INDEX IF NOT EXISTS idx_event_bus_created ON event_bus(created_at);

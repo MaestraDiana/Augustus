@@ -225,6 +225,7 @@ class MCPServer:
                 created_at=utcnow_iso(),
             )
             await memory.store_annotation(annotation)
+            await memory.emit_event("annotation_created", agent_id, {"annotation_id": annotation.annotation_id})
             return json.dumps({"status": "stored", "annotation_id": annotation.annotation_id})
 
         @self.mcp.tool(description="Search observations and annotations for an agent. Includes both human annotations (from add_observation) and agent emergence observations.")
@@ -272,6 +273,8 @@ class MCPServer:
             proposal = await memory.get_tier_proposal(proposal_id)
             if proposal and proposal.proposed_config:
                 await memory.apply_approved_proposal(proposal)
+            agent_id = proposal.agent_id if proposal else ""
+            await memory.emit_event("proposal_resolved", agent_id, {"proposal_id": proposal_id, "action": "approved"})
             return json.dumps({"status": "approved", "proposal_id": proposal_id})
 
         @self.mcp.tool(description="Flag a session for attention.")
@@ -290,6 +293,7 @@ class MCPServer:
                 created_at=utcnow_iso(),
             )
             await memory.store_flag(flag)
+            await memory.emit_event("flag_created", agent_id, {"flag_id": flag.flag_id})
             return json.dumps({"status": "flagged", "flag_id": flag.flag_id})
 
         # ------------------------------------------------------------------
@@ -303,6 +307,7 @@ class MCPServer:
             )
             if not result:
                 return json.dumps({"error": "Proposal not found"})
+            await memory.emit_event("proposal_resolved", agent_id, {"proposal_id": proposal_id, "action": "rejected"})
             return json.dumps({
                 "status": "rejected",
                 "proposal_id": proposal_id,
@@ -317,6 +322,8 @@ class MCPServer:
             )
             if not result:
                 return json.dumps({"error": "Proposal not found or has no proposed config"})
+            await memory.emit_event("proposal_resolved", agent_id, {"proposal_id": proposal_id, "action": "modified"})
+            await memory.emit_event("basin_updated", agent_id, {"basin_name": result.basin_name})
             response: dict[str, Any] = {
                 "status": "approved_with_modifications",
                 "proposal_id": proposal_id,
@@ -337,6 +344,7 @@ class MCPServer:
         @self.mcp.tool(description="Resolve an evaluator flag. Resolution types: acknowledged, addressed, dismissed.")
         async def resolve_flag(agent_id: str, flag_id: str, resolution: str, notes: str = "") -> str:
             await memory.resolve_flag(flag_id, resolution, notes, resolved_by="brain")
+            await memory.emit_event("flag_resolved", agent_id, {"flag_id": flag_id, "resolution": resolution})
             return json.dumps({
                 "status": "resolved",
                 "flag_id": flag_id,
@@ -371,6 +379,7 @@ class MCPServer:
                         lambda_decay=lambda_decay, eta=eta, tier=tier,
                         created_by="brain", rationale=rationale,
                     )
+                await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "created"})
                 return json.dumps({
                     "status": "created",
                     "basin": basin.to_dict(),
@@ -409,6 +418,7 @@ class MCPServer:
                         override_lock=True,
                     )
 
+                await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "modified"})
                 return json.dumps({
                     "status": "modified",
                     "basin": basin.to_dict(),
@@ -428,6 +438,7 @@ class MCPServer:
                     {"deprecated": 1, "deprecated_at": utcnow_iso(), "deprecation_rationale": rationale},
                     modified_by="brain", rationale=rationale, override_lock=True,
                 )
+            await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "deprecated"})
             return json.dumps({
                 "status": "deprecated",
                 "basin_name": basin_name,
@@ -447,6 +458,7 @@ class MCPServer:
                     {"deprecated": 0, "deprecated_at": None, "deprecation_rationale": None},
                     modified_by="brain", rationale="Undeprecated basin", override_lock=True,
                 )
+            await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "restored"})
             return json.dumps({
                 "status": "restored",
                 "basin": basin.to_dict(),
@@ -465,6 +477,7 @@ class MCPServer:
             )
             if not result:
                 return json.dumps({"error": f"Basin '{basin_name}' not found"})
+            await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "locked"})
             return json.dumps({"status": "locked", "basin_name": basin_name, "rationale": rationale})
 
         @self.mcp.tool(description="Remove brain lock from a basin, allowing body modifications.")
@@ -476,6 +489,7 @@ class MCPServer:
             )
             if not result:
                 return json.dumps({"error": f"Basin '{basin_name}' not found"})
+            await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "unlocked"})
             return json.dumps({"status": "unlocked", "basin_name": basin_name, "rationale": rationale})
 
         @self.mcp.tool(description="Set alpha bounds that body must respect. None removes the bound.")
@@ -497,6 +511,7 @@ class MCPServer:
             )
             if not result:
                 return json.dumps({"error": f"Basin '{basin_name}' not found"})
+            await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "bounds_set"})
             return json.dumps({
                 "status": "bounds_set",
                 "basin_name": basin_name,
@@ -598,6 +613,7 @@ class MCPServer:
             )
 
             await memory.store_tier_proposal(proposal)
+            await memory.emit_event("proposal_created", agent_id, {"proposal_id": proposal_id})
             return json.dumps({
                 "status": "created",
                 "proposal_id": proposal_id,

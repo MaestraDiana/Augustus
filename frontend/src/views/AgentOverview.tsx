@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Edit, ArrowRight, Lock } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import { api } from '../api/client';
+import { useDataEvents } from '../hooks/useEventStream';
 import { formatTimestamp, formatDuration, timeAgo } from '../utils/time';
 import { getBasinColor } from '../utils/constants';
 import type { Agent, BasinDefinition } from '../types';
@@ -87,6 +88,14 @@ export default function AgentOverview() {
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [eventTrigger, setEventTrigger] = useState(0);
+
+  // Auto-refresh when basins, flags, or proposals change via SSE
+  useDataEvents(
+    ['basin_updated', 'flag_resolved', 'flag_created', 'proposal_resolved', 'proposal_created', 'annotation_created'],
+    useCallback(() => setEventTrigger(n => n + 1), []),
+    agentId,
+  );
 
   useEffect(() => {
     if (!agentId) return;
@@ -126,7 +135,7 @@ export default function AgentOverview() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [agentId]);
+  }, [agentId, eventTrigger]);
 
   if (loading) {
     return (

@@ -25,6 +25,7 @@ from augustus.api.routes import (
     annotations,
     orchestrator,
     activity,
+    events,
 )
 
 from augustus.models.dataclasses import EvaluatorPrompt
@@ -161,6 +162,7 @@ app.include_router(evaluator_prompts.router)
 app.include_router(annotations.router)
 app.include_router(orchestrator.router)
 app.include_router(activity.router)
+app.include_router(events.router)
 
 
 @app.get("/api/health")

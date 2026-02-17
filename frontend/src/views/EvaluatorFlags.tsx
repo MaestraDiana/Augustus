@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import { useAgentBadges } from '../hooks/useAgentBadges';
+import { useDataEvents } from '../hooks/useEventStream';
 import { formatDate } from '../utils/time';
 import { toggleSetItem } from '../utils/collections';
 import { FlagRecord, FlagType } from '../types';
@@ -26,6 +27,9 @@ export default function EvaluatorFlags() {
     () => api.flags.list(agentId!),
     [agentId],
   );
+
+  // Auto-refresh when flags are resolved or created externally (e.g. via MCP)
+  useDataEvents(['flag_resolved', 'flag_created'], refetch, agentId);
 
   const flags = data ?? [];
 

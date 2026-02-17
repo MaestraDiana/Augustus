@@ -129,6 +129,16 @@ class SQLiteStore:
             "CREATE INDEX IF NOT EXISTS idx_basin_modifications_basin ON basin_modifications(basin_id)",
             "CREATE INDEX IF NOT EXISTS idx_basin_modifications_agent ON basin_modifications(agent_id)",
             "CREATE INDEX IF NOT EXISTS idx_basin_modifications_session ON basin_modifications(session_id)",
+            # v0.9.6: Event bus for cross-process real-time notifications
+            """CREATE TABLE IF NOT EXISTS event_bus (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_type TEXT NOT NULL,
+    agent_id TEXT DEFAULT '',
+    payload TEXT DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)""",
+            "CREATE INDEX IF NOT EXISTS idx_event_bus_id ON event_bus(id)",
+            "CREATE INDEX IF NOT EXISTS idx_event_bus_created ON event_bus(created_at)",
         ]
         for sql in migrations:
             try:

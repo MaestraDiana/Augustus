@@ -637,6 +637,7 @@ async def deprecate_basin(
 ) -> dict:
     """Soft-deprecate a basin. Preserves history but excludes from future sessions."""
     await memory.deprecate_basin(agent_id, body.basin_name, body.rationale)
+    await memory.emit_event("basin_updated", agent_id, {"basin_name": body.basin_name, "action": "deprecated"})
     return {
         "status": "deprecated",
         "basin_name": body.basin_name,
@@ -658,6 +659,7 @@ async def undeprecate_basin(
             status_code=404,
             detail=f"Basin '{basin_name}' not found in basin_current for agent '{agent_id}'",
         )
+    await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "restored"})
     return {
         "status": "restored",
         "basin": basin.to_dict(),
@@ -711,6 +713,7 @@ async def update_basin_definition(
     )
     if not result:
         raise HTTPException(status_code=404, detail=f"Basin '{basin_name}' not found")
+    await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "modified"})
     return result.to_dict()
 
 
@@ -731,6 +734,7 @@ async def lock_basin(
     )
     if not result:
         raise HTTPException(status_code=404, detail=f"Basin '{basin_name}' not found")
+    await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "locked"})
     return {"status": "locked", "basin": result.to_dict()}
 
 
@@ -751,4 +755,5 @@ async def unlock_basin(
     )
     if not result:
         raise HTTPException(status_code=404, detail=f"Basin '{basin_name}' not found")
+    await memory.emit_event("basin_updated", agent_id, {"basin_name": basin_name, "action": "unlocked"})
     return {"status": "unlocked", "basin": result.to_dict()}

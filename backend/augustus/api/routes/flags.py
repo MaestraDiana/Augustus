@@ -52,6 +52,7 @@ async def review_flag(
     """Mark an evaluator flag as reviewed."""
     note = body.note if body else ""
     await memory.update_flag_review(flag_id, reviewed=True, note=note, reviewed_by="human")
+    await memory.emit_event("flag_resolved", agent_id, {"flag_id": flag_id, "action": "reviewed"})
     return {"flag_id": flag_id, "reviewed": True, "review_note": note}
 
 
@@ -65,6 +66,7 @@ async def resolve_flag(
 ) -> dict:
     """Resolve a flag with resolution type and notes."""
     await memory.resolve_flag(flag_id, body.resolution, body.notes, resolved_by="human")
+    await memory.emit_event("flag_resolved", agent_id, {"flag_id": flag_id, "resolution": body.resolution})
     return {
         "flag_id": flag_id,
         "resolution": body.resolution,

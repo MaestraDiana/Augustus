@@ -86,6 +86,36 @@ class MemoryService:
         return utcnow_iso()
 
     # ------------------------------------------------------------------
+    # Event bus (cross-process real-time notifications)
+    # ------------------------------------------------------------------
+
+    async def emit_event(self, event_type: str, agent_id: str = "", payload: dict | None = None) -> None:
+        """Write an event to the event_bus table for SSE consumers."""
+        await self._run_sync(
+            self.sqlite.execute,
+            "INSERT INTO event_bus (event_type, agent_id, payload, created_at) VALUES (?, ?, ?, ?)",
+            (event_type, agent_id, json.dumps(payload or {}), self._now()),
+        )
+
+    async def poll_events(self, after_id: int = 0) -> list[dict]:
+        """Fetch events with id > after_id."""
+        rows = await self._run_sync(
+            self.sqlite.fetch_all,
+            "SELECT id, event_type, agent_id, payload, created_at FROM event_bus WHERE id > ? ORDER BY id",
+            (after_id,),
+        )
+        return rows
+
+    async def prune_events(self, keep_seconds: int = 300) -> None:
+        """Delete events older than keep_seconds."""
+        cutoff = (datetime.now(timezone.utc) - timedelta(seconds=keep_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+        await self._run_sync(
+            self.sqlite.execute,
+            "DELETE FROM event_bus WHERE created_at < ?",
+            (cutoff,),
+        )
+
+    # ------------------------------------------------------------------
     # Session lifecycle
     # ------------------------------------------------------------------
 

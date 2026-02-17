@@ -63,6 +63,7 @@ async def create_annotation(
     )
 
     await memory.store_annotation(annotation)
+    await memory.emit_event("annotation_created", agent_id, {"annotation_id": annotation_id})
 
     return {
         "annotation_id": annotation_id,

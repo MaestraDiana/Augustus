@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import { useAgentBadges } from '../hooks/useAgentBadges';
+import { useDataEvents } from '../hooks/useEventStream';
 import { formatDate } from '../utils/time';
 import { toggleSetItem } from '../utils/collections';
 import type { TierProposal } from '../types';
@@ -24,6 +25,9 @@ export default function TierProposals() {
     () => api.proposals.list(agentId!) as Promise<TierProposalWithTier[]>,
     [agentId],
   );
+
+  // Auto-refresh when proposals change externally (e.g. via MCP)
+  useDataEvents(['proposal_resolved', 'proposal_created'], refetch, agentId);
 
   const proposals = data ?? [];
 

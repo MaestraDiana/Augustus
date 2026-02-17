@@ -58,6 +58,8 @@ async def approve_proposal(
 ) -> dict:
     """Approve a pending tier proposal."""
     await enforcer.approve_proposal(proposal_id)
+    memory = enforcer.memory
+    await memory.emit_event("proposal_resolved", agent_id, {"proposal_id": proposal_id, "action": "approved"})
     return {"proposal_id": proposal_id, "status": "approved", "resolved_by": "human"}
 
 
@@ -72,6 +74,8 @@ async def reject_proposal(
     """Reject a pending tier proposal."""
     rationale = body.rationale if body else ""
     await enforcer.reject_proposal(proposal_id, rationale)
+    memory = enforcer.memory
+    await memory.emit_event("proposal_resolved", agent_id, {"proposal_id": proposal_id, "action": "rejected"})
     return {"proposal_id": proposal_id, "status": "rejected", "resolved_by": "human"}
 
 
@@ -85,6 +89,8 @@ async def modify_proposal(
 ) -> dict:
     """Approve a proposal with modified parameters."""
     await enforcer.modify_proposal(proposal_id, body.modifications, body.rationale)
+    memory = enforcer.memory
+    await memory.emit_event("proposal_resolved", agent_id, {"proposal_id": proposal_id, "action": "modified"})
     return {
         "proposal_id": proposal_id,
         "status": "approved_with_modifications",
@@ -168,6 +174,7 @@ async def create_proposal(
         proposed_config=proposed_config,
     )
     await memory.store_tier_proposal(proposal)
+    await memory.emit_event("proposal_created", agent_id, {"proposal_id": proposal_id})
 
     return {
         "proposal_id": proposal_id,

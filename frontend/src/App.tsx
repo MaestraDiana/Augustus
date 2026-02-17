@@ -14,9 +14,11 @@ import Search from './views/Search';
 import Usage from './views/Usage';
 import Settings from './views/Settings';
 import EvaluatorPromptManager from './views/EvaluatorPromptManager';
+import { EventStreamProvider } from './hooks/useEventStream';
 
 function App() {
   return (
+    <EventStreamProvider>
     <BrowserRouter>
       <Routes>
         <Route element={<Shell />}>
@@ -38,6 +40,7 @@ function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </EventStreamProvider>
   );
 }
 

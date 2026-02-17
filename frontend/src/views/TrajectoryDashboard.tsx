@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Check, BarChart3, GitMerge } from 'lucide-react';
 import { api } from '../api/client';
+import { useDataEvents } from '../hooks/useEventStream';
 import TrajectoryChart from '../components/charts/TrajectoryChart';
 import BasinDrawer from '../components/charts/BasinDrawer';
 import EmptyState from '../components/ui/EmptyState';
@@ -123,6 +124,14 @@ export default function TrajectoryDashboard() {
   const [showProposals, setShowProposals] = useState(true);
   const [selectedBasin, setSelectedBasin] = useState<string | null>(null);
   const [sessionEvents, setSessionEvents] = useState<SessionEventsMap>({});
+  const [eventTrigger, setEventTrigger] = useState(0);
+
+  // Auto-refresh when basins change via SSE (e.g. MCP brain modifications)
+  useDataEvents(
+    ['basin_updated'],
+    useCallback(() => setEventTrigger(n => n + 1), []),
+    agentId,
+  );
 
   useEffect(() => {
     if (!agentId) return;
@@ -247,7 +256,7 @@ export default function TrajectoryDashboard() {
       }
     };
     fetchData();
-  }, [agentId, timeRange]);
+  }, [agentId, timeRange, eventTrigger]);
 
   // The backend already filters to n_sessions via the API query parameter,
   // so no client-side slicing is needed. Pass the full dataset through.

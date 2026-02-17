@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { useDataEvents } from './useEventStream';
 
 interface BadgeCounts {
   pendingProposals: number;
@@ -38,6 +39,13 @@ export function AgentBadgeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshBadges();
   }, [refreshBadges]);
+
+  // Auto-refresh badges when flags or proposals change via SSE
+  useDataEvents(
+    ['flag_resolved', 'flag_created', 'proposal_resolved', 'proposal_created'],
+    refreshBadges,
+    agentId,
+  );
 
   return (
     <AgentBadgeContext.Provider value={{ ...counts, refreshBadges }}>

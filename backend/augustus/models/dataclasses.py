@@ -367,3 +367,4 @@ class SearchResult:
     snippet: str = ""
     relevance_score: float = 0.0
     timestamp: str = ""
+    full_content: str | None = None

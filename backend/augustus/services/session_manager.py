@@ -1027,19 +1027,22 @@ class SessionManager:
         results = await self.memory.search_observations(agent_id, query, n)
 
         if results:
-            output = json.dumps(
-                [
-                    {
-                        "content_type": r.content_type,
-                        "session_id": r.session_id,
-                        "snippet": r.snippet,
-                        "score": r.relevance_score,
-                        "timestamp": r.timestamp,
-                    }
-                    for r in results
-                ],
-                indent=2,
-            )
+            items = []
+            for r in results:
+                item: dict[str, Any] = {
+                    "content_type": r.content_type,
+                    "session_id": r.session_id,
+                    "score": r.relevance_score,
+                    "timestamp": r.timestamp,
+                }
+                # Annotations include full_content so the body can read
+                # the complete observer note without a separate tool call.
+                if r.full_content is not None:
+                    item["content"] = r.full_content
+                else:
+                    item["snippet"] = r.snippet
+                items.append(item)
+            output = json.dumps(items, indent=2)
         else:
             output = "No observations found."
 

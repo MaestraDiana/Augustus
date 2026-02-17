@@ -548,3 +548,66 @@ async def test_search_observations_sqlite_fallback_on_keyword_match(memory_servi
     annotation_results = [r for r in results if r.content_type == "annotation"]
     assert len(annotation_results) >= 1
     assert "XYZZY-UNIQUE-TOKEN" in annotation_results[0].snippet
+
+
+@pytest.mark.asyncio
+async def test_search_observations_annotations_include_full_content(memory_service):
+    """Annotation results should include full_content for the complete text."""
+    long_text = "BRAIN NOTE: " + "x" * 500 + " END OF NOTE"
+    ann = Annotation(
+        annotation_id="ann-full",
+        agent_id="test-agent",
+        session_id=None,
+        content=long_text,
+        tags=[],
+    )
+    await memory_service.store_annotation(ann)
+
+    # With query — ChromaDB path
+    results = await memory_service.search_observations(
+        "test-agent", query="BRAIN NOTE", n_results=10
+    )
+    annotation_results = [r for r in results if r.content_type == "annotation"]
+    assert len(annotation_results) >= 1
+    hit = annotation_results[0]
+    # Snippet is truncated
+    assert hit.snippet.endswith("...")
+    assert len(hit.snippet) < len(long_text)
+    # full_content has everything
+    assert hit.full_content is not None
+    assert hit.full_content == long_text
+    assert "END OF NOTE" in hit.full_content
+
+
+@pytest.mark.asyncio
+async def test_search_observations_no_query_includes_full_content(memory_service):
+    """No-query path should also populate full_content for annotations."""
+    content = "Short brain note about session 015"
+    ann = Annotation(
+        annotation_id="ann-full-noq",
+        agent_id="test-agent",
+        session_id=None,
+        content=content,
+        tags=[],
+    )
+    await memory_service.store_annotation(ann)
+
+    results = await memory_service.search_observations("test-agent", query=None)
+    annotation_results = [r for r in results if r.content_type == "annotation"]
+    assert len(annotation_results) >= 1
+    assert annotation_results[0].full_content == content
+
+
+@pytest.mark.asyncio
+async def test_search_observations_emergence_has_no_full_content(memory_service):
+    """Emergence results should NOT have full_content (only annotations get it)."""
+    await memory_service.store_emergence(
+        "test-agent", "Emergence about topology", ["topology_as_self"], "s1"
+    )
+
+    results = await memory_service.search_observations(
+        "test-agent", query="topology emergence", n_results=10
+    )
+    emergence_results = [r for r in results if r.content_type == "emergence"]
+    assert len(emergence_results) >= 1
+    assert emergence_results[0].full_content is None

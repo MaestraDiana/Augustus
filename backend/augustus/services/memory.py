@@ -1688,9 +1688,18 @@ class MemoryService:
 
     @staticmethod
     def _chroma_results_to_search_results(
-        chroma_results: dict[str, Any], content_type: str
+        chroma_results: dict[str, Any],
+        content_type: str,
+        include_full_content: bool = False,
     ) -> list[SearchResult]:
-        """Convert ChromaDB query results to SearchResult dataclass instances."""
+        """Convert ChromaDB query results to SearchResult dataclass instances.
+
+        Args:
+            chroma_results: Raw ChromaDB query output.
+            content_type: Label for result type (e.g. "annotation", "emergence").
+            include_full_content: When True, populate ``full_content`` with the
+                complete document text instead of only the 300-char snippet.
+        """
         results = []
         if not chroma_results:
             return results
@@ -1722,6 +1731,7 @@ class MemoryService:
                     snippet=snippet,
                     relevance_score=round(relevance, 4),
                     timestamp=metadata.get("timestamp", ""),
+                    full_content=document if include_full_content else None,
                 )
             )
         return results
@@ -1820,7 +1830,8 @@ class MemoryService:
         results: list[SearchResult] = []
 
         if query:
-            # Semantic search across both ChromaDB collections
+            # Semantic search across both ChromaDB collections.
+            # Annotations get full_content so the body sees the complete text.
             for collection, content_type in [
                 ("annotations", "annotation"),
                 ("emergent_observations", "emergence"),
@@ -1835,7 +1846,9 @@ class MemoryService:
                     )
                     results.extend(
                         self._chroma_results_to_search_results(
-                            chroma_results, content_type
+                            chroma_results,
+                            content_type,
+                            include_full_content=(content_type == "annotation"),
                         )
                     )
                 except Exception as e:
@@ -1864,6 +1877,7 @@ class MemoryService:
                             snippet=snippet,
                             relevance_score=0.7,  # reasonable default for keyword match
                             timestamp=ann.created_at,
+                            full_content=ann.content,
                         )
                     )
         else:
@@ -1881,6 +1895,7 @@ class MemoryService:
                         snippet=snippet,
                         relevance_score=1.0,
                         timestamp=ann.created_at,
+                        full_content=ann.content,
                     )
                 )
 

@@ -231,16 +231,20 @@ class MCPServer:
         async def search_observations(agent_id: str, query: str | None = None, n_results: int = 10) -> str:
             await memory.refresh_chroma()
             results = await memory.search_observations(agent_id, query, n_results)
-            return json.dumps([
-                {
+            items = []
+            for r in results:
+                item: dict[str, Any] = {
                     "content_type": r.content_type,
                     "session_id": r.session_id,
-                    "snippet": r.snippet,
                     "relevance": r.relevance_score,
                     "timestamp": r.timestamp,
                 }
-                for r in results
-            ])
+                if r.full_content is not None:
+                    item["content"] = r.full_content
+                else:
+                    item["snippet"] = r.snippet
+                items.append(item)
+            return json.dumps(items)
 
         @self.mcp.tool(description="Get all annotations for an agent, optionally filtered to a specific session.")
         async def get_agent_annotations(agent_id: str, session_id: str | None = None) -> str:

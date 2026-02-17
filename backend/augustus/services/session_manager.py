@@ -215,6 +215,7 @@ class SessionManager:
         conversation: list[dict] = []
         total_tokens_in = 0
         total_tokens_out = 0
+        total_web_searches = 0
         capabilities_used: list[str] = []
         pending_confirmations: list[str] = []
         turns_completed = 0
@@ -267,6 +268,17 @@ class SessionManager:
                     total_tokens_in += response.usage.input_tokens
                     total_tokens_out += response.usage.output_tokens
 
+                    # Track server-side tool usage (web search)
+                    server_tool_use = getattr(
+                        response.usage, "server_tool_use", None
+                    )
+                    if server_tool_use is not None:
+                        ws_count = getattr(
+                            server_tool_use, "web_search_requests", 0
+                        )
+                        if ws_count:
+                            total_web_searches += ws_count
+
                 # Serialize assistant response into conversation format
                 assistant_content = self._serialize_response_content(response)
                 conversation.append(
@@ -282,6 +294,13 @@ class SessionManager:
                 )
                 if turn_yaml is not None:
                     agent_written_yaml = turn_yaml  # Last write wins
+
+                # Track server-side tool use (e.g. web_search) in capabilities
+                for block in response.content:
+                    if getattr(block, "type", None) == "server_tool_use":
+                        capabilities_used.append(
+                            getattr(block, "name", "server_tool")
+                        )
 
                 if tool_results:
                     for result in tool_results:
@@ -330,7 +349,8 @@ class SessionManager:
 
             # Log token usage (FK: usage.session_id → sessions.session_id)
             estimated_cost = self._estimate_cost(
-                total_tokens_in, total_tokens_out, model
+                total_tokens_in, total_tokens_out, model,
+                web_search_requests=total_web_searches,
             )
             await self.memory.log_usage(
                 UsageRecord(
@@ -384,7 +404,8 @@ class SessionManager:
             # Still log partial usage so costs are tracked
             if total_tokens_in > 0 or total_tokens_out > 0:
                 estimated_cost = self._estimate_cost(
-                    total_tokens_in, total_tokens_out, model
+                    total_tokens_in, total_tokens_out, model,
+                    web_search_requests=total_web_searches,
                 )
                 await self.memory.log_usage(
                     UsageRecord(
@@ -419,7 +440,8 @@ class SessionManager:
             # Still log partial usage so costs are tracked
             if total_tokens_in > 0 or total_tokens_out > 0:
                 estimated_cost = self._estimate_cost(
-                    total_tokens_in, total_tokens_out, model
+                    total_tokens_in, total_tokens_out, model,
+                    web_search_requests=total_web_searches,
                 )
                 await self.memory.log_usage(
                     UsageRecord(
@@ -478,6 +500,15 @@ class SessionManager:
         )
         if newly_available:
             parts.append(f"[Now available: {', '.join(newly_available)}]")
+
+        # Inject structural sections as session context on turn 0
+        if turn == 0 and instruction.structural_sections:
+            preamble_text = self._format_structural_preamble(
+                instruction.structural_sections
+            )
+            if preamble_text:
+                parts.append(preamble_text)
+                parts.append("")
 
         has_directives = turn_directives and any(k >= 0 for k in turn_directives)
 
@@ -547,6 +578,61 @@ class SessionManager:
             if cap.enabled and cap.available_from_turn == turn and turn > 0:
                 newly.append(name)
         return newly
+
+    @staticmethod
+    def _format_structural_preamble(sections: dict[str, Any]) -> str:
+        """Format structural sections as readable context for the turn 0 message.
+
+        Converts ``relational_grounding`` and ``session_protocol`` dicts
+        (preserved by the schema parser) into human-readable text blocks
+        that Claude can consume as session context.
+
+        Returns empty string if no content to inject.
+        """
+        blocks: list[str] = []
+
+        # Relational grounding — brain-to-body message
+        rg = sections.get("relational_grounding")
+        if rg:
+            lines: list[str] = ["[Relational grounding]"]
+            if isinstance(rg, dict):
+                if "content" in rg:
+                    # Direct content field — use as-is
+                    lines.append(str(rg["content"]).strip())
+                else:
+                    # Key-value pairs with human-readable labels
+                    for key, value in rg.items():
+                        label = key.replace("_", " ").capitalize()
+                        lines.append(f"{label}: {value}")
+            elif isinstance(rg, str):
+                lines.append(rg.strip())
+            if len(lines) > 1:
+                blocks.append("\n".join(lines))
+
+        # Session protocol — turn-by-turn structural directives
+        sp = sections.get("session_protocol")
+        if sp:
+            lines = ["[Session protocol]"]
+            if isinstance(sp, dict):
+                for key, value in sp.items():
+                    label = key.replace("_", " ").capitalize()
+                    if isinstance(value, dict):
+                        lines.append(f"{label}:")
+                        for sub_key, sub_val in value.items():
+                            sub_label = sub_key.replace("_", " ").capitalize()
+                            lines.append(f"  {sub_label}: {sub_val}")
+                    elif isinstance(value, list):
+                        lines.append(f"{label}:")
+                        for item in value:
+                            lines.append(f"  - {item}")
+                    else:
+                        lines.append(f"{label}: {value}")
+            elif isinstance(sp, str):
+                lines.append(sp.strip())
+            if len(lines) > 1:
+                blocks.append("\n".join(lines))
+
+        return "\n\n".join(blocks)
 
     # ------------------------------------------------------------------
     # Tool definitions
@@ -769,6 +855,16 @@ class SessionManager:
                 cap = capabilities[cap_key]
                 if cap.enabled and turn >= cap.available_from_turn:
                     tools.extend(cap_tools)
+
+        # Server-side tools (handled by Anthropic API, not dispatched locally)
+        if "web_search" in capabilities:
+            cap = capabilities["web_search"]
+            if cap.enabled and turn >= cap.available_from_turn:
+                tools.append({
+                    "type": "web_search_20250305",
+                    "name": "web_search",
+                    "max_uses": 5,
+                })
 
         return tools
 
@@ -1130,7 +1226,12 @@ class SessionManager:
 
     @staticmethod
     def _serialize_response_content(response: Any) -> list[dict]:
-        """Convert API response content blocks into serializable dicts."""
+        """Convert API response content blocks into serializable dicts.
+
+        Handles standard blocks (text, tool_use) and server-side tool
+        blocks (server_tool_use, web_search_tool_result) produced by
+        Anthropic's native web search capability.
+        """
         assistant_content: list[dict] = []
         for block in response.content:
             if block.type == "text":
@@ -1146,6 +1247,30 @@ class SessionManager:
                         "input": block.input,
                     }
                 )
+            elif block.type == "server_tool_use":
+                assistant_content.append(
+                    {
+                        "type": "server_tool_use",
+                        "id": block.id,
+                        "name": block.name,
+                        "input": getattr(block, "input", {}),
+                    }
+                )
+            elif block.type == "web_search_tool_result":
+                assistant_content.append(
+                    {
+                        "type": "web_search_tool_result",
+                        "tool_use_id": getattr(block, "tool_use_id", ""),
+                        "content": getattr(block, "content", []),
+                    }
+                )
+            else:
+                # Forward-compat: capture unknown block types so transcripts
+                # are never silently truncated
+                logger.debug(
+                    "Unknown response content block type: %s", block.type
+                )
+                assistant_content.append({"type": block.type})
         return assistant_content
 
     # ------------------------------------------------------------------
@@ -1914,12 +2039,16 @@ class SessionManager:
 
     @staticmethod
     def _estimate_cost(
-        tokens_in: int, tokens_out: int, model: str
+        tokens_in: int,
+        tokens_out: int,
+        model: str,
+        web_search_requests: int = 0,
     ) -> float:
         """Estimate API cost based on token counts and model pricing.
 
         Pricing is approximate and based on published Anthropic rates
-        (per 1M tokens: input, output).
+        (per 1M tokens: input, output). Web search is $10 per 1000
+        requests ($0.01 per request).
         """
         pricing: dict[str, tuple[float, float]] = {
             "claude-sonnet-4-20250514": (3.0, 15.0),
@@ -1933,6 +2062,9 @@ class SessionManager:
         cost = (tokens_in * rates[0] / 1_000_000) + (
             tokens_out * rates[1] / 1_000_000
         )
+        # Web search: $0.01 per request
+        if web_search_requests > 0:
+            cost += web_search_requests * 0.01
         return round(cost, 6)
 
     # ------------------------------------------------------------------

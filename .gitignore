@@ -74,6 +74,7 @@ queue/
 # Documentation and help (public docs will be in separate website)
 docs/
 help/
+guide.html
 
 # Markdown files (except root README.md)
 *.md

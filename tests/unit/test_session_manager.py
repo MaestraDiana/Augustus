@@ -602,3 +602,455 @@ class TestToolWriteYaml:
         assert "framework" not in sections
         assert "identity_core" in sections
         assert "session_task" in sections
+
+
+# ---------------------------------------------------------------------------
+# _format_structural_preamble tests
+# ---------------------------------------------------------------------------
+
+
+class TestFormatStructuralPreamble:
+    """Tests for SessionManager._format_structural_preamble."""
+
+    def test_relational_grounding_with_content_key(self):
+        """Dict with 'content' key uses the value directly."""
+        sections = {
+            "relational_grounding": {
+                "content": "This is a message from the brain."
+            }
+        }
+        result = SessionManager._format_structural_preamble(sections)
+        assert "[Relational grounding]" in result
+        assert "This is a message from the brain." in result
+
+    def test_relational_grounding_with_key_value_pairs(self):
+        """Dict without 'content' key formats as labeled pairs."""
+        sections = {
+            "relational_grounding": {
+                "source": "brain",
+                "session_reference": "s012",
+            }
+        }
+        result = SessionManager._format_structural_preamble(sections)
+        assert "[Relational grounding]" in result
+        assert "Source: brain" in result
+        assert "Session reference: s012" in result
+
+    def test_relational_grounding_string_value(self):
+        """Plain string value is used directly."""
+        sections = {"relational_grounding": "A plain string message."}
+        result = SessionManager._format_structural_preamble(sections)
+        assert "[Relational grounding]" in result
+        assert "A plain string message." in result
+
+    def test_session_protocol_with_dict(self):
+        """Session protocol dict formats all key-value pairs."""
+        sections = {
+            "session_protocol": {
+                "turn_count": 8,
+                "research_focus": "topology",
+            }
+        }
+        result = SessionManager._format_structural_preamble(sections)
+        assert "[Session protocol]" in result
+        assert "Turn count: 8" in result
+        assert "Research focus: topology" in result
+
+    def test_session_protocol_with_nested_dict(self):
+        """Nested dict values are formatted with sub-labels."""
+        sections = {
+            "session_protocol": {
+                "constraints": {
+                    "max_web_searches": 3,
+                    "focus_area": "identity",
+                }
+            }
+        }
+        result = SessionManager._format_structural_preamble(sections)
+        assert "[Session protocol]" in result
+        assert "Constraints:" in result
+        assert "Max web searches: 3" in result
+
+    def test_session_protocol_with_list(self):
+        """List values are formatted as bulleted items."""
+        sections = {
+            "session_protocol": {
+                "turn_directives": ["Turn 1: Do this", "Turn 2: Do that"]
+            }
+        }
+        result = SessionManager._format_structural_preamble(sections)
+        assert "[Session protocol]" in result
+        assert "- Turn 1: Do this" in result
+        assert "- Turn 2: Do that" in result
+
+    def test_session_protocol_string_value(self):
+        """Plain string session_protocol is used directly."""
+        sections = {"session_protocol": "Do everything in order."}
+        result = SessionManager._format_structural_preamble(sections)
+        assert "[Session protocol]" in result
+        assert "Do everything in order." in result
+
+    def test_both_sections_present(self):
+        """Both relational_grounding and session_protocol appear."""
+        sections = {
+            "relational_grounding": {"content": "Brain says hello."},
+            "session_protocol": {"turn_count": 8},
+        }
+        result = SessionManager._format_structural_preamble(sections)
+        assert "[Relational grounding]" in result
+        assert "Brain says hello." in result
+        assert "[Session protocol]" in result
+        assert "Turn count: 8" in result
+
+    def test_empty_sections_returns_empty(self):
+        """Empty dict returns empty string."""
+        result = SessionManager._format_structural_preamble({})
+        assert result == ""
+
+    def test_none_values_ignored(self):
+        """None values in sections don't produce output."""
+        sections = {"relational_grounding": None, "session_protocol": None}
+        result = SessionManager._format_structural_preamble(sections)
+        assert result == ""
+
+    def test_unknown_section_keys_ignored(self):
+        """Keys other than relational_grounding/session_protocol are ignored."""
+        sections = {"unknown_key": "some value"}
+        result = SessionManager._format_structural_preamble(sections)
+        assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# Structural section delivery in _build_user_message tests
+# ---------------------------------------------------------------------------
+
+
+class TestStructuralSectionDelivery:
+    """Tests that structural sections appear in turn 0 messages only."""
+
+    def _make_sm(self):
+        return SessionManager.__new__(SessionManager)
+
+    def _make_instruction_with_sections(
+        self, session_task: str, structural_sections: dict | None = None
+    ) -> ParsedInstruction:
+        """Build a ParsedInstruction with structural_sections."""
+        inst = _make_instruction(session_task, max_turns=4)
+        if structural_sections is not None:
+            inst.structural_sections = structural_sections
+        return inst
+
+    def test_structural_sections_on_turn_0(self):
+        """Structural sections appear in turn 0 message."""
+        inst = self._make_instruction_with_sections(
+            "Just do the task.",
+            {"relational_grounding": {"content": "Brain note."}},
+        )
+        sm = self._make_sm()
+        msg = sm._build_user_message(
+            turn=0, max_turns=4, instruction=inst,
+            pending_confirmations=[],
+        )
+        assert "[Relational grounding]" in msg
+        assert "Brain note." in msg
+        assert "Just do the task." in msg
+
+    def test_structural_sections_absent_on_turn_1(self):
+        """Structural sections do NOT appear on later turns."""
+        inst = self._make_instruction_with_sections(
+            "Just do the task.",
+            {"relational_grounding": {"content": "Brain note."}},
+        )
+        sm = self._make_sm()
+        msg = sm._build_user_message(
+            turn=1, max_turns=4, instruction=inst,
+            pending_confirmations=[],
+        )
+        assert "[Relational grounding]" not in msg
+
+    def test_preamble_precedes_session_task(self):
+        """Structural preamble appears before the session_task text."""
+        inst = self._make_instruction_with_sections(
+            "Do the task now.",
+            {"relational_grounding": {"content": "Brain says hi."}},
+        )
+        sm = self._make_sm()
+        msg = sm._build_user_message(
+            turn=0, max_turns=4, instruction=inst,
+            pending_confirmations=[],
+        )
+        rg_pos = msg.index("[Relational grounding]")
+        task_pos = msg.index("Do the task now.")
+        assert rg_pos < task_pos
+
+    def test_coexists_with_turn_directives(self):
+        """Structural preamble works alongside turn directive parsing."""
+        task = "Preamble text.\n\nTurn 1: Do this.\nTurn 2: Do that."
+        inst = self._make_instruction_with_sections(
+            task,
+            {"session_protocol": {"focus": "topology"}},
+        )
+        directives = SessionManager._parse_turn_directives(task, 4)
+        sm = self._make_sm()
+        msg = sm._build_user_message(
+            turn=0, max_turns=4, instruction=inst,
+            pending_confirmations=[],
+            turn_directives=directives,
+        )
+        assert "[Session protocol]" in msg
+        assert "Preamble text." in msg
+        assert "Do this" in msg
+
+    def test_no_structural_sections_unchanged(self):
+        """When structural_sections is empty, message is unchanged."""
+        inst = self._make_instruction_with_sections(
+            "Just do the task.",
+            {},
+        )
+        sm = self._make_sm()
+        msg = sm._build_user_message(
+            turn=0, max_turns=4, instruction=inst,
+            pending_confirmations=[],
+        )
+        assert "[Relational grounding]" not in msg
+        assert "[Session protocol]" not in msg
+        assert "Just do the task." in msg
+
+
+# ---------------------------------------------------------------------------
+# _build_tool_definitions web_search tests
+# ---------------------------------------------------------------------------
+
+
+class TestBuildToolDefinitionsWebSearch:
+    """Tests for web_search native tool in _build_tool_definitions."""
+
+    def _make_sm(self):
+        sm = SessionManager.__new__(SessionManager)
+        return sm
+
+    def test_web_search_included_when_enabled(self):
+        """web_search tool appears when enabled and turn >= available_from_turn."""
+        sm = self._make_sm()
+        caps = {
+            "web_search": CapabilityConfig(
+                name="web_search", enabled=True, available_from_turn=0
+            ),
+        }
+        tools = sm._build_tool_definitions(caps, turn=0)
+        ws_tools = [t for t in tools if t.get("type") == "web_search_20250305"]
+        assert len(ws_tools) == 1
+        assert ws_tools[0]["name"] == "web_search"
+        assert ws_tools[0]["max_uses"] == 5
+
+    def test_web_search_excluded_before_available_turn(self):
+        """web_search excluded when turn < available_from_turn."""
+        sm = self._make_sm()
+        caps = {
+            "web_search": CapabilityConfig(
+                name="web_search", enabled=True, available_from_turn=2
+            ),
+        }
+        tools = sm._build_tool_definitions(caps, turn=1)
+        ws_tools = [t for t in tools if t.get("type") == "web_search_20250305"]
+        assert len(ws_tools) == 0
+
+    def test_web_search_included_at_available_turn(self):
+        """web_search included exactly at available_from_turn."""
+        sm = self._make_sm()
+        caps = {
+            "web_search": CapabilityConfig(
+                name="web_search", enabled=True, available_from_turn=2
+            ),
+        }
+        tools = sm._build_tool_definitions(caps, turn=2)
+        ws_tools = [t for t in tools if t.get("type") == "web_search_20250305"]
+        assert len(ws_tools) == 1
+
+    def test_web_search_excluded_when_disabled(self):
+        """web_search excluded when enabled=False."""
+        sm = self._make_sm()
+        caps = {
+            "web_search": CapabilityConfig(
+                name="web_search", enabled=False, available_from_turn=0
+            ),
+        }
+        tools = sm._build_tool_definitions(caps, turn=0)
+        ws_tools = [t for t in tools if t.get("type") == "web_search_20250305"]
+        assert len(ws_tools) == 0
+
+    def test_web_search_coexists_with_custom_tools(self):
+        """web_search appears alongside regular custom tools."""
+        sm = self._make_sm()
+        caps = {
+            "file_write": CapabilityConfig(
+                name="file_write", enabled=True, available_from_turn=0
+            ),
+            "web_search": CapabilityConfig(
+                name="web_search", enabled=True, available_from_turn=0
+            ),
+        }
+        tools = sm._build_tool_definitions(caps, turn=0)
+        custom = [t for t in tools if t.get("name") == "write_yaml"]
+        ws = [t for t in tools if t.get("type") == "web_search_20250305"]
+        assert len(custom) == 1
+        assert len(ws) == 1
+
+    def test_web_search_uses_type_key(self):
+        """web_search tool uses 'type' key, not 'input_schema'."""
+        sm = self._make_sm()
+        caps = {
+            "web_search": CapabilityConfig(
+                name="web_search", enabled=True, available_from_turn=0
+            ),
+        }
+        tools = sm._build_tool_definitions(caps, turn=0)
+        ws = tools[0]
+        assert "type" in ws
+        assert "input_schema" not in ws
+        assert "description" not in ws
+
+
+# ---------------------------------------------------------------------------
+# _serialize_response_content server tool tests
+# ---------------------------------------------------------------------------
+
+
+class TestSerializeResponseContentServerTools:
+    """Tests for server-side tool block serialization."""
+
+    @staticmethod
+    def _make_block(type_: str, **kwargs):
+        """Create a mock content block."""
+        class MockBlock:
+            pass
+        b = MockBlock()
+        b.type = type_
+        for k, v in kwargs.items():
+            setattr(b, k, v)
+        return b
+
+    @staticmethod
+    def _make_response(blocks):
+        """Create a mock API response."""
+        class MockResponse:
+            pass
+        r = MockResponse()
+        r.content = blocks
+        return r
+
+    def test_server_tool_use_serialized(self):
+        """server_tool_use blocks serialize id, name, input."""
+        block = self._make_block(
+            "server_tool_use",
+            id="stu_001",
+            name="web_search",
+            input={"query": "test"},
+        )
+        response = self._make_response([block])
+        result = SessionManager._serialize_response_content(response)
+        assert len(result) == 1
+        assert result[0]["type"] == "server_tool_use"
+        assert result[0]["id"] == "stu_001"
+        assert result[0]["name"] == "web_search"
+        assert result[0]["input"] == {"query": "test"}
+
+    def test_web_search_tool_result_serialized(self):
+        """web_search_tool_result blocks serialize tool_use_id and content."""
+        block = self._make_block(
+            "web_search_tool_result",
+            tool_use_id="stu_001",
+            content=[
+                {"type": "web_search_result", "url": "https://example.com", "title": "Example"}
+            ],
+        )
+        response = self._make_response([block])
+        result = SessionManager._serialize_response_content(response)
+        assert len(result) == 1
+        assert result[0]["type"] == "web_search_tool_result"
+        assert result[0]["tool_use_id"] == "stu_001"
+        assert len(result[0]["content"]) == 1
+
+    def test_web_search_tool_result_error(self):
+        """web_search_tool_result with error content."""
+        block = self._make_block(
+            "web_search_tool_result",
+            tool_use_id="stu_002",
+            content={"type": "error", "error": "rate_limited"},
+        )
+        response = self._make_response([block])
+        result = SessionManager._serialize_response_content(response)
+        assert result[0]["content"]["type"] == "error"
+
+    def test_mixed_block_types(self):
+        """All block types coexist in a single response."""
+        blocks = [
+            self._make_block("text", text="Hello"),
+            self._make_block(
+                "server_tool_use", id="stu_001", name="web_search",
+                input={"query": "test"}
+            ),
+            self._make_block(
+                "web_search_tool_result", tool_use_id="stu_001",
+                content=[{"url": "https://example.com"}]
+            ),
+            self._make_block("text", text="Here's what I found."),
+            self._make_block(
+                "tool_use", id="tu_001", name="write_yaml",
+                input={"filename": "test.yaml"}
+            ),
+        ]
+        response = self._make_response(blocks)
+        result = SessionManager._serialize_response_content(response)
+        assert len(result) == 5
+        types = [r["type"] for r in result]
+        assert types == [
+            "text", "server_tool_use", "web_search_tool_result",
+            "text", "tool_use",
+        ]
+
+    def test_unknown_block_type_fallback(self):
+        """Unknown block types get a minimal fallback entry."""
+        block = self._make_block("future_new_type")
+        response = self._make_response([block])
+        result = SessionManager._serialize_response_content(response)
+        assert len(result) == 1
+        assert result[0]["type"] == "future_new_type"
+
+
+# ---------------------------------------------------------------------------
+# _estimate_cost with web search tests
+# ---------------------------------------------------------------------------
+
+
+class TestEstimateCostWebSearch:
+    """Tests for _estimate_cost with web_search_requests."""
+
+    def test_basic_cost_unchanged(self):
+        """Without web search, cost is the same as before."""
+        cost = SessionManager._estimate_cost(1000, 500, "claude-sonnet-4-20250514")
+        expected = (1000 * 3.0 / 1_000_000) + (500 * 15.0 / 1_000_000)
+        assert cost == round(expected, 6)
+
+    def test_web_search_adds_cost(self):
+        """Web search requests add $0.01 each."""
+        base_cost = SessionManager._estimate_cost(1000, 500, "claude-sonnet-4-20250514")
+        with_ws = SessionManager._estimate_cost(
+            1000, 500, "claude-sonnet-4-20250514", web_search_requests=3
+        )
+        assert with_ws == round(base_cost + 0.03, 6)
+
+    def test_zero_web_searches_no_extra_cost(self):
+        """Explicitly passing 0 web searches adds no cost."""
+        cost_default = SessionManager._estimate_cost(1000, 500, "claude-sonnet-4-20250514")
+        cost_zero = SessionManager._estimate_cost(
+            1000, 500, "claude-sonnet-4-20250514", web_search_requests=0
+        )
+        assert cost_default == cost_zero
+
+    def test_web_search_with_opus_model(self):
+        """Web search cost addition works with different models."""
+        cost = SessionManager._estimate_cost(
+            0, 0, "claude-opus-4-5-20251101", web_search_requests=5
+        )
+        assert cost == round(0.05, 6)

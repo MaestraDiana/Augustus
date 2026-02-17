@@ -42,9 +42,10 @@ class SchemaParser:
 
         warnings = []
 
-        # Capture orchestrator-owned structural sections that must round-trip.
-        # These are NOT sent to the Claude API — they're coordination scaffolding
-        # that the orchestrator preserves between sessions.
+        # Capture structural sections that must round-trip between sessions.
+        # These are delivered to Claude as session context in the turn 0 user
+        # message (via SessionManager._format_structural_preamble), and also
+        # preserved by the orchestrator for YAML regeneration.
         structural_keys = {"session_protocol", "relational_grounding"}
         structural_sections: dict[str, Any] = {}
         for skey in structural_keys:

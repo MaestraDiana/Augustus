@@ -830,7 +830,7 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
                           <td>
                             {def ? (
                               <button
-                                className="basin-remove-btn"
+                                className="action-btn"
                                 onClick={() => toggleBasinLock(basin.name, def.locked_by_brain)}
                                 title={def.locked_by_brain ? 'Unlock basin' : 'Lock basin'}
                               >
@@ -849,7 +849,7 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
                           <td>
                             {def ? (
                               <button
-                                className="basin-remove-btn"
+                                className="action-btn"
                                 onClick={() => openHistory(basin.name)}
                                 title="View modification history"
                               >
@@ -862,7 +862,7 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
                         )}
                         <td>
                           <button
-                            className="basin-remove-btn"
+                            className="action-btn destructive"
                             onClick={() => removeBasin(index)}
                             title="Remove basin"
                           >

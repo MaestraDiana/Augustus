@@ -133,6 +133,36 @@ app.add_middleware(
 )
 
 
+class NoCacheAPIMiddleware:
+    """ASGI middleware to prevent browser caching of API responses.
+
+    Uses raw ASGI protocol instead of BaseHTTPMiddleware to avoid
+    breaking StreamingResponse (SSE). BaseHTTPMiddleware consumes the
+    entire response body before returning, which hangs on infinite
+    SSE generators.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or not scope.get("path", "").startswith("/api/"):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_no_cache(message):
+            if message["type"] == "http.response.start":
+                headers = list(message.get("headers", []))
+                headers.append((b"cache-control", b"no-store"))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        await self.app(scope, receive, send_with_no_cache)
+
+
+app.add_middleware(NoCacheAPIMiddleware)
+
+
 # Global exception handler — catches any unhandled error and returns the
 # traceback in the response body so the frontend (and developer) can see
 # what actually went wrong instead of a bare "Internal Server Error".

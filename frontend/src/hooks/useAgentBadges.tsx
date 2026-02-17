@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { useParams } from 'react-router-dom';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { useDataEvents } from './useEventStream';
 
@@ -20,7 +20,9 @@ const AgentBadgeContext = createContext<AgentBadgeContextValue>({
 
 export function AgentBadgeProvider({ children }: { children: ReactNode }) {
   const { agentId } = useParams<{ agentId: string }>();
+  const location = useLocation();
   const [counts, setCounts] = useState<BadgeCounts>({ pendingProposals: 0, unreviewedFlags: 0 });
+  const lastFetchRef = useRef<string>('');
 
   const refreshBadges = useCallback(() => {
     if (!agentId) return;
@@ -36,9 +38,14 @@ export function AgentBadgeProvider({ children }: { children: ReactNode }) {
     }).catch(() => {});
   }, [agentId]);
 
+  // Refresh on mount and whenever the route changes within this agent
   useEffect(() => {
-    refreshBadges();
-  }, [refreshBadges]);
+    const key = `${agentId}:${location.pathname}`;
+    if (key !== lastFetchRef.current) {
+      lastFetchRef.current = key;
+      refreshBadges();
+    }
+  }, [agentId, location.pathname, refreshBadges]);
 
   // Auto-refresh badges when flags or proposals change via SSE
   useDataEvents(

@@ -368,7 +368,29 @@ class MemoryService:
         return trajectories
 
     async def get_current_basins(self, agent_id: str) -> list[BasinConfig]:
-        """Get the current basin configuration for an agent."""
+        """Get the current active (non-deprecated) basin configuration for an agent.
+
+        For agents on basin_source='database', basin_definitions is canonical
+        and basin_current may contain stale/orphaned rows. This method uses
+        the canonical source automatically.
+        """
+        source = await self.get_agent_basin_source(agent_id)
+        if source == "database":
+            defs = await self.get_basin_definitions(agent_id, include_deprecated=False)
+            if defs:
+                return [d.to_basin_config() for d in defs]
+
+        # Fallback: basin_current (for yaml-mode agents or pre-migration)
+        sql = """
+            SELECT * FROM basin_current
+            WHERE agent_id = ? AND deprecated = 0
+            ORDER BY basin_name
+        """
+        rows = await self._run_sync(self.sqlite.fetch_all, sql, (agent_id,))
+        return [self._row_to_basin_config(r) for r in rows]
+
+    async def _get_all_current_basins(self, agent_id: str) -> list[BasinConfig]:
+        """Get all basins including deprecated ones (for migration only)."""
         sql = """
             SELECT * FROM basin_current
             WHERE agent_id = ?
@@ -681,8 +703,8 @@ class MemoryService:
         if source == "database":
             return False
 
-        # Get current basin state — prefer basin_current, fall back to agent config
-        current_basins = await self.get_current_basins(agent_id)
+        # Get current basin state (including deprecated) — prefer basin_current, fall back to agent config
+        current_basins = await self._get_all_current_basins(agent_id)
         if not current_basins:
             agent = await self.get_agent(agent_id)
             if agent:

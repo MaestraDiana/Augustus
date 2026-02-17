@@ -597,7 +597,7 @@ async def get_agent_overview(
     recent = await memory.list_sessions(agent_id, limit=1)
     last_session = recent[0] if recent else None
 
-    # Also include basin_definitions if migrated (v0.9.5)
+    # Include basin_definitions for lock/deprecation metadata (v0.9.5)
     basin_defs = await memory.get_basin_definitions(agent_id, include_deprecated=True)
 
     return {

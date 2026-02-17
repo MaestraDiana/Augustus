@@ -4,6 +4,10 @@
 
 Augustus is a desktop application for persistent AI identity research. It orchestrates autonomous Claude sessions through structured YAML instruction queues, tracks identity evolution through basin trajectory analysis, and provides observation, evaluation, and management interfaces for studying how a Claude instance develops and maintains a coherent personality across many sessions.
 
+**Beta versions are updating quickly. Until this reaches 1.0, expect new releases once or twice daily.**
+
+To stay up to date, and for further discussion on Augustus use, [follow Jinx on Substack](https://substack.com/@callmejinx).
+
 ## Core Research Question
 
 **Can an AI maintain a coherent, evolving identity across multiple stateless sessions?**

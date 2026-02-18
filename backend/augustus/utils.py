@@ -54,9 +54,11 @@ def flatten_transcript(transcript: list[dict]) -> str:
 
 # Short model names → full Anthropic API model IDs
 MODEL_ALIASES: dict[str, str] = {
-    "sonnet": "claude-sonnet-4-20250514",
-    "claude-sonnet": "claude-sonnet-4-20250514",
-    "claude-sonnet-4": "claude-sonnet-4-20250514",
+    "sonnet": "claude-sonnet-4-6",
+    "claude-sonnet": "claude-sonnet-4-6",
+    "claude-sonnet-4": "claude-sonnet-4-6",
+    "claude-sonnet-4-6": "claude-sonnet-4-6",
+    "sonnet-4-6": "claude-sonnet-4-6",
     "opus": "claude-opus-4-6",
     "claude-opus": "claude-opus-4-6",
     "claude-opus-4": "claude-opus-4-6",
@@ -68,6 +70,7 @@ MODEL_ALIASES: dict[str, str] = {
     "claude-haiku-4-5": "claude-haiku-4-5-20251001",
     "claude-sonnet-4-5": "claude-sonnet-4-5-20250929",
     "sonnet-4-5": "claude-sonnet-4-5-20250929",
+    "claude-sonnet-4-20250514": "claude-sonnet-4-20250514",
 }
 
 

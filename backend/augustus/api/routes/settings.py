@@ -110,7 +110,7 @@ async def validate_api_key(
         client = anthropic.Anthropic(api_key=body.api_key)
         # A lightweight API call to validate the key
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=10,
             messages=[{"role": "user", "content": "Hello"}],
         )

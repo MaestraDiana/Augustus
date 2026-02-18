@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 class Settings:
     """Application settings."""
     api_key_encrypted: str = ""
-    default_model: str = "claude-sonnet-4-20250514"
+    default_model: str = "claude-sonnet-4-6"
     default_temperature: float = 1.0
     default_max_tokens: int = 4096
     poll_interval: int = 60
@@ -26,7 +26,7 @@ class Settings:
     budget_per_session: float = 5.0
     budget_per_day: float = 25.0
     evaluator_enabled: bool = True
-    evaluator_model: str = "claude-sonnet-4-20250514"
+    evaluator_model: str = "claude-sonnet-4-6"
     formula_in_identity_core: bool = False
     dashboard_port: int = 8080
     mcp_enabled: bool = True

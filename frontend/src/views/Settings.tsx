@@ -362,6 +362,7 @@ export default function Settings() {
                   value={settings.default_model}
                   onChange={(e) => updateSetting('default_model', e.target.value)}
                 >
+                  <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
                   <option value="claude-sonnet-4-20250514">claude-sonnet-4-20250514</option>
                   <option value="claude-sonnet-4-5-20250929">claude-sonnet-4-5-20250929</option>
                   <option value="claude-opus-4-5-20251101">claude-opus-4-5-20251101</option>
@@ -531,6 +532,7 @@ export default function Settings() {
                   onChange={(e) => updateSetting('evaluator_model', e.target.value)}
                   disabled={!settings.evaluator_enabled}
                 >
+                  <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
                   <option value="claude-sonnet-4-20250514">claude-sonnet-4-20250514</option>
                   <option value="claude-sonnet-4-5-20250929">claude-sonnet-4-5-20250929</option>
                   <option value="claude-opus-4-5-20251101">claude-opus-4-5-20251101</option>

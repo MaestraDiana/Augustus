@@ -40,31 +40,35 @@ async def _event_stream(
 
     cycle = 0
 
-    while True:
-        # Check if client disconnected
-        if await request.is_disconnected():
-            break
+    try:
+        while True:
+            # Check if client disconnected
+            if await request.is_disconnected():
+                break
 
-        rows = await memory.poll_events(after_id=last_id)
-        for row in rows:
-            event_data = {
-                "type": row["event_type"],
-                "agent_id": row["agent_id"],
-                "payload": json.loads(row["payload"]) if row["payload"] else {},
-            }
-            yield f"id: {row['id']}\nevent: update\ndata: {json.dumps(event_data)}\n\n"
-            last_id = row["id"]
+            rows = await memory.poll_events(after_id=last_id)
+            for row in rows:
+                event_data = {
+                    "type": row["event_type"],
+                    "agent_id": row["agent_id"],
+                    "payload": json.loads(row["payload"]) if row["payload"] else {},
+                }
+                yield f"id: {row['id']}\nevent: update\ndata: {json.dumps(event_data)}\n\n"
+                last_id = row["id"]
 
-        # Periodic prune
-        cycle += 1
-        if cycle >= _PRUNE_EVERY:
-            cycle = 0
-            try:
-                await memory.prune_events(keep_seconds=300)
-            except Exception:
-                pass  # Non-critical
+            # Periodic prune
+            cycle += 1
+            if cycle >= _PRUNE_EVERY:
+                cycle = 0
+                try:
+                    await memory.prune_events(keep_seconds=300)
+                except Exception:
+                    pass  # Non-critical
 
-        await asyncio.sleep(_POLL_INTERVAL)
+            await asyncio.sleep(_POLL_INTERVAL)
+    except (asyncio.CancelledError, GeneratorExit):
+        # Client disconnected or server shutting down — exit cleanly
+        return
 
 
 @router.get("/events")

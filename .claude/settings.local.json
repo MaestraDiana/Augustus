@@ -14,7 +14,11 @@
       "Bash(gh api:*)",
       "WebFetch(domain:www.electronjs.org)",
       "WebFetch(domain:releases.electronjs.org)",
-      "WebFetch(domain:endoflife.date)"
+      "WebFetch(domain:endoflife.date)",
+      "Bash(bash scripts/release.sh:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(findstr:*)"
     ]
   }
 }

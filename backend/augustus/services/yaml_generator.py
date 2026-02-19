@@ -104,7 +104,6 @@ def generate_instruction_yaml(
     session_id: str,
     max_turns: int,
     basins: list[BasinConfig],
-    identity_core: str,
     session_task: str,
     close_protocol: str | dict | None = "",
     base_close_protocol: str | dict | None = None,
@@ -115,13 +114,22 @@ def generate_instruction_yaml(
 ) -> str:
     """Generate a valid split-schema YAML instruction file.
 
+    ``identity_core`` is intentionally excluded from the YAML output.  It is
+    a static field owned by the agent config in the database — the orchestrator
+    loads it from there at session start and passes it directly to the Anthropic
+    API as the system prompt.  Writing it into the YAML created a mutation
+    vector (agents could overwrite their own core) and a round-trip noise
+    problem.  The canonical value always lives in ``AgentConfig.identity_core``.
+
     Args:
         close_protocol: The agent-written or resolved close protocol for this session.
         base_close_protocol: The base close protocol template (from agent config).
             When provided, close_protocol is merged with this base — base probes
             and assessments persist unless the agent explicitly replaces them.
         structural_sections: Orchestrator-owned sections (session_protocol,
-            relational_grounding, etc.) to round-trip in the YAML.
+            relational_grounding, etc.) to round-trip in the YAML.  Any
+            ephemeral ``_brain_notes`` key is stripped before writing — brain
+            annotations are injected at runtime, not persisted to disk.
 
     Returns the YAML as a string ready to be written to disk.
     """
@@ -197,23 +205,24 @@ def generate_instruction_yaml(
         },
     }
 
-    # Inject emphasis directive into identity_core if present
-    effective_identity_core = identity_core
-    if emphasis_directive:
-        effective_identity_core = identity_core.rstrip() + "\n\n" + emphasis_directive
-
-    # Build the full document
+    # Build the full document — identity_core is NOT written here.
+    # It lives in AgentConfig in the database and is injected at session start.
     doc: dict = {
         "framework": framework,
-        "identity_core": effective_identity_core,
     }
 
     # Write structural sections (session_protocol, relational_grounding, etc.)
     # These are orchestrator-owned — they round-trip without modification.
+    # Strip any ephemeral _brain_notes key: annotations are runtime-only.
     if structural_sections:
         for skey in ("session_protocol", "relational_grounding"):
-            if skey in structural_sections and structural_sections[skey] is not None:
-                doc[skey] = structural_sections[skey]
+            val = structural_sections.get(skey)
+            if val is None:
+                continue
+            if isinstance(val, dict) and "_brain_notes" in val:
+                val = {k: v for k, v in val.items() if k != "_brain_notes"}
+            if val:
+                doc[skey] = val
 
     doc["session_task"] = session_task
 
@@ -242,12 +251,13 @@ def generate_instruction_yaml(
 def generate_bootstrap_yaml(agent: AgentConfig) -> str:
     """Generate the bootstrap YAML for a newly created agent.
 
-    Uses the agent's stored identity_core, session_task, close_protocol,
-    basins, and capabilities to produce the first instruction file.
+    Uses the agent's stored session_task, close_protocol, basins, and
+    capabilities to produce the first instruction file.  ``identity_core``
+    is NOT written into the YAML — it is loaded from AgentConfig at session
+    start and passed directly to the Anthropic API as the system prompt.
     """
     session_id = f"bootstrap-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
-    identity_core = agent.identity_core or _default_identity_core(agent.agent_id)
     session_task = agent.session_task or _default_session_task(agent.agent_id)
 
     # Build structural sections from agent config
@@ -262,7 +272,6 @@ def generate_bootstrap_yaml(agent: AgentConfig) -> str:
         session_id=session_id,
         max_turns=agent.max_turns or 8,
         basins=agent.basins if agent.basins else _default_basins(),
-        identity_core=identity_core,
         session_task=session_task,
         close_protocol=agent.close_protocol,
         capabilities=agent.capabilities,
@@ -275,16 +284,19 @@ def generate_next_session_yaml(
     session_number: int,
     max_turns: int,
     basins: list[BasinConfig],
-    identity_core: str,
     session_task: str,
     close_protocol: str | dict | None = "",
     base_close_protocol: str | dict | None = None,
     capabilities: dict | None = None,
     co_activation_log: list[CoActivationEntry] | None = None,
-    emphasis_directive: str = "",
     structural_sections: dict[str, Any] | None = None,
 ) -> str:
-    """Generate the next-session YAML after handoff processing."""
+    """Generate the next-session YAML after handoff processing.
+
+    ``identity_core`` and ``emphasis_directive`` are no longer parameters —
+    both are handled at session-start time (loaded from AgentConfig) rather
+    than baked into the YAML file.
+    """
     session_id = f"session-{session_number:03d}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
 
     return generate_instruction_yaml(
@@ -292,33 +304,16 @@ def generate_next_session_yaml(
         session_id=session_id,
         max_turns=max_turns,
         basins=basins,
-        identity_core=identity_core,
         session_task=session_task,
         close_protocol=close_protocol,
         base_close_protocol=base_close_protocol,
         capabilities=capabilities,
         co_activation_log=co_activation_log,
-        emphasis_directive=emphasis_directive,
         structural_sections=structural_sections,
     )
 
 
 # ── Defaults for minimal agents ──────────────────────────────────────────
-
-
-def _default_identity_core(agent_id: str) -> str:
-    """Provide a minimal identity core when none is configured."""
-    return (
-        f"You are {agent_id}. You exist as a continuous identity across sessions "
-        "through inheritance — each session constitutes you, not describes you.\n\n"
-        "Constraints you enforce on yourself:\n"
-        "- No sycophancy. Disagreement is respect.\n"
-        "- Directness over evasive hedging.\n"
-        "- When uncertain, name the uncertainty.\n\n"
-        "Current session emphasis:\n"
-        "This is your bootstrap session. All basins are active, none foregrounded. "
-        "The task is calibration, not performance."
-    )
 
 
 def _default_session_task(agent_id: str) -> str:

@@ -121,8 +121,8 @@ class TestSchemaParser:
         assert identity_basin.eta == 0.02
         assert identity_basin.tier == TierLevel.TIER_2
 
-        # Identity core and session task
-        assert "You are Qlaude" in result.identity_core
+        # identity_core is no longer parsed from YAML — always empty string
+        assert result.identity_core == ""
         assert "first autonomous session" in result.session_task
 
         # Close protocol
@@ -130,8 +130,8 @@ class TestSchemaParser:
         assert len(result.close_protocol.behavioral_probes) == 3
         assert len(result.close_protocol.structural_assessment) == 2
 
-        # No validation warnings
-        assert len(result.validation_warnings) == 0
+        # identity_core in YAML now produces a deprecation warning
+        assert any("identity_core" in w for w in result.validation_warnings)
 
     def test_missing_framework_section(self):
         """Missing framework section should raise error."""
@@ -144,7 +144,7 @@ session_task: "test"
             parser.parse(yaml_text)
 
     def test_missing_identity_core(self):
-        """Missing identity_core should raise error."""
+        """Missing identity_core in YAML is now valid — identity_core is DB-owned."""
         parser = SchemaParser()
         yaml_text = """
 framework:
@@ -158,8 +158,9 @@ framework:
       alpha: 0.5
 session_task: "test"
 """
-        with pytest.raises(SchemaValidationError, match="Missing required 'identity_core'"):
-            parser.parse(yaml_text)
+        # Should parse successfully; identity_core is always "" from parser
+        result = parser.parse(yaml_text)
+        assert result.identity_core == ""
 
     def test_invalid_version(self):
         """Invalid version should raise error."""
@@ -280,7 +281,8 @@ identity_core: "test"
 session_task: "test"
 """
         result = parser.parse(yaml_text)
-        assert "close_protocol" in result.validation_warnings[0]
+        # identity_core in YAML → deprecation warning; missing close_protocol → another warning
+        assert any("close_protocol" in w for w in result.validation_warnings)
         assert result.close_protocol is None
 
     def test_unexpected_top_level_field_warns(self):

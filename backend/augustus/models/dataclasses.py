@@ -383,6 +383,7 @@ class AgentConfig:
     identity_core: str = ""
     session_task: str = ""
     close_protocol: str = ""
+    emphasis_directive: str = ""  # Computed by handoff engine; prepended to identity_core at session start
     capabilities: dict = field(default_factory=dict)
     basins: list[BasinConfig] = field(default_factory=list)
     tier_settings: TierSettings | None = None
@@ -405,6 +406,7 @@ class AgentConfig:
             "identity_core": self.identity_core,
             "session_task": self.session_task,
             "close_protocol": self.close_protocol,
+            "emphasis_directive": self.emphasis_directive,
             "capabilities": self.capabilities,
             "basins": [b.to_dict() for b in self.basins],
             "tier_settings": (

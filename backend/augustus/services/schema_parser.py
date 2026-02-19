@@ -64,10 +64,17 @@ class SchemaParser:
         # Validate required sections
         if not framework_raw:
             raise SchemaValidationError("Missing required 'framework' section")
-        if not identity_core:
-            raise SchemaValidationError("Missing required 'identity_core' section")
         if not session_task:
             raise SchemaValidationError("Missing required 'session_task' section")
+
+        # identity_core is no longer written to YAML — it lives in AgentConfig.
+        # Accept it if present (e.g. legacy files or agent-written overrides)
+        # but do not require it.  The session manager loads it from the DB.
+        if identity_core:
+            warnings.append(
+                "'identity_core' found in YAML — this field is now DB-owned. "
+                "The YAML value will be ignored; identity_core loads from AgentConfig."
+            )
 
         if not close_protocol_raw:
             warnings.append("Missing 'close_protocol' section")
@@ -82,7 +89,7 @@ class SchemaParser:
 
         return ParsedInstruction(
             framework=framework,
-            identity_core=str(identity_core).strip(),
+            identity_core="",  # Loaded from AgentConfig at session start, not from YAML
             session_task=str(session_task).strip(),
             close_protocol=close_protocol,
             raw_yaml=yaml_text,

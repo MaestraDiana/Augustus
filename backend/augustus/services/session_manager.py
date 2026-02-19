@@ -226,6 +226,21 @@ class SessionManager:
         temperature = self._resolve_temperature(agent_config)
         max_tokens = self._resolve_max_tokens(agent_config)
 
+        # Load identity_core from the agent DB — it is no longer stored in the YAML.
+        # Also read any emphasis_directive computed by the previous handoff and apply it.
+        if not agent_config:
+            agent_config = await self.memory.get_agent(agent_id)
+        if agent_config and agent_config.identity_core:
+            effective_identity_core = agent_config.identity_core.rstrip()
+            if agent_config.emphasis_directive:
+                effective_identity_core += "\n\n" + agent_config.emphasis_directive
+            instruction.identity_core = effective_identity_core
+        elif not instruction.identity_core:
+            logger.warning(
+                "Session %s: no identity_core in agent DB or YAML — using empty system prompt",
+                session_id,
+            )
+
         logger.info(
             "Starting session %s for agent %s (%d turns, model=%s)",
             session_id,
@@ -285,37 +300,23 @@ class SessionManager:
                 len([k for k in turn_directives if k >= 0]),
             )
 
-        # --- Pre-session: fetch recent brain annotations and prepend to session_protocol ---
+        # --- Pre-session: fetch most recent brain annotation for session context ---
+        # The annotation block is held in a local variable and passed to
+        # _format_structural_preamble at render time.  It is NEVER written into
+        # instruction.structural_sections — that dict round-trips to disk and must
+        # remain clean of ephemeral content.
+        annotation_block: str = ""
         try:
             recent_annotations = await self.memory.get_annotations(
-                agent_id, limit=2, sort_order="desc"
+                agent_id, limit=1, sort_order="desc"
             )
             if recent_annotations:
-                annotation_lines = ["[Recent brain notes]"]
-                for ann in recent_annotations:
-                    date_str = ann.created_at[:10] if ann.created_at else ""
-                    annotation_lines.append(f"[{date_str}] {ann.content.strip()}")
-                annotation_block = "\n".join(annotation_lines)
-
-                if instruction.structural_sections is None:
-                    instruction.structural_sections = {}
-
-                sp = instruction.structural_sections.get("session_protocol")
-                if sp is None:
-                    instruction.structural_sections["session_protocol"] = annotation_block
-                elif isinstance(sp, str):
-                    instruction.structural_sections["session_protocol"] = (
-                        annotation_block + "\n\n" + sp
-                    )
-                elif isinstance(sp, dict):
-                    # Prepend as a special key so _format_structural_preamble renders it first
-                    instruction.structural_sections["session_protocol"] = {
-                        "_brain_notes": annotation_block,
-                        **sp,
-                    }
+                ann = recent_annotations[0]
+                date_str = ann.created_at[:10] if ann.created_at else ""
+                annotation_block = f"[Brain note — {date_str}]\n{ann.content.strip()}"
         except Exception:
             logger.exception(
-                "Failed to fetch recent annotations for session_protocol injection "
+                "Failed to fetch recent annotation for session context "
                 "(agent %s) — continuing without annotation prepend",
                 agent_id,
             )
@@ -333,6 +334,7 @@ class SessionManager:
                     instruction=instruction,
                     pending_confirmations=pending_confirmations,
                     turn_directives=turn_directives,
+                    annotation_block=annotation_block if turn == 0 else "",
                 )
                 pending_confirmations = []
 
@@ -562,6 +564,7 @@ class SessionManager:
         instruction: ParsedInstruction,
         pending_confirmations: list[str],
         turn_directives: dict[int, str] | None = None,
+        annotation_block: str = "",
     ) -> str:
         """Build the user message for a given turn.
 
@@ -573,6 +576,10 @@ class SessionManager:
 
         Prepends tool confirmations and capability availability notices
         when applicable.
+
+        Args:
+            annotation_block: Pre-fetched brain annotation text to inject on turn 0.
+                Rendered as session context without being persisted to structural_sections.
         """
         parts: list[str] = []
 
@@ -590,9 +597,9 @@ class SessionManager:
             parts.append(f"[Now available: {', '.join(newly_available)}]")
 
         # Inject structural sections as session context on turn 0
-        if turn == 0 and instruction.structural_sections:
+        if turn == 0 and (instruction.structural_sections or annotation_block):
             preamble_text = self._format_structural_preamble(
-                instruction.structural_sections
+                instruction.structural_sections or {}, annotation_block=annotation_block
             )
             if preamble_text:
                 parts.append(preamble_text)
@@ -668,12 +675,21 @@ class SessionManager:
         return newly
 
     @staticmethod
-    def _format_structural_preamble(sections: dict[str, Any]) -> str:
+    def _format_structural_preamble(
+        sections: dict[str, Any],
+        annotation_block: str = "",
+    ) -> str:
         """Format structural sections as readable context for the turn 0 message.
 
         Converts ``relational_grounding`` and ``session_protocol`` dicts
         (preserved by the schema parser) into human-readable text blocks
         that Claude can consume as session context.
+
+        Args:
+            sections: Orchestrator-owned structural sections from the YAML.
+            annotation_block: Most recent brain annotation, fetched at session
+                start and rendered at the top of the session protocol block.
+                This is ephemeral — it is never stored in ``sections``.
 
         Returns empty string if no content to inject.
         """
@@ -697,33 +713,39 @@ class SessionManager:
             if len(lines) > 1:
                 blocks.append("\n".join(lines))
 
-        # Session protocol — turn-by-turn structural directives
+        # Session protocol — structural directives with optional brain annotation prepended
         sp = sections.get("session_protocol")
+        sp_lines: list[str] = ["[Session protocol]"]
+
+        # Brain annotation — rendered first, verbatim, never persisted
+        if annotation_block:
+            sp_lines.append(annotation_block.strip())
+
         if sp:
-            lines = ["[Session protocol]"]
             if isinstance(sp, dict):
                 for key, value in sp.items():
                     if key == "_brain_notes":
-                        # Pre-fetched annotation block — render verbatim, no label prefix
-                        lines.append(str(value).strip())
+                        # Legacy: strip any stale _brain_notes that survived from old YAML
+                        continue
                     elif isinstance(value, dict):
                         label = key.replace("_", " ").capitalize()
-                        lines.append(f"{label}:")
+                        sp_lines.append(f"{label}:")
                         for sub_key, sub_val in value.items():
                             sub_label = sub_key.replace("_", " ").capitalize()
-                            lines.append(f"  {sub_label}: {sub_val}")
+                            sp_lines.append(f"  {sub_label}: {sub_val}")
                     elif isinstance(value, list):
                         label = key.replace("_", " ").capitalize()
-                        lines.append(f"{label}:")
+                        sp_lines.append(f"{label}:")
                         for item in value:
-                            lines.append(f"  - {item}")
+                            sp_lines.append(f"  - {item}")
                     else:
                         label = key.replace("_", " ").capitalize()
-                        lines.append(f"{label}: {value}")
+                        sp_lines.append(f"{label}: {value}")
             elif isinstance(sp, str):
-                lines.append(sp.strip())
-            if len(lines) > 1:
-                blocks.append("\n".join(lines))
+                sp_lines.append(sp.strip())
+
+        if len(sp_lines) > 1:
+            blocks.append("\n".join(sp_lines))
 
         return "\n\n".join(blocks)
 
@@ -1938,12 +1960,16 @@ class SessionManager:
         """Generate next-session YAML and write to agent's pending queue.
 
         If the agent wrote a YAML during the session (via the ``write_yaml``
-        tool), its ``identity_core``, ``session_task``, and ``close_protocol``
-        take precedence over defaults.  The handoff engine always provides the
-        updated framework section (basins, co-activation, emphasis).
+        tool), its ``session_task`` and ``close_protocol`` take precedence
+        over defaults.  ``identity_core`` in any agent-written YAML is
+        silently ignored — identity_core is DB-owned and immutable from the
+        agent's perspective.
+
+        The handoff engine's ``emphasis_directive`` is persisted to the agent
+        DB so the next session can read it from AgentConfig at start time.
 
         Structural sections (session_protocol, relational_grounding) are
-        carried forward from the input instruction — these are orchestrator-
+        carried forward from the input instruction — they are orchestrator-
         owned and round-trip without modification.
 
         The close_protocol is merged with the agent config's base template
@@ -1968,18 +1994,28 @@ class SessionManager:
             # Determine session number from completed session count
             session_number = await self.memory.count_sessions(agent_id) + 1
 
-            # Resolve next-session content: agent-written YAML wins over defaults.
-            # Apply mojibake repair + ASCII normalisation as a fallback for
-            # content already corrupted in the current lineage.  The primary
-            # defence is in _tool_write_yaml (catches it at capture); this
-            # second pass catches corruption inherited from older handoffs
-            # that pre-date the fix.
+            # Persist the handoff engine's emphasis_directive to the agent DB.
+            # The next session will read it from AgentConfig and prepend it to
+            # identity_core at session start — it never touches the YAML.
+            if emphasis_directive:
+                await self.memory.update_agent(
+                    agent_id, {"emphasis_directive": emphasis_directive}
+                )
+                logger.info(
+                    "Stored emphasis_directive for agent %s (%d chars)",
+                    agent_id,
+                    len(emphasis_directive),
+                )
+            else:
+                # Clear any stale emphasis from the previous session
+                await self.memory.update_agent(
+                    agent_id, {"emphasis_directive": ""}
+                )
+
+            # Resolve next-session task and close protocol.
+            # identity_core from agent-written YAML is intentionally ignored —
+            # it is a DB-owned field. Apply mojibake repair to task text.
             if agent_written_yaml:
-                next_identity_core = _normalize_to_ascii(_repair_mojibake(
-                    agent_written_yaml.get(
-                        "identity_core", instruction.identity_core
-                    )
-                ))
                 next_task = _normalize_to_ascii(_repair_mojibake(
                     agent_written_yaml.get(
                         "session_task", DEFAULT_CONTINUATION_TASK
@@ -1992,15 +2028,18 @@ class SessionManager:
                     next_close_protocol = _normalize_to_ascii(
                         _repair_mojibake(next_close_protocol)
                     )
+                written_keys = list(agent_written_yaml.keys())
+                if "identity_core" in written_keys:
+                    logger.info(
+                        "Agent %s wrote identity_core in YAML — ignored (DB-owned field)",
+                        agent_id,
+                    )
                 logger.info(
                     "Using agent-written YAML for next session of %s (sections: %s)",
                     agent_id,
-                    list(agent_written_yaml.keys()),
+                    written_keys,
                 )
             else:
-                next_identity_core = _normalize_to_ascii(_repair_mojibake(
-                    instruction.identity_core
-                ))
                 next_task = DEFAULT_CONTINUATION_TASK
                 next_close_protocol = None
                 logger.info(
@@ -2010,7 +2049,13 @@ class SessionManager:
 
             # Carry structural sections forward from the input YAML.
             # These are orchestrator-owned — they round-trip automatically.
-            structural_sections = instruction.structural_sections or {}
+            # Strip any stale _brain_notes before round-tripping.
+            structural_sections = dict(instruction.structural_sections or {})
+            sp = structural_sections.get("session_protocol")
+            if isinstance(sp, dict) and "_brain_notes" in sp:
+                structural_sections["session_protocol"] = {
+                    k: v for k, v in sp.items() if k != "_brain_notes"
+                }
 
             # Also merge in agent-level structural sections as fallback
             if not structural_sections.get("session_protocol") and agent.session_protocol:
@@ -2039,13 +2084,11 @@ class SessionManager:
                 session_number=session_number,
                 max_turns=agent.max_turns or instruction.framework.max_turns,
                 basins=updated_basins,
-                identity_core=next_identity_core,
                 session_task=next_task,
                 close_protocol=next_close_protocol,
                 base_close_protocol=agent.close_protocol or None,
                 capabilities=agent.capabilities,
                 co_activation_log=co_activation_updates,
-                emphasis_directive=emphasis_directive,
                 structural_sections=structural_sections or None,
             )
 

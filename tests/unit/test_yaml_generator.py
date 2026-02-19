@@ -72,7 +72,6 @@ class TestSchemaVersion:
             session_id="test-001",
             max_turns=8,
             basins=_make_basins(),
-            identity_core="test identity",
             session_task="test task",
         )
         doc = yaml.safe_load(output)
@@ -94,7 +93,6 @@ class TestStructuralSections:
             session_id="test-001",
             max_turns=8,
             basins=_make_basins(),
-            identity_core="test identity",
             session_task="test task",
             structural_sections=structural,
         )
@@ -115,7 +113,6 @@ class TestStructuralSections:
             session_id="test-001",
             max_turns=8,
             basins=_make_basins(),
-            identity_core="test identity",
             session_task="test task",
         )
         doc = yaml.safe_load(output)
@@ -132,7 +129,6 @@ class TestStructuralSections:
             session_id="test-001",
             max_turns=8,
             basins=_make_basins(),
-            identity_core="test identity",
             session_task="test task",
             structural_sections=structural,
         )
@@ -151,7 +147,6 @@ class TestStructuralSections:
             session_number=10,
             max_turns=8,
             basins=_make_basins(),
-            identity_core="test identity",
             session_task="continue",
             structural_sections=structural,
         )
@@ -161,7 +156,7 @@ class TestStructuralSections:
         assert doc["relational_grounding"]["partner"] == "Jinx"
 
     def test_document_section_ordering(self):
-        """Structural sections should appear between identity_core and session_task."""
+        """Structural sections should appear before session_task in the output."""
         structural = {
             "session_protocol": {"turn_1": "test"},
             "relational_grounding": {"partner": "Jinx"},
@@ -171,7 +166,6 @@ class TestStructuralSections:
             session_id="test-001",
             max_turns=8,
             basins=_make_basins(),
-            identity_core="test identity",
             session_task="test task",
             structural_sections=structural,
         )
@@ -179,11 +173,11 @@ class TestStructuralSections:
         lines = output.split("\n")
         key_positions = {}
         for i, line in enumerate(lines):
-            for key in ("identity_core:", "session_protocol:", "relational_grounding:", "session_task:"):
+            for key in ("framework:", "session_protocol:", "relational_grounding:", "session_task:"):
                 if line.startswith(key):
                     key_positions[key] = i
 
-        assert key_positions.get("identity_core:", 0) < key_positions.get("session_protocol:", 999)
+        assert key_positions.get("framework:", 0) < key_positions.get("session_protocol:", 999)
         assert key_positions.get("session_protocol:", 0) < key_positions.get("session_task:", 999)
 
 
@@ -291,7 +285,6 @@ class TestCloseProtocolInGeneratedYaml:
             session_id="test-001",
             max_turns=8,
             basins=_make_basins(),
-            identity_core="test identity",
             session_task="test task",
             close_protocol={"behavioral_probes": [], "structural_assessment": [], "output_format": ""},
             base_close_protocol=BASE_CLOSE_PROTOCOL,
@@ -314,7 +307,6 @@ class TestCloseProtocolInGeneratedYaml:
             session_id="test-001",
             max_turns=8,
             basins=_make_basins(),
-            identity_core="test identity",
             session_task="test task",
             close_protocol=agent_proto,
         )
@@ -331,7 +323,6 @@ class TestBootstrapYaml:
         """Bootstrap YAML should include session_protocol from agent config."""
         agent = AgentConfig(
             agent_id="test-agent",
-            identity_core="You are test-agent.",
             session_task="Bootstrap task.",
             session_protocol=SAMPLE_SESSION_PROTOCOL,
             relational_grounding=SAMPLE_RELATIONAL_GROUNDING,
@@ -349,7 +340,6 @@ class TestBootstrapYaml:
         """Bootstrap YAML should not include structural sections when agent has none."""
         agent = AgentConfig(
             agent_id="test-agent",
-            identity_core="You are test-agent.",
             session_task="Bootstrap task.",
             basins=_make_basins(),
         )

@@ -583,6 +583,24 @@ class MemoryService:
             )
             return None
 
+        # Enforce per-basin alpha bounds before any write
+        if "alpha" in modifications:
+            raw_alpha = modifications["alpha"]
+            clamped = raw_alpha
+            if basin.alpha_floor is not None and clamped < basin.alpha_floor:
+                logger.warning(
+                    "Basin %s alpha %.4f is below floor %.4f for agent %s; clamping",
+                    basin_name, raw_alpha, basin.alpha_floor, agent_id,
+                )
+                clamped = basin.alpha_floor
+            if basin.alpha_ceiling is not None and clamped > basin.alpha_ceiling:
+                logger.warning(
+                    "Basin %s alpha %.4f is above ceiling %.4f for agent %s; clamping",
+                    basin_name, raw_alpha, basin.alpha_ceiling, agent_id,
+                )
+                clamped = basin.alpha_ceiling
+            modifications["alpha"] = round(clamped, 6)
+
         # Build previous values snapshot
         prev = {}
         allowed_cols = {

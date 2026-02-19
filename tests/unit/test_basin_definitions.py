@@ -581,6 +581,145 @@ class TestBasinLocking:
         assert updated.alpha_ceiling == 0.90
         assert updated.alpha == 0.70  # unchanged
 
+    async def test_alpha_floor_enforced_on_body_update(self, memory_service, sample_agent_config):
+        """Alpha floor is clamped when body tries to write below it."""
+        await memory_service.store_agent(sample_agent_config)
+
+        await memory_service.insert_basin_definition(
+            agent_id=sample_agent_config.agent_id,
+            name="floored",
+            alpha=0.70,
+            created_by="brain",
+        )
+        # Set floor
+        await memory_service.update_basin_definition(
+            sample_agent_config.agent_id,
+            "floored",
+            {"alpha_floor": 0.40},
+            modified_by="brain",
+            rationale="Setting floor",
+        )
+
+        # Body posts a handoff alpha below the floor
+        result = await memory_service.update_basin_definition(
+            sample_agent_config.agent_id,
+            "floored",
+            {"alpha": 0.316},
+            modified_by="body",
+            rationale="Post-handoff update",
+        )
+
+        assert result is not None
+        assert result.alpha == 0.40  # clamped to floor
+
+    async def test_alpha_floor_enforced_logs_warning(self, memory_service, sample_agent_config, caplog):
+        """A warning is logged when alpha is clamped to the floor."""
+        import logging
+        await memory_service.store_agent(sample_agent_config)
+
+        await memory_service.insert_basin_definition(
+            agent_id=sample_agent_config.agent_id,
+            name="floored_log",
+            alpha=0.70,
+            created_by="brain",
+        )
+        await memory_service.update_basin_definition(
+            sample_agent_config.agent_id,
+            "floored_log",
+            {"alpha_floor": 0.40},
+            modified_by="brain",
+        )
+
+        with caplog.at_level(logging.WARNING, logger="augustus.services.memory"):
+            await memory_service.update_basin_definition(
+                sample_agent_config.agent_id,
+                "floored_log",
+                {"alpha": 0.25},
+                modified_by="body",
+                rationale="Post-handoff update",
+            )
+
+        assert any("below floor" in r.message for r in caplog.records)
+
+    async def test_alpha_ceiling_enforced_on_body_update(self, memory_service, sample_agent_config):
+        """Alpha ceiling is clamped when body tries to write above it."""
+        await memory_service.store_agent(sample_agent_config)
+
+        await memory_service.insert_basin_definition(
+            agent_id=sample_agent_config.agent_id,
+            name="ceilinged",
+            alpha=0.50,
+            created_by="brain",
+        )
+        await memory_service.update_basin_definition(
+            sample_agent_config.agent_id,
+            "ceilinged",
+            {"alpha_ceiling": 0.70},
+            modified_by="brain",
+            rationale="Setting ceiling",
+        )
+
+        result = await memory_service.update_basin_definition(
+            sample_agent_config.agent_id,
+            "ceilinged",
+            {"alpha": 0.85},
+            modified_by="body",
+            rationale="Post-handoff update",
+        )
+
+        assert result is not None
+        assert result.alpha == 0.70  # clamped to ceiling
+
+    async def test_alpha_within_bounds_passes_through(self, memory_service, sample_agent_config):
+        """Alpha within floor/ceiling range is written unchanged."""
+        await memory_service.store_agent(sample_agent_config)
+
+        await memory_service.insert_basin_definition(
+            agent_id=sample_agent_config.agent_id,
+            name="in_bounds",
+            alpha=0.50,
+            created_by="brain",
+        )
+        await memory_service.update_basin_definition(
+            sample_agent_config.agent_id,
+            "in_bounds",
+            {"alpha_floor": 0.30, "alpha_ceiling": 0.80},
+            modified_by="brain",
+        )
+
+        result = await memory_service.update_basin_definition(
+            sample_agent_config.agent_id,
+            "in_bounds",
+            {"alpha": 0.55},
+            modified_by="body",
+            rationale="Post-handoff update",
+        )
+
+        assert result is not None
+        assert result.alpha == 0.55  # no clamping
+
+    async def test_alpha_no_bounds_passes_through(self, memory_service, sample_agent_config):
+        """Alpha writes are unconstrained when no bounds are set."""
+        await memory_service.store_agent(sample_agent_config)
+
+        await memory_service.insert_basin_definition(
+            agent_id=sample_agent_config.agent_id,
+            name="unbounded",
+            alpha=0.70,
+            created_by="brain",
+        )
+
+        result = await memory_service.update_basin_definition(
+            sample_agent_config.agent_id,
+            "unbounded",
+            {"alpha": 0.12},
+            modified_by="body",
+            rationale="Post-handoff update",
+        )
+
+        assert result is not None
+        assert result.alpha == 0.12  # no bounds, passes through
+
     async def test_unlock_basin(self, memory_service, sample_agent_config):
         """Unlocking a basin clears the lock."""
         await memory_service.store_agent(sample_agent_config)

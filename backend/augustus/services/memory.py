@@ -2270,23 +2270,37 @@ class MemoryService:
         )
 
     async def get_annotations(
-        self, agent_id: str, session_id: str | None = None
+        self,
+        agent_id: str,
+        session_id: str | None = None,
+        limit: int | None = None,
+        sort_order: str = "desc",
     ) -> list[Annotation]:
-        """Get annotations for an agent, optionally filtered to a session."""
+        """Get annotations for an agent, optionally filtered to a session.
+
+        Args:
+            agent_id: Agent to retrieve annotations for.
+            session_id: If provided, restrict results to this session.
+            limit: Maximum number of results to return.
+            sort_order: "desc" (newest first) or "asc" (oldest first).
+        """
+        order = "DESC" if sort_order.lower() != "asc" else "ASC"
+        limit_clause = f" LIMIT {int(limit)}" if limit is not None else ""
+
         if session_id is not None:
-            sql = """
+            sql = f"""
                 SELECT * FROM annotations
                 WHERE agent_id = ? AND session_id = ?
-                ORDER BY created_at DESC
+                ORDER BY created_at {order}{limit_clause}
             """
             rows = await self._run_sync(
                 self.sqlite.fetch_all, sql, (agent_id, session_id)
             )
         else:
-            sql = """
+            sql = f"""
                 SELECT * FROM annotations
                 WHERE agent_id = ?
-                ORDER BY created_at DESC
+                ORDER BY created_at {order}{limit_clause}
             """
             rows = await self._run_sync(
                 self.sqlite.fetch_all, sql, (agent_id,)

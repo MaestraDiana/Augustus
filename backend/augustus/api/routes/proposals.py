@@ -141,6 +141,17 @@ async def create_proposal(
             lambda_ = body.suggested_params.get("lambda_decay",
                 existing.lambda_ if existing else 0.95
             )
+            if "lambda_decay" in body.suggested_params:
+                current_lambda = existing.lambda_ if existing else 0.95
+                if float(lambda_) < 0.80:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"lambda_decay value {lambda_} is below the minimum threshold of 0.80. "
+                            f"Current value is {current_lambda}. Proposals must be within 0.10 of "
+                            f"the current value or provide an explicit override flag."
+                        ),
+                    )
             eta = body.suggested_params.get("eta",
                 existing.eta if existing else 0.1
             )

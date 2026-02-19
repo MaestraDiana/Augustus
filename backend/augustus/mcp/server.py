@@ -247,9 +247,16 @@ class MCPServer:
                 items.append(item)
             return json.dumps(items)
 
-        @self.mcp.tool(description="Get all annotations for an agent, optionally filtered to a specific session.")
-        async def get_agent_annotations(agent_id: str, session_id: str | None = None) -> str:
-            annotations = await memory.get_annotations(agent_id, session_id=session_id)
+        @self.mcp.tool(description="Get annotations for an agent, optionally filtered to a specific session. Supports limit and sort_order for targeted retrieval.")
+        async def get_agent_annotations(
+            agent_id: str,
+            session_id: str | None = None,
+            limit: int | None = None,
+            sort_order: str = "desc",
+        ) -> str:
+            annotations = await memory.get_annotations(
+                agent_id, session_id=session_id, limit=limit, sort_order=sort_order
+            )
             return json.dumps([
                 {
                     "annotation_id": a.annotation_id,
@@ -578,6 +585,16 @@ class MCPServer:
                     lambda_ = suggested_params.get("lambda_decay",
                         existing.lambda_ if existing else 0.95
                     )
+                    if "lambda_decay" in suggested_params:
+                        current_lambda = existing.lambda_ if existing else 0.95
+                        if float(lambda_) < 0.80:
+                            return json.dumps({
+                                "error": (
+                                    f"lambda_decay value {lambda_} is below the minimum threshold of 0.80. "
+                                    f"Current value is {current_lambda}. Proposals must be within 0.10 of "
+                                    f"the current value or provide an explicit override flag."
+                                )
+                            })
                     eta = suggested_params.get("eta",
                         existing.eta if existing else 0.1
                     )

@@ -285,6 +285,41 @@ class SessionManager:
                 len([k for k in turn_directives if k >= 0]),
             )
 
+        # --- Pre-session: fetch recent brain annotations and prepend to session_protocol ---
+        try:
+            recent_annotations = await self.memory.get_annotations(
+                agent_id, limit=2, sort_order="desc"
+            )
+            if recent_annotations:
+                annotation_lines = ["[Recent brain notes]"]
+                for ann in recent_annotations:
+                    date_str = ann.created_at[:10] if ann.created_at else ""
+                    annotation_lines.append(f"[{date_str}] {ann.content.strip()}")
+                annotation_block = "\n".join(annotation_lines)
+
+                if instruction.structural_sections is None:
+                    instruction.structural_sections = {}
+
+                sp = instruction.structural_sections.get("session_protocol")
+                if sp is None:
+                    instruction.structural_sections["session_protocol"] = annotation_block
+                elif isinstance(sp, str):
+                    instruction.structural_sections["session_protocol"] = (
+                        annotation_block + "\n\n" + sp
+                    )
+                elif isinstance(sp, dict):
+                    # Prepend as a special key so _format_structural_preamble renders it first
+                    instruction.structural_sections["session_protocol"] = {
+                        "_brain_notes": annotation_block,
+                        **sp,
+                    }
+        except Exception:
+            logger.exception(
+                "Failed to fetch recent annotations for session_protocol injection "
+                "(agent %s) — continuing without annotation prepend",
+                agent_id,
+            )
+
         try:
             # --- Phase 2: TURN LOOP ---
             for turn in range(max_turns):
@@ -668,17 +703,22 @@ class SessionManager:
             lines = ["[Session protocol]"]
             if isinstance(sp, dict):
                 for key, value in sp.items():
-                    label = key.replace("_", " ").capitalize()
-                    if isinstance(value, dict):
+                    if key == "_brain_notes":
+                        # Pre-fetched annotation block — render verbatim, no label prefix
+                        lines.append(str(value).strip())
+                    elif isinstance(value, dict):
+                        label = key.replace("_", " ").capitalize()
                         lines.append(f"{label}:")
                         for sub_key, sub_val in value.items():
                             sub_label = sub_key.replace("_", " ").capitalize()
                             lines.append(f"  {sub_label}: {sub_val}")
                     elif isinstance(value, list):
+                        label = key.replace("_", " ").capitalize()
                         lines.append(f"{label}:")
                         for item in value:
                             lines.append(f"  - {item}")
                     else:
+                        label = key.replace("_", " ").capitalize()
                         lines.append(f"{label}: {value}")
             elif isinstance(sp, str):
                 lines.append(sp.strip())
@@ -1689,7 +1729,17 @@ class SessionManager:
                                 pass
 
                         if "lambda" in prop:
-                            new_lambda = float(prop["lambda"])
+                            proposed_lambda = float(prop["lambda"])
+                            current_lambda = b.lambda_
+                            if proposed_lambda < 0.80:
+                                logger.warning(
+                                    "Basin '%s' proposal rejected: lambda_decay %.4f is below "
+                                    "minimum threshold of 0.80 (current: %.4f). Keeping current value.",
+                                    name, proposed_lambda, current_lambda,
+                                )
+                                # Skip the invalid lambda — leave new_lambda at current value
+                            else:
+                                new_lambda = proposed_lambda
                         if "eta" in prop:
                             new_eta = float(prop["eta"])
 

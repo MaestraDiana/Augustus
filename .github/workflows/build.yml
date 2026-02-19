@@ -67,13 +67,13 @@ jobs:
         run: npm run build
         working-directory: frontend
 
-      # Build Electron app
+      # Build Electron app — publish never; artifacts uploaded separately
       - name: Install Electron dependencies
         run: npm ci
         working-directory: electron
 
-      - name: Build and publish Electron app
-        run: npx electron-builder --publish always
+      - name: Build Electron app
+        run: npx electron-builder --publish never
         working-directory: electron
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -84,34 +84,54 @@ jobs:
           # CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           # CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
-  # Publish the draft release after all platform builds succeed
+      # Collect built artifacts into a staging directory
+      - name: Collect artifacts
+        shell: bash
+        run: |
+          mkdir -p staging
+          # Copy release files (installers, blockmaps, latest ymls) but not unpacked dirs
+          find electron/dist -maxdepth 1 -type f \( \
+            -name "*.exe" -o -name "*.exe.blockmap" \
+            -o -name "*.dmg" -o -name "*.dmg.blockmap" \
+            -o -name "*.AppImage" \
+            -o -name "latest*.yml" \
+          \) -exec cp {} staging/ \;
+          echo "Staged files:"
+          ls -lh staging/
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.platform }}
+          path: staging/
+          retention-days: 1
+
+  # Publish release after ALL platform builds complete — no race condition
   publish:
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Publish GitHub Release
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+          merge-multiple: true
+
+      - name: List collected artifacts
+        run: ls -lh dist/
+
+      - name: Create and publish GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          echo "Looking for draft release for tag: $TAG"
-          # Find the draft release created by electron-builder
-          RELEASE_ID=$(gh api repos/$GH_REPO/releases --jq ".[] | select(.draft==true and (.tag_name==\"$TAG\" or .tag_name==\"untagged-\" + .id)) | .id" | head -1)
-          if [ -z "$RELEASE_ID" ]; then
-            # electron-builder may create with empty tag — find most recent draft
-            RELEASE_ID=$(gh api repos/$GH_REPO/releases --jq '[.[] | select(.draft==true)] | sort_by(.created_at) | last | .id')
-          fi
-          if [ -n "$RELEASE_ID" ]; then
-            echo "Publishing draft release ID: $RELEASE_ID"
-            gh api --method PATCH repos/$GH_REPO/releases/$RELEASE_ID \
-              -f tag_name="$TAG" \
-              -F draft=false \
-              -f name="$TAG"
-            echo "Release published!"
-          else
-            echo "No draft release found — creating release from tag"
-            gh release create "$TAG" --title "$TAG" --generate-notes
-          fi
+          echo "Creating release for tag: $TAG"
+          gh release create "$TAG" \
+            --repo "$GH_REPO" \
+            --title "$TAG" \
+            --generate-notes \
+            dist/*
+          echo "Release $TAG published with all artifacts."

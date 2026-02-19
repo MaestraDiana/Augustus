@@ -1476,20 +1476,20 @@ class SessionManager:
             source = await self.memory.get_agent_basin_source(agent_id)
             if source == "database":
                 for basin in handoff_result.updated_basins:
-                    await self.memory.update_basin_definition(
+                    params = {
+                        "alpha": basin.alpha,
+                        "lambda": basin.lambda_,
+                        "eta": basin.eta,
+                        "basin_class": enum_val(basin.basin_class),
+                        "tier": basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier),
+                    }
+                    # Use upsert so basins added post-creation are created if missing
+                    await self.memory.upsert_basin_definition(
                         agent_id=agent_id,
-                        basin_name=basin.name,
-                        modifications={
-                            "alpha": basin.alpha,
-                            "lambda": basin.lambda_,
-                            "eta": basin.eta,
-                            "basin_class": enum_val(basin.basin_class),
-                            "tier": basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier),
-                        },
+                        name=basin.name,
+                        params=params,
                         modified_by="body",
                         rationale="Post-handoff update",
-                        session_id=session_id,
-                        override_lock=True,  # Handoff updates always apply
                     )
         except Exception as e:
             logger.error(

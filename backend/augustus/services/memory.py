@@ -370,13 +370,43 @@ class MemoryService:
     async def get_current_basins(self, agent_id: str) -> list[BasinConfig]:
         """Get the current active (non-deprecated) basin configuration for an agent.
 
-        For agents on basin_source='database', basin_definitions is canonical
-        and basin_current may contain stale/orphaned rows. This method uses
-        the canonical source automatically.
+        For agents on basin_source='database', basin_definitions is canonical.
+        Any basin present in basin_current but missing from basin_definitions
+        (e.g. added post-creation via proposals or YAML update) is auto-migrated
+        into basin_definitions so it appears in the UI.
         """
         source = await self.get_agent_basin_source(agent_id)
         if source == "database":
             defs = await self.get_basin_definitions(agent_id, include_deprecated=False)
+            def_names = {d.name for d in defs}
+
+            # Check basin_current for any non-deprecated basins not yet in basin_definitions
+            sql = """
+                SELECT * FROM basin_current
+                WHERE agent_id = ? AND deprecated = 0
+                ORDER BY basin_name
+            """
+            current_rows = await self._run_sync(self.sqlite.fetch_all, sql, (agent_id,))
+            missing = [self._row_to_basin_config(r) for r in current_rows if r["basin_name"] not in def_names]
+
+            if missing:
+                # Auto-migrate missing basins into basin_definitions
+                for basin in missing:
+                    await self.insert_basin_definition(
+                        agent_id=agent_id,
+                        name=basin.name,
+                        basin_class=enum_val(basin.basin_class),
+                        alpha=basin.alpha,
+                        lambda_decay=basin.lambda_,
+                        eta=basin.eta,
+                        tier=basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier),
+                        created_by="migration",
+                        rationale="Auto-migrated: basin added post-creation",
+                    )
+                    logger.info("Auto-migrated basin '%s' for agent %s into basin_definitions", basin.name, agent_id)
+                # Reload definitions after migration
+                defs = await self.get_basin_definitions(agent_id, include_deprecated=False)
+
             if defs:
                 return [d.to_basin_config() for d in defs]
 
@@ -1416,6 +1446,8 @@ class MemoryService:
 
         basin = proposal.proposed_config
 
+        source = await self.get_agent_basin_source(agent.agent_id)
+
         if proposal.proposal_type == ProposalType.CREATE:
             # Add basin to agent config if not already present
             existing_names = {b.name for b in agent.basins}
@@ -1431,6 +1463,22 @@ class MemoryService:
             basins_dicts = [b.to_dict() for b in new_basins]
             await self.update_agent(agent.agent_id, {"basins": basins_dicts})
             await self.update_current_basins(agent.agent_id, new_basins)
+
+            # Sync to basin_definitions for database-source agents
+            if source == "database":
+                await self.upsert_basin_definition(
+                    agent_id=agent.agent_id,
+                    name=basin.name,
+                    params={
+                        "basin_class": enum_val(basin.basin_class),
+                        "alpha": basin.alpha,
+                        "lambda": basin.lambda_,
+                        "eta": basin.eta,
+                        "tier": basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier),
+                    },
+                    modified_by="body",
+                    rationale=f"Applied from approved proposal {proposal.proposal_id}",
+                )
 
             logger.info(
                 "Applied approved proposal %s: added basin '%s' to agent %s",
@@ -1448,6 +1496,22 @@ class MemoryService:
             basins_dicts = [b.to_dict() for b in new_basins]
             await self.update_agent(agent.agent_id, {"basins": basins_dicts})
             await self.update_current_basins(agent.agent_id, new_basins)
+
+            # Sync to basin_definitions for database-source agents
+            if source == "database":
+                await self.upsert_basin_definition(
+                    agent_id=agent.agent_id,
+                    name=basin.name,
+                    params={
+                        "basin_class": enum_val(basin.basin_class),
+                        "alpha": basin.alpha,
+                        "lambda": basin.lambda_,
+                        "eta": basin.eta,
+                        "tier": basin.tier.value if hasattr(basin.tier, "value") else int(basin.tier),
+                    },
+                    modified_by="body",
+                    rationale=f"Applied from approved proposal {proposal.proposal_id}",
+                )
 
             logger.info(
                 "Applied approved proposal %s: modified basin '%s' in agent %s",

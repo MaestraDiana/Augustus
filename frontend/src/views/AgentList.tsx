@@ -313,9 +313,11 @@ export default function AgentList() {
                         style={{ background: getAgentColor(agent.agent_id, agents) }}
                       />
                       <div>
-                        <div className="agent-name">
-                          {isDeleting ? 'Deleting...' : agent.agent_id}
-                        </div>
+                        <Link to={`/agents/${agent.agent_id}`} className="agent-name-link">
+                          <div className="agent-name">
+                            {isDeleting ? 'Deleting...' : agent.agent_id}
+                          </div>
+                        </Link>
                         <div className="agent-desc">{agent.description}</div>
                       </div>
                     </div>

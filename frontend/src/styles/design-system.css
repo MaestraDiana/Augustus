@@ -1350,6 +1350,8 @@ tr.basin-deprecated td {
 
 .agent-cell { display: flex; align-items: center; gap: var(--space-3); }
 .agent-name { font-family: var(--font-data); font-size: 15px; font-weight: 500; }
+.agent-name-link { text-decoration: none; color: inherit; }
+.agent-name-link:hover .agent-name { color: var(--accent-primary); text-decoration: underline; text-underline-offset: 3px; }
 .agent-desc { font-size: 14px; color: var(--text-secondary); margin-top: 2px; }
 
 .action-cell { display: flex; gap: var(--space-1); justify-content: flex-end; }

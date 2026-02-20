@@ -1,10 +1,11 @@
-import { Bell, Sun, Moon, Activity, Clock, Play, Pause } from 'lucide-react';
+import { Bell, Sun, Moon, Activity, Clock, Play, Pause, AlertTriangle, Info, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme';
 import StatusChip from '../ui/StatusChip';
 import UpdateBanner from '../ui/UpdateBanner';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api/client';
+import type { SystemAlert } from '../../types';
 
 interface TopbarProps {
   pageTitle?: string;
@@ -18,6 +19,10 @@ export default function Topbar({ pageTitle }: TopbarProps) {
   const [queuedAgents, setQueuedAgents] = useState(0);
   const [budget, setBudget] = useState({ used: 0, total: 25 });
   const [isTogglingOrchestrator, setIsTogglingOrchestrator] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<SystemAlert[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
 
   // Poll orchestrator status every 10 seconds
   useEffect(() => {
@@ -37,6 +42,33 @@ export default function Topbar({ pageTitle }: TopbarProps) {
     const interval = setInterval(fetchStatus, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  // Fetch alerts on mount and periodically
+  useEffect(() => {
+    const fetchAlerts = async () => {
+      try {
+        const data = await api.activity.alerts();
+        setAlerts(data);
+      } catch {
+        // Silently keep current alerts
+      }
+    };
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Close notification panel when clicking outside
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [notifOpen]);
 
   // Poll budget data every 30 seconds
   useEffect(() => {
@@ -77,6 +109,8 @@ export default function Topbar({ pageTitle }: TopbarProps) {
     } catch (error) {
       console.error('Failed to toggle orchestrator:', error);
       // Don't change status on error - keep the current state
+      setToggleError('Failed to toggle orchestrator.');
+      setTimeout(() => setToggleError(null), 3000);
     } finally {
       setIsTogglingOrchestrator(false);
     }
@@ -128,9 +162,109 @@ export default function Topbar({ pageTitle }: TopbarProps) {
           </div>
         </div>
 
-        <button className="notification-btn" title="Notifications">
-          <Bell size={20} />
-        </button>
+        {toggleError && (
+          <span style={{ fontSize: '12px', color: 'var(--accent-alert)', padding: '2px var(--space-2)', background: 'var(--accent-alert-dim)', borderRadius: 'var(--radius-sm)' }}>
+            {toggleError}
+          </span>
+        )}
+
+        <div ref={notifRef} style={{ position: 'relative' }}>
+          <button
+            className="notification-btn"
+            title="Notifications"
+            onClick={() => setNotifOpen(o => !o)}
+            style={{ position: 'relative' }}
+          >
+            <Bell size={20} />
+            {alerts.length > 0 && (
+              <span style={{
+                position: 'absolute', top: '2px', right: '2px',
+                width: '16px', height: '16px', borderRadius: '50%',
+                background: 'var(--accent-alert)', color: '#fff',
+                fontSize: '10px', fontWeight: 700, lineHeight: '16px', textAlign: 'center',
+                pointerEvents: 'none',
+              }}>
+                {alerts.length > 9 ? '9+' : alerts.length}
+              </span>
+            )}
+          </button>
+
+          {notifOpen && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+              width: '340px', maxHeight: '420px', overflowY: 'auto',
+              background: 'var(--bg-surface)', border: '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-card)',
+              zIndex: 1000,
+            }}>
+              <div style={{
+                padding: 'var(--space-3) var(--space-4)', borderBottom: '1px solid var(--border-color)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text-primary)' }}>
+                  System Alerts
+                </span>
+                <button onClick={() => setNotifOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                  <X size={16} />
+                </button>
+              </div>
+              {alerts.length === 0 ? (
+                <div style={{ padding: 'var(--space-5)', textAlign: 'center', color: 'var(--text-muted)', fontSize: '14px' }}>
+                  No active alerts
+                </div>
+              ) : alerts.map((alert) => {
+                const isError = alert.alert_type === 'error';
+                const alertColor = isError ? 'var(--accent-alert)' : 'var(--accent-attention)';
+                const alertDim = isError ? 'var(--accent-alert-dim)' : 'var(--accent-attention-dim)';
+                const AlertIcon = isError ? AlertTriangle : Info;
+                const link = alert.link_type === 'pending_proposals' && alert.agent_id
+                  ? `/agents/${alert.agent_id}/proposals`
+                  : alert.link_type === 'unreviewed_flags' && alert.agent_id
+                  ? `/agents/${alert.agent_id}/flags`
+                  : alert.link_type === 'constraint_erosion' && alert.agent_id
+                  ? `/agents/${alert.agent_id}/flags`
+                  : alert.link_type === 'agent_errors'
+                  ? '/agents'
+                  : alert.link_type === 'budget_warning'
+                  ? '/usage'
+                  : null;
+                return (
+                  <div
+                    key={alert.alert_id}
+                    onClick={() => { if (link) { navigate(link); setNotifOpen(false); } }}
+                    style={{
+                      padding: 'var(--space-3) var(--space-4)',
+                      borderBottom: '1px solid var(--border-color)',
+                      cursor: link ? 'pointer' : 'default',
+                      display: 'flex', gap: 'var(--space-3)', alignItems: 'flex-start',
+                      transition: 'background var(--transition-color)',
+                    }}
+                    onMouseEnter={(e) => { if (link) e.currentTarget.style.background = 'var(--bg-raised)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: 'var(--radius-sm)',
+                      background: alertDim, color: alertColor, flexShrink: 0,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <AlertIcon size={14} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '2px' }}>
+                        {alert.title}
+                      </div>
+                      {alert.detail && (
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                          {alert.detail}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         <div className="mode-switcher">
           <button

@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, Query
 from augustus.api.dependencies import get_memory
 from augustus.models.dataclasses import ActivityEvent
 from augustus.services.memory import MemoryService
-from augustus.utils import utcnow_iso
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["activity"])
@@ -53,7 +52,9 @@ async def get_system_alerts(
             "detail": alert.get("detail", ""),
             "link_type": alert.get("type", ""),
             "agent_id": alert.get("agent_id", ""),
-            "timestamp": utcnow_iso(),
+            # System alerts are computed on demand from live state — no stored timestamp.
+            # Omit rather than fake utcnow which would always show "just now".
+            "timestamp": None,
             "dismissed": False,
         })
     return result

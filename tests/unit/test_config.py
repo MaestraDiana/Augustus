@@ -9,7 +9,7 @@ def test_default_settings_values():
     """Test Settings dataclass has correct default values."""
     settings = Settings()
 
-    assert settings.default_model == "claude-sonnet-4-20250514"
+    assert settings.default_model == "claude-sonnet-4-6"
     assert settings.default_temperature == 1.0
     assert settings.default_max_tokens == 4096
     assert settings.poll_interval == 60

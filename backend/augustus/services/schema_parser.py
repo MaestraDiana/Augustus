@@ -274,3 +274,176 @@ class SchemaParser:
             structural_assessment=[str(a) for a in assessment],
             output_format=str(output_format).strip(),
         )
+
+
+# ── Standalone helpers ──────────────────────────────────────────────────────
+
+_DEFAULT_CAPABILITIES: list[dict[str, Any]] = [
+    {"name": "mcp", "enabled": True, "available_from_turn": 1},
+    {"name": "rag", "enabled": True, "available_from_turn": 1},
+    {"name": "web_search", "enabled": False, "available_from_turn": 1},
+    {"name": "memory_query", "enabled": False, "available_from_turn": 1},
+    {"name": "memory_write", "enabled": False, "available_from_turn": 5},
+    {"name": "file_write", "enabled": False, "available_from_turn": 10},
+]
+
+
+def parse_yaml_lenient(yaml_text: str) -> dict[str, Any]:
+    """Parse a bootstrap YAML leniently for agent form population.
+
+    Does not require agent_id or session_id.  Returns extracted fields
+    plus ``warnings`` and ``errors`` lists so callers can surface issues
+    without raising exceptions.
+    """
+    warnings: list[str] = []
+    errors: list[str] = []
+    result: dict[str, Any] = {
+        "max_turns": None,
+        "identity_core": None,
+        "session_task": None,
+        "close_protocol": None,
+        "session_protocol": None,
+        "relational_grounding": None,
+        "capabilities": None,
+        "basins": None,
+        "warnings": warnings,
+        "errors": errors,
+    }
+
+    try:
+        data = yaml.safe_load(yaml_text)
+    except yaml.YAMLError as e:
+        errors.append(f"Invalid YAML syntax: {e}")
+        return result
+
+    if not isinstance(data, dict):
+        errors.append("YAML must be a mapping at top level, got " + type(data).__name__)
+        return result
+
+    expected_keys = {
+        "framework", "identity_core", "session_task",
+        "close_protocol", "session_protocol", "relational_grounding",
+    }
+    for key in data:
+        if key not in expected_keys:
+            warnings.append(f"Unexpected top-level field ignored: '{key}'")
+
+    if "identity_core" in data:
+        result["identity_core"] = str(data["identity_core"]).strip()
+
+    if "session_task" in data:
+        result["session_task"] = str(data["session_task"]).strip()
+
+    if "close_protocol" in data:
+        cp = data["close_protocol"]
+        if isinstance(cp, dict):
+            result["close_protocol"] = yaml.dump(
+                cp, default_flow_style=False, sort_keys=False, allow_unicode=True
+            ).strip()
+        elif cp is not None:
+            result["close_protocol"] = str(cp).strip()
+
+    for skey in ("session_protocol", "relational_grounding"):
+        if skey in data:
+            val = data[skey]
+            if isinstance(val, dict):
+                result[skey] = yaml.dump(
+                    val, default_flow_style=False, sort_keys=False, allow_unicode=True
+                ).strip()
+            elif val is not None:
+                result[skey] = str(val).strip()
+
+    fw = data.get("framework")
+    if not isinstance(fw, dict):
+        if fw is not None:
+            warnings.append("'framework' section is not a mapping, skipping")
+        else:
+            warnings.append("No 'framework' section found — only textual fields imported")
+        return result
+
+    max_turns = fw.get("max_turns")
+    if isinstance(max_turns, int) and 1 <= max_turns <= 50:
+        result["max_turns"] = max_turns
+    elif max_turns is not None:
+        warnings.append(f"'max_turns' value '{max_turns}' invalid, skipping")
+
+    basin_params = fw.get("basin_params")
+    if isinstance(basin_params, dict) and basin_params:
+        basins = []
+        for name, config in basin_params.items():
+            if not isinstance(config, dict):
+                warnings.append(f"Basin '{name}' is not a mapping, skipping")
+                continue
+
+            basin_class_str = config.get("class", "peripheral")
+            if basin_class_str not in ("core", "peripheral", "emergent"):
+                warnings.append(
+                    f"Basin '{name}' class '{basin_class_str}' unrecognized, defaulting to 'peripheral'"
+                )
+                basin_class_str = "peripheral"
+
+            alpha = config.get("alpha", 0.5)
+            if not isinstance(alpha, (int, float)):
+                warnings.append(f"Basin '{name}' alpha is not numeric, defaulting to 0.5")
+                alpha = 0.5
+            elif alpha < 0.05 or alpha > 1.0:
+                clamped = max(0.05, min(1.0, float(alpha)))
+                warnings.append(f"Basin '{name}' alpha {alpha} clamped to {clamped}")
+                alpha = clamped
+
+            lambda_ = config.get("lambda", 0.95)
+            if not isinstance(lambda_, (int, float)):
+                lambda_ = 0.95
+            else:
+                lambda_ = max(0.0, min(1.0, float(lambda_)))
+
+            eta = config.get("eta", 0.1)
+            if not isinstance(eta, (int, float)):
+                eta = 0.1
+            else:
+                eta = max(0.0, min(1.0, float(eta)))
+
+            tier = config.get("tier")
+            if tier is None:
+                tier = 2 if basin_class_str == "core" else 3
+            elif tier not in (1, 2, 3):
+                warnings.append(f"Basin '{name}' tier '{tier}' invalid, defaulting from class")
+                tier = 2 if basin_class_str == "core" else 3
+
+            basins.append({
+                "name": name,
+                "class": basin_class_str,
+                "alpha": round(float(alpha), 4),
+                "lambda": round(float(lambda_), 4),
+                "eta": round(float(eta), 4),
+                "tier": int(tier),
+            })
+        if basins:
+            result["basins"] = basins
+    elif basin_params is not None:
+        warnings.append("'basin_params' is empty or not a mapping")
+
+    caps_raw = fw.get("capabilities", fw.get("services"))
+    if isinstance(caps_raw, dict) and caps_raw:
+        caps_by_name = {c["name"]: dict(c) for c in _DEFAULT_CAPABILITIES}
+        for name, val in caps_raw.items():
+            if isinstance(val, bool):
+                if name in caps_by_name:
+                    caps_by_name[name]["enabled"] = val
+                else:
+                    caps_by_name[name] = {"name": name, "enabled": val, "available_from_turn": 1}
+            elif isinstance(val, dict):
+                enabled = val.get("enabled", True)
+                from_turn = val.get("available_from_turn", 1)
+                if name in caps_by_name:
+                    caps_by_name[name]["enabled"] = bool(enabled)
+                    caps_by_name[name]["available_from_turn"] = int(from_turn)
+                else:
+                    caps_by_name[name] = {
+                        "name": name,
+                        "enabled": bool(enabled),
+                        "available_from_turn": int(from_turn),
+                    }
+        result["capabilities"] = list(caps_by_name.values())
+
+    return result

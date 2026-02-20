@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { timeAgo } from '../utils/time';
 import { toggleSetItem } from '../utils/collections';
 import { AGENT_COLORS, getAgentColor } from '../utils/constants';
 import type { SearchResult, Agent } from '../types';
+import EmptyState from '../components/ui/EmptyState';
 
 function getTypeIcon(type: string): string {
   const icons: Record<string, string> = {
@@ -38,17 +40,24 @@ function getTypeColor(type: string): string {
   return colors[type] || '#3B9B8E';
 }
 
+// Content types that navigate to session detail when clicked.
+// annotation and observation may also be expanded in-place if no session_id.
+const SESSION_NAV_TYPES = new Set(['transcript', 'close-report', 'evaluator', 'annotation', 'observation']);
+
 export default function Search() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [scope, setScope] = useState('all');
   const [scopeMenuOpen, setScopeMenuOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activeTypes, setActiveTypes] = useState<Set<string>>(
     new Set(['transcript', 'close-report', 'evaluator', 'annotation', 'observation']),
   );
+  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set());
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
@@ -73,18 +82,31 @@ export default function Search() {
   async function handleSearch() {
     if (!query.trim()) return;
     setLoading(true);
+    setSearchError(null);
     try {
       const data =
         scope === 'all'
           ? await api.search.global(query)
           : await api.search.agent(scope, query);
       setResults(data);
+      setExpandedCards(new Set());
     } catch (err) {
       console.error('Failed to search:', err);
       setResults([]);
+      setSearchError(err instanceof Error ? err.message : 'Search failed. Check backend connectivity.');
     } finally {
       setLoading(false);
       setSearched(true);
+    }
+  }
+
+  function handleResultClick(result: SearchResult, index: number) {
+    const isExpandable = result.content_type === 'annotation' || result.content_type === 'observation' || result.content_type === 'evaluator';
+    if (result.session_id && SESSION_NAV_TYPES.has(result.content_type)) {
+      navigate(`/agents/${result.agent_id}/sessions/${result.session_id}`);
+    } else if (isExpandable) {
+      // No session to navigate to — expand in place
+      setExpandedCards(prev => toggleSetItem(prev, index));
     }
   }
 
@@ -258,6 +280,14 @@ export default function Search() {
             Enter a query to begin searching across all sessions
           </p>
         </div>
+      ) : searchError ? (
+        <div style={{ padding: 'var(--space-8) 0' }}>
+          <EmptyState
+            icon={<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="48" height="48" style={{ color: 'var(--accent-alert)' }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>}
+            title="Search Failed"
+            message="Could not reach the backend. Check that the server is running."
+          />
+        </div>
       ) : filteredResults.length === 0 ? (
         <div style={{
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -300,12 +330,17 @@ export default function Search() {
             {filteredResults.map((result, i) => {
               const typeColor = getTypeColor(result.content_type);
               const agentColor = getAgentColor(result.agent_id, agents);
+              const isExpanded = expandedCards.has(i);
+              const canNavigate = result.session_id && SESSION_NAV_TYPES.has(result.content_type);
+              const canExpand = !result.session_id && (result.content_type === 'annotation' || result.content_type === 'observation' || result.content_type === 'evaluator');
               return (
-                <div key={`${result.session_id}-${result.content_type}-${i}`} style={{
-                  background: 'var(--bg-surface)', border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-lg)', padding: 'var(--space-4)', cursor: 'pointer',
-                  transition: 'border-color var(--transition-color), box-shadow var(--transition-color)',
-                }}
+                <div key={`${result.session_id}-${result.content_type}-${i}`}
+                  onClick={() => handleResultClick(result, i)}
+                  style={{
+                    background: 'var(--bg-surface)', border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-lg)', padding: 'var(--space-4)', cursor: 'pointer',
+                    transition: 'border-color var(--transition-color), box-shadow var(--transition-color)',
+                  }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = 'var(--text-muted)';
                     e.currentTarget.style.boxShadow = 'var(--shadow-card)';
@@ -369,6 +404,26 @@ export default function Search() {
                       ),
                     }}
                   />
+                  {canExpand && isExpanded && (
+                    <div style={{ marginTop: 'var(--space-3)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-color)' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 'var(--space-2)' }}>
+                        Full Content
+                      </div>
+                      <div style={{ fontSize: '14px', lineHeight: 1.7, color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                        {result.snippet}
+                      </div>
+                    </div>
+                  )}
+                  <div style={{ marginTop: 'var(--space-3)', fontSize: '12px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 'var(--space-1)' }}>
+                    {canNavigate ? (
+                      <>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="12" height="12"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14 21 3"/></svg>
+                        Open session
+                      </>
+                    ) : canExpand ? (
+                      isExpanded ? '▲ Collapse' : '▼ Expand full text'
+                    ) : null}
+                  </div>
                 </div>
               );
             })}

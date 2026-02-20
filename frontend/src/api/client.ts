@@ -147,12 +147,16 @@ export const api = {
       post<void>(`/agents/${agentId}/tier-proposals/${proposalId}/approve`),
     reject: (agentId: string, proposalId: string, rationale?: string) =>
       post<void>(`/agents/${agentId}/tier-proposals/${proposalId}/reject`, { rationale }),
+    modify: (agentId: string, proposalId: string, modifications: Record<string, unknown>, rationale: string) =>
+      post<void>(`/agents/${agentId}/tier-proposals/${proposalId}/modify`, { modifications, rationale }),
   },
 
   flags: {
     list: (agentId: string) => get<FlagRecord[]>(`/agents/${agentId}/evaluator-flags`),
     review: (agentId: string, flagId: string, note?: string) =>
       post<void>(`/agents/${agentId}/evaluator-flags/${flagId}/review`, { note }),
+    resolve: (agentId: string, flagId: string, resolution: 'acknowledged' | 'addressed' | 'dismissed', notes?: string) =>
+      post<void>(`/agents/${agentId}/evaluator-flags/${flagId}/resolve`, { resolution, notes }),
   },
 
   coactivation: {

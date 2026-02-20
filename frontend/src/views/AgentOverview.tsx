@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Edit, ArrowRight, Lock } from 'lucide-react';
+import { Edit, ArrowRight, Lock, AlertCircle, MessageSquare } from 'lucide-react';
 import Badge from '../components/ui/Badge';
+import LoadingSkeleton from '../components/ui/LoadingSkeleton';
+import EmptyState from '../components/ui/EmptyState';
 import { api } from '../api/client';
 import { useDataEvents } from '../hooks/useEventStream';
 import { formatTimestamp, formatDuration, timeAgo } from '../utils/time';
 import { getBasinColor } from '../utils/constants';
-import type { Agent, BasinDefinition } from '../types';
+import type { Agent, BasinDefinition, Annotation } from '../types';
 
 interface OverviewBasin {
   name: string;
@@ -88,6 +90,8 @@ export default function AgentOverview() {
   const [overview, setOverview] = useState<OverviewData | null>(null);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [eventTrigger, setEventTrigger] = useState(0);
 
   // Auto-refresh when basins, flags, or proposals change via SSE
@@ -111,18 +115,21 @@ export default function AgentOverview() {
         if (cancelled) return;
         setAgent(agentData);
         setOverview(overviewData);
+        setError(null);
 
-        // Fetch recent sessions from the sessions endpoint
-        try {
-          const sessionsData = await api.sessions.list(agentId, 10, 0);
-          if (!cancelled) setRecentSessions(sessionsData.sessions || []);
-        } catch {
-          // Sessions may not exist yet for new agents
-          if (!cancelled) setRecentSessions([]);
+        // Fetch recent sessions and annotations in parallel
+        const [sessionsResult, annotationsResult] = await Promise.allSettled([
+          api.sessions.list(agentId, 10, 0),
+          api.annotations.list(agentId),
+        ]);
+        if (!cancelled) {
+          setRecentSessions(sessionsResult.status === 'fulfilled' ? (sessionsResult.value.sessions || []) : []);
+          setAnnotations(annotationsResult.status === 'fulfilled' ? annotationsResult.value : []);
         }
       } catch (err) {
         if (cancelled) return;
         console.error('Failed to load agent overview:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load agent overview.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -138,9 +145,17 @@ export default function AgentOverview() {
   }, [agentId, eventTrigger]);
 
   if (loading) {
+    return <div style={{ padding: 'var(--space-6)' }}><LoadingSkeleton lines={6} /></div>;
+  }
+
+  if (error) {
     return (
-      <div style={{ padding: 'var(--space-6)', color: 'var(--text-secondary)' }}>
-        Loading agent overview...
+      <div style={{ padding: 'var(--space-6)' }}>
+        <EmptyState
+          icon={<AlertCircle size={48} style={{ color: 'var(--accent-alert)' }} />}
+          title="Failed to Load Overview"
+          message={error}
+        />
       </div>
     );
   }
@@ -359,6 +374,62 @@ export default function AgentOverview() {
               </table>
             )}
           </div>
+        </div>
+
+        {/* Annotations */}
+        <div className="overview-section" style={{ marginTop: 'var(--space-6)' }}>
+          <div className="section-header">
+            <h3 className="section-title">
+              <MessageSquare size={16} />
+              Annotations
+            </h3>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+              {annotations.length} total
+            </span>
+          </div>
+          {annotations.length === 0 ? (
+            <div style={{ padding: 'var(--space-5)', color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center' }}>
+              No annotations yet. Add notes via the Session Detail view or MCP tools.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', padding: 'var(--space-4)' }}>
+              {annotations.slice(0, 10).map((ann) => (
+                <div key={ann.annotation_id} style={{
+                  padding: 'var(--space-3) var(--space-4)',
+                  background: 'var(--bg-raised)',
+                  borderRadius: 'var(--radius-md)',
+                  borderLeft: '3px solid var(--accent-primary)',
+                }}>
+                  <div style={{ fontSize: '14px', lineHeight: 1.6, color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
+                    {ann.content}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                    {ann.tags.length > 0 && ann.tags.map(tag => (
+                      <span key={tag} style={{
+                        padding: '2px var(--space-2)', background: 'var(--accent-primary-dim)',
+                        borderRadius: 'var(--radius-sm)', fontSize: '12px', color: 'var(--accent-primary)',
+                      }}>{tag}</span>
+                    ))}
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                      {ann.session_id ? (
+                        <span
+                          onClick={() => navigate(`/agents/${agentId}/sessions/${ann.session_id}`)}
+                          style={{ cursor: 'pointer', color: 'var(--accent-primary)', textDecoration: 'underline' }}
+                        >
+                          {ann.session_id}
+                        </span>
+                      ) : 'Agent-level'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {annotations.length > 10 && (
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', paddingTop: 'var(--space-2)' }}>
+                  +{annotations.length - 10} more annotations
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

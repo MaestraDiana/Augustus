@@ -20,6 +20,7 @@ export default function EvaluatorFlags() {
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkReviewing, setBulkReviewing] = useState(false);
+  const [resolveResolutions, setResolveResolutions] = useState<Record<string, 'acknowledged' | 'addressed' | 'dismissed'>>({});
 
   const { refreshBadges } = useAgentBadges();
 
@@ -58,6 +59,21 @@ export default function EvaluatorFlags() {
 
   const toggleRow = (flagId: string) => {
     setExpandedRow(expandedRow === flagId ? null : flagId);
+  };
+
+  const handleResolveFlag = async (flagId: string) => {
+    if (!agentId) return;
+    const resolution = resolveResolutions[flagId] || 'acknowledged';
+    try {
+      await api.flags.resolve(agentId, flagId, resolution, reviewNotes[flagId]);
+      refetch();
+      refreshBadges();
+      setSelected(prev => { const next = new Set(prev); next.delete(flagId); return next; });
+      setExpandedRow(null);
+      setShowReviewed(true);
+    } catch (err) {
+      console.error('Failed to resolve flag:', err);
+    }
   };
 
   const handleMarkReviewed = async (flagId: string) => {
@@ -582,7 +598,7 @@ export default function EvaluatorFlags() {
                                 onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
                                 onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
                               />
-                              <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)' }}>
+                              <div style={{ display: 'flex', gap: 'var(--space-3)', marginTop: 'var(--space-3)', flexWrap: 'wrap', alignItems: 'center' }}>
                                 <button
                                   onClick={() => handleMarkReviewed(flag.flag_id)}
                                   style={{
@@ -605,6 +621,35 @@ export default function EvaluatorFlags() {
                                 >
                                   Mark Reviewed
                                 </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                                  <select
+                                    value={resolveResolutions[flag.flag_id] || 'acknowledged'}
+                                    onChange={(e) => setResolveResolutions({ ...resolveResolutions, [flag.flag_id]: e.target.value as 'acknowledged' | 'addressed' | 'dismissed' })}
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{
+                                      background: 'var(--bg-input)', border: '1px solid var(--border-color)',
+                                      borderRadius: 'var(--radius-md)', padding: 'var(--space-2) var(--space-3)',
+                                      fontFamily: 'var(--font-body)', fontSize: '14px', color: 'var(--text-primary)', cursor: 'pointer',
+                                    }}
+                                  >
+                                    <option value="acknowledged">Acknowledged</option>
+                                    <option value="addressed">Addressed</option>
+                                    <option value="dismissed">Dismissed</option>
+                                  </select>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleResolveFlag(flag.flag_id); }}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', gap: 'var(--space-2)',
+                                      padding: 'var(--space-2) var(--space-4)', borderRadius: 'var(--radius-md)',
+                                      fontFamily: 'var(--font-body)', fontWeight: 500, fontSize: '15px', lineHeight: 1.3,
+                                      border: '1px solid var(--border-color)', cursor: 'pointer',
+                                      transition: 'background var(--transition-color)',
+                                      background: 'var(--bg-raised)', color: 'var(--text-primary)',
+                                    }}
+                                  >
+                                    <Check size={14} /> Resolve
+                                  </button>
+                                </div>
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();

@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import logging
 import os
+import sqlite3
 import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import anthropic
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -163,19 +165,54 @@ class NoCacheAPIMiddleware:
 app.add_middleware(NoCacheAPIMiddleware)
 
 
-# Global exception handler — catches any unhandled error and returns the
-# traceback in the response body so the frontend (and developer) can see
-# what actually went wrong instead of a bare "Internal Server Error".
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
 
+@app.exception_handler(sqlite3.OperationalError)
+async def _sqlite_error_handler(request: Request, exc: sqlite3.OperationalError):
+    logger.error("SQLite error on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Database temporarily unavailable. Please try again."},
+    )
+
+
+@app.exception_handler(anthropic.APIConnectionError)
+async def _anthropic_connection_handler(request: Request, exc: anthropic.APIConnectionError):
+    logger.error("Claude API unreachable on %s %s: %s", request.method, request.url.path, exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "Claude API unreachable. Check network connectivity."},
+    )
+
+
+@app.exception_handler(anthropic.AuthenticationError)
+async def _anthropic_auth_handler(request: Request, exc: anthropic.AuthenticationError):
+    logger.error("Claude API auth error on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Invalid API key configured. Update your API key in Settings."},
+    )
+
+
+@app.exception_handler(anthropic.RateLimitError)
+async def _anthropic_rate_limit_handler(request: Request, exc: anthropic.RateLimitError):
+    logger.warning("Claude API rate limit on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Claude API rate limit reached. Retry after a moment."},
+    )
+
+
+# Global fallback handler — logs full traceback server-side only; returns a
+# generic message to the client to avoid leaking implementation details.
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={"detail": f"{type(exc).__name__}: {exc}"},
+        content={"detail": "An internal error occurred. Check server logs for details."},
     )
 
 

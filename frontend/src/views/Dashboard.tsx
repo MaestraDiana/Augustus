@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
+import LoadingSkeleton from '../components/ui/LoadingSkeleton';
 import { api } from '../api/client';
 import { timeAgo } from '../utils/time';
 import { getAgentColor, DEFAULT_MODEL } from '../utils/constants';
@@ -384,7 +385,7 @@ export default function Dashboard() {
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [_error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const refreshAlerts = useCallback(() => {
     api.activity.alerts()
@@ -484,8 +485,22 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="dashboard-content">
-        <div style={{ padding: 'var(--space-6)', color: 'var(--text-secondary)' }}>
-          Loading dashboard...
+        <div style={{ padding: 'var(--space-6)' }}>
+          <LoadingSkeleton lines={6} />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="dashboard-content">
+        <div style={{ padding: 'var(--space-6)' }}>
+          <EmptyState
+            icon={<AlertTriangle size={48} style={{ color: 'var(--accent-alert)' }} />}
+            title="Failed to Load Dashboard"
+            message={error}
+          />
         </div>
       </div>
     );

@@ -379,7 +379,7 @@ class TestResolveModel:
         sm = SessionManager.__new__(SessionManager)
         sm.settings = None
         result = sm._resolve_model()
-        assert result == "claude-sonnet-4-20250514"
+        assert result == "claude-sonnet-4-6"
 
     def test_temperature_uses_agent_override(self):
         """Agent temperature_override takes priority over app default."""

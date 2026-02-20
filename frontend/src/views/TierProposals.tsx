@@ -18,6 +18,9 @@ export default function TierProposals() {
   const [selectedProposals, setSelectedProposals] = useState<Set<string>>(new Set());
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [rejectFormVisible, setRejectFormVisible] = useState<Set<string>>(new Set());
+  const [modifyFormVisible, setModifyFormVisible] = useState<Set<string>>(new Set());
+  const [modifyRationale, setModifyRationale] = useState<Record<string, string>>({});
+  const [modifyAlpha, setModifyAlpha] = useState<Record<string, string>>({});
 
   const { refreshBadges } = useAgentBadges();
 
@@ -50,6 +53,28 @@ export default function TierProposals() {
       refreshBadges();
     } catch (err) {
       console.error('Failed to reject proposal:', err);
+    }
+  };
+
+  const handleModify = async (proposalId: string) => {
+    if (!agentId) return;
+    const rationale = modifyRationale[proposalId];
+    if (!rationale?.trim()) return;
+    const modifications: Record<string, unknown> = {};
+    const alphaStr = modifyAlpha[proposalId];
+    if (alphaStr) {
+      const alpha = parseFloat(alphaStr);
+      if (!isNaN(alpha) && alpha >= 0.05 && alpha <= 1.0) {
+        modifications.alpha = alpha;
+      }
+    }
+    try {
+      await api.proposals.modify(agentId, proposalId, modifications, rationale);
+      refetch();
+      refreshBadges();
+      setModifyFormVisible(prev => toggleSetItem(prev, proposalId));
+    } catch (err) {
+      console.error('Failed to modify proposal:', err);
     }
   };
 
@@ -120,6 +145,10 @@ export default function TierProposals() {
 
   const toggleRejectForm = (id: string) => {
     setRejectFormVisible(prev => toggleSetItem(prev, id));
+  };
+
+  const toggleModifyForm = (id: string) => {
+    setModifyFormVisible(prev => toggleSetItem(prev, id));
   };
 
   const getTypeIcon = (type: string) => {
@@ -463,12 +492,59 @@ export default function TierProposals() {
                               Approve
                             </button>
                             <button
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => { toggleModifyForm(proposal.proposal_id); setRejectFormVisible(prev => { const n = new Set(prev); n.delete(proposal.proposal_id); return n; }); }}
+                            >
+                              Approve with Changes
+                            </button>
+                            <button
                               className="btn btn-danger btn-sm"
-                              onClick={() => toggleRejectForm(proposal.proposal_id)}
+                              onClick={() => { toggleRejectForm(proposal.proposal_id); setModifyFormVisible(prev => { const n = new Set(prev); n.delete(proposal.proposal_id); return n; }); }}
                             >
                               Reject
                             </button>
-                            <button className="btn btn-secondary btn-sm">Defer</button>
+                          </div>
+                        )}
+                        {modifyFormVisible.has(proposal.proposal_id) && (
+                          <div style={{ marginTop: 'var(--space-3)', padding: 'var(--space-4)', background: 'var(--bg-raised)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 'var(--space-3)' }}>
+                              Approve with Modified Parameters
+                            </div>
+                            <div style={{ display: 'flex', gap: 'var(--space-3)', marginBottom: 'var(--space-3)', flexWrap: 'wrap' }}>
+                              <label style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-1)', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                                Modified Alpha (0.05–1.0)
+                                <input
+                                  type="number" step="0.01" min="0.05" max="1.0"
+                                  placeholder="e.g. 0.75"
+                                  value={modifyAlpha[proposal.proposal_id] ?? ''}
+                                  onChange={(e) => setModifyAlpha({ ...modifyAlpha, [proposal.proposal_id]: e.target.value })}
+                                  style={{
+                                    padding: 'var(--space-2) var(--space-3)', background: 'var(--bg-input)',
+                                    border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)',
+                                    color: 'var(--text-primary)', fontFamily: 'var(--font-data)', fontSize: '14px', width: '140px'
+                                  }}
+                                />
+                              </label>
+                            </div>
+                            <textarea
+                              className="form-textarea"
+                              placeholder="Rationale for modification (required)"
+                              rows={2}
+                              value={modifyRationale[proposal.proposal_id] ?? ''}
+                              onChange={(e) => setModifyRationale({ ...modifyRationale, [proposal.proposal_id]: e.target.value })}
+                            />
+                            <div style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-2)' }}>
+                              <button
+                                className="btn btn-success btn-sm"
+                                onClick={() => handleModify(proposal.proposal_id)}
+                                disabled={!modifyRationale[proposal.proposal_id]?.trim()}
+                              >
+                                Confirm Modified Approval
+                              </button>
+                              <button className="btn btn-ghost btn-sm" onClick={() => toggleModifyForm(proposal.proposal_id)}>
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         )}
                         {rejectFormVisible.has(proposal.proposal_id) && (

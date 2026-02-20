@@ -18,7 +18,11 @@
       "Bash(bash scripts/release.sh:*)",
       "Bash(netstat:*)",
       "Bash(taskkill:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(gh run rerun:*)",
+      "Bash(gh run watch:*)",
+      "Skill(keybindings-help)",
+      "Skill(keybindings-help:*)"
     ]
   }
 }

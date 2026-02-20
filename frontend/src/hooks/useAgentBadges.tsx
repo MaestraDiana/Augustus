@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react';
-import { useParams, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { useDataEvents } from './useEventStream';
 
@@ -18,8 +18,7 @@ const AgentBadgeContext = createContext<AgentBadgeContextValue>({
   refreshBadges: () => {},
 });
 
-export function AgentBadgeProvider({ children }: { children: ReactNode }) {
-  const { agentId } = useParams<{ agentId: string }>();
+export function AgentBadgeProvider({ agentId, children }: { agentId: string; children: ReactNode }) {
   const location = useLocation();
   const [counts, setCounts] = useState<BadgeCounts>({ pendingProposals: 0, unreviewedFlags: 0 });
   const lastFetchRef = useRef<string>('');

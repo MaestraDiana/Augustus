@@ -33,13 +33,15 @@ export default function Shell() {
     return '';
   };
 
+  const agentId = location.pathname.split('/')[2] ?? '';
+
   return (
     <div className="app">
       <Sidebar />
       <div className="main-content">
         <Topbar pageTitle={getPageTitle()} />
         {showAgentSubNav ? (
-          <AgentBadgeProvider>
+          <AgentBadgeProvider agentId={agentId}>
             <AgentSubNav />
             <div className="page-content">
               <Outlet />

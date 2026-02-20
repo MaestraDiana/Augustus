@@ -266,6 +266,10 @@ class SessionManager:
             session_id=session_id,
             detail=f"Session started ({max_turns} turns, {model})",
         )
+        await self.memory.emit_event(
+            "session_start", agent_id,
+            {"session_id": session_id, "model": model, "max_turns": max_turns},
+        )
 
         # Snapshot the initial basin state before any handoff mutations
         initial_basins = [
@@ -469,6 +473,10 @@ class SessionManager:
                     f"Session completed ({record.turn_count} turns, "
                     f"${estimated_cost:.4f})"
                 ),
+            )
+            await self.memory.emit_event(
+                "session_complete", agent_id,
+                {"session_id": session_id, "turn_count": record.turn_count},
             )
 
             logger.info(

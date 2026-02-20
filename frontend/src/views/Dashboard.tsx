@@ -396,10 +396,34 @@ export default function Dashboard() {
       .catch(() => {});
   }, []);
 
+  const refreshAgents = useCallback(() => {
+    api.agents.list().then(async (agentsData) => {
+      const agentsWithTrajectories = await Promise.all(
+        agentsData.map(async (agent) => {
+          try {
+            const trajectoryData = await api.trajectories.get(agent.agent_id, 20);
+            return { ...agent, trajectoryData } as AgentWithTrajectory;
+          } catch {
+            return { ...agent, trajectoryData: null } as AgentWithTrajectory;
+          }
+        })
+      );
+      setAgents(agentsWithTrajectories);
+    }).catch(() => {});
+  }, []);
+
+  // Refresh agent cards (is_running state) when a session starts or completes
+  useDataEvents(
+    ['session_start', 'session_complete', 'session_failed'],
+    () => {
+      refreshAgents();
+      refreshAlerts();
+    },
+  );
+
   // Auto-refresh alerts + activity when real-time events arrive via SSE
   useDataEvents(
     [
-      'session_failed',
       'flag_resolved', 'flag_created',
       'proposal_resolved', 'proposal_created',
       'basin_updated',

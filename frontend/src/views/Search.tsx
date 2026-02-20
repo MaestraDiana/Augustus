@@ -7,6 +7,12 @@ import { AGENT_COLORS, getAgentColor } from '../utils/constants';
 import type { SearchResult, Agent } from '../types';
 import EmptyState from '../components/ui/EmptyState';
 
+// Normalize backend type aliases to frontend type keys
+function normalizeType(type: string): string {
+  if (type === 'emergence') return 'observation';
+  return type;
+}
+
 function getTypeIcon(type: string): string {
   const icons: Record<string, string> = {
     transcript: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
@@ -84,10 +90,11 @@ export default function Search() {
     setLoading(true);
     setSearchError(null);
     try {
-      const data =
+      const raw =
         scope === 'all'
           ? await api.search.global(query)
           : await api.search.agent(scope, query);
+      const data = raw.map((r: SearchResult) => ({ ...r, content_type: normalizeType(r.content_type) }));
       setResults(data);
       setExpandedCards(new Set());
     } catch (err) {

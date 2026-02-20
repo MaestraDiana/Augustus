@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 
 export interface GraphNode {
@@ -40,6 +40,13 @@ interface D3Edge {
   character: 'reinforcing' | 'tensional' | 'serving' | 'competing' | 'uncharacterized';
 }
 
+interface TooltipState {
+  visible: boolean;
+  x: number;
+  y: number;
+  node: D3Node | null;
+}
+
 export default function ForceGraph({
   nodes,
   edges,
@@ -52,8 +59,10 @@ export default function ForceGraph({
   onEdgeClick
 }: ForceGraphProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const [tooltip, setTooltip] = useState<TooltipState>({ visible: false, x: 0, y: 0, node: null });
 
   useEffect(() => {
     if (!svgRef.current) return;
@@ -168,6 +177,19 @@ export default function ForceGraph({
       .attr('stroke', 'var(--bg-base)')
       .attr('stroke-width', 2)
       .style('cursor', 'pointer')
+      .on('mousemove', (event, d) => {
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        setTooltip({
+          visible: true,
+          x: event.clientX - rect.left + 12,
+          y: event.clientY - rect.top - 8,
+          node: d,
+        });
+      })
+      .on('mouseleave', () => {
+        setTooltip(t => ({ ...t, visible: false }));
+      })
       .on('click', (event, d) => {
         event.stopPropagation();
         if (onNodeClick) onNodeClick(d);
@@ -240,25 +262,62 @@ export default function ForceGraph({
   }, [scale]);
 
   return (
-    <svg
-      ref={svgRef}
-      style={{ width: '100%', height: '100%' }}
-    >
-      <defs>
-        <marker
-          id="arrowhead"
-          markerWidth="10"
-          markerHeight="7"
-          refX="9"
-          refY="3.5"
-          orient="auto"
+    <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <svg
+        ref={svgRef}
+        style={{ width: '100%', height: '100%' }}
+      >
+        <defs>
+          <marker
+            id="arrowhead"
+            markerWidth="10"
+            markerHeight="7"
+            refX="9"
+            refY="3.5"
+            orient="auto"
+          >
+            <polygon
+              points="0 0, 10 3.5, 0 7"
+              fill="#2E7D9B"
+            />
+          </marker>
+        </defs>
+      </svg>
+
+      {/* Node tooltip */}
+      {tooltip.visible && tooltip.node && (
+        <div
+          style={{
+            position: 'absolute',
+            left: tooltip.x,
+            top: tooltip.y,
+            pointerEvents: 'none',
+            background: 'var(--bg-raised)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 'var(--radius-md)',
+            padding: '8px 12px',
+            fontSize: '13px',
+            lineHeight: 1.5,
+            color: 'var(--text-primary)',
+            boxShadow: 'var(--shadow-card)',
+            zIndex: 100,
+            minWidth: '160px',
+            whiteSpace: 'nowrap',
+          }}
         >
-          <polygon
-            points="0 0, 10 3.5, 0 7"
-            fill="#2E7D9B"
-          />
-        </marker>
-      </defs>
-    </svg>
+          <div style={{ fontWeight: 600, fontFamily: 'var(--font-data)', marginBottom: '4px', color: 'var(--accent-primary)' }}>
+            {tooltip.node.name}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: '8px', rowGap: '2px', color: 'var(--text-secondary)' }}>
+            <span style={{ color: 'var(--text-muted)' }}>α</span>
+            <span style={{ fontFamily: 'var(--font-data)' }}>{tooltip.node.alpha.toFixed(3)}</span>
+            <span style={{ color: 'var(--text-muted)' }}>class</span>
+            <span style={{ fontFamily: 'var(--font-data)' }}>{tooltip.node.class}</span>
+            <span style={{ color: 'var(--text-muted)' }}>tier</span>
+            <span style={{ fontFamily: 'var(--font-data)' }}>{tooltip.node.tier}</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

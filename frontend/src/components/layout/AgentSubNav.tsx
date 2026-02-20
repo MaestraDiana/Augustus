@@ -14,6 +14,7 @@ export default function AgentSubNav() {
     { path: `/agents/${agentId}/co-activation`, label: 'Co-Activation' },
     { path: `/agents/${agentId}/proposals`, label: 'Proposals', count: pendingProposals },
     { path: `/agents/${agentId}/flags`, label: 'Flags', count: unreviewedFlags },
+    { path: `/agents/${agentId}/annotations`, label: 'Annotations' },
   ];
 
   return (

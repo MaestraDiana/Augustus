@@ -10,6 +10,7 @@ import SessionDetail from './views/SessionDetail';
 import CoActivationNetwork from './views/CoActivationNetwork';
 import TierProposals from './views/TierProposals';
 import EvaluatorFlags from './views/EvaluatorFlags';
+import Annotations from './views/Annotations';
 import Search from './views/Search';
 import Usage from './views/Usage';
 import Settings from './views/Settings';
@@ -33,6 +34,7 @@ function App() {
           <Route path="/agents/:agentId/co-activation" element={<CoActivationNetwork />} />
           <Route path="/agents/:agentId/proposals" element={<TierProposals />} />
           <Route path="/agents/:agentId/flags" element={<EvaluatorFlags />} />
+          <Route path="/agents/:agentId/annotations" element={<Annotations />} />
           <Route path="/search" element={<Search />} />
           <Route path="/usage" element={<Usage />} />
           <Route path="/settings" element={<Settings />} />

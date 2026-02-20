@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Edit, ArrowRight, Lock, AlertCircle, MessageSquare } from 'lucide-react';
+import { Edit, ArrowRight, Lock, AlertCircle } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import LoadingSkeleton from '../components/ui/LoadingSkeleton';
 import EmptyState from '../components/ui/EmptyState';
@@ -8,7 +8,7 @@ import { api } from '../api/client';
 import { useDataEvents } from '../hooks/useEventStream';
 import { formatTimestamp, formatDuration, timeAgo } from '../utils/time';
 import { getBasinColor } from '../utils/constants';
-import type { Agent, BasinDefinition, Annotation } from '../types';
+import type { Agent, BasinDefinition } from '../types';
 
 interface OverviewBasin {
   name: string;
@@ -91,7 +91,6 @@ export default function AgentOverview() {
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [annotations, setAnnotations] = useState<Annotation[]>([]);
   const [eventTrigger, setEventTrigger] = useState(0);
 
   // Auto-refresh when basins, flags, or proposals change via SSE
@@ -117,14 +116,10 @@ export default function AgentOverview() {
         setOverview(overviewData);
         setError(null);
 
-        // Fetch recent sessions and annotations in parallel
-        const [sessionsResult, annotationsResult] = await Promise.allSettled([
-          api.sessions.list(agentId, 10, 0),
-          api.annotations.list(agentId),
-        ]);
+        // Fetch recent sessions
+        const sessionsResult = await api.sessions.list(agentId, 10, 0).catch(() => ({ sessions: [] }));
         if (!cancelled) {
-          setRecentSessions(sessionsResult.status === 'fulfilled' ? (sessionsResult.value.sessions || []) : []);
-          setAnnotations(annotationsResult.status === 'fulfilled' ? annotationsResult.value : []);
+          setRecentSessions((sessionsResult as any).sessions || []);
         }
       } catch (err) {
         if (cancelled) return;
@@ -209,52 +204,107 @@ export default function AgentOverview() {
 
       {/* Overview Grid */}
       <div className="overview-grid">
-        {/* Identity Snapshot Panel */}
-        <div className="section-card identity-panel">
-          <div className="section-card-header">
-            <h2 className="section-title">Identity Snapshot</h2>
-            <Link to={`/agents/${agentId}/edit`} className="btn btn-ghost btn-sm">
-              <Edit size={16} />
-              Edit
-            </Link>
-          </div>
-          <div className="section-card-body">
-            {agent.identity_core ? (
-              <div className="identity-core-preview">{agent.identity_core}</div>
-            ) : (
-              <div className="identity-core-preview" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                No identity core defined.
-              </div>
-            )}
 
-            <div className="identity-meta">
-              <div className="identity-meta-item">
-                <span className="identity-meta-label">Token Count</span>
-                <span className="identity-meta-value">
-                  {agent.identity_core.length} characters
-                </span>
-              </div>
-              <div className="identity-meta-item">
-                <span className="identity-meta-label">Created</span>
-                <span className="identity-meta-value">{formatTimestamp(agent.created_at)}</span>
-              </div>
-              <div className="identity-meta-item">
-                <span className="identity-meta-label">Sessions</span>
-                <span className="identity-meta-value">{sessionCount} completed</span>
+        {/* Left column: identity + sessions stacked */}
+        <div className="overview-left-col">
+
+          {/* Identity Snapshot Panel */}
+          <div className="section-card">
+            <div className="section-card-header">
+              <h2 className="section-title">Identity Snapshot</h2>
+              <Link to={`/agents/${agentId}/edit`} className="btn btn-ghost btn-sm">
+                <Edit size={16} />
+                Edit
+              </Link>
+            </div>
+            <div className="section-card-body" style={{ padding: 'var(--space-5)' }}>
+              {agent.identity_core ? (
+                <div className="identity-core-preview">{agent.identity_core}</div>
+              ) : (
+                <div className="identity-core-preview" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No identity core defined.
+                </div>
+              )}
+              <div className="identity-meta">
+                <div className="identity-meta-item">
+                  <span className="identity-meta-label">Token Count</span>
+                  <span className="identity-meta-value">{agent.identity_core.length} characters</span>
+                </div>
+                <div className="identity-meta-item">
+                  <span className="identity-meta-label">Created</span>
+                  <span className="identity-meta-value">{formatTimestamp(agent.created_at)}</span>
+                </div>
+                <div className="identity-meta-item">
+                  <span className="identity-meta-label">Sessions</span>
+                  <span className="identity-meta-value">{sessionCount} completed</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Basin State Panel */}
-        <div className="section-card basin-panel">
+          {/* Recent Sessions Panel */}
+          <div className="section-card">
+            <div className="section-card-header">
+              <h2 className="section-title">Recent Sessions</h2>
+              <Link to={`/agents/${agentId}/sessions`} className="btn btn-ghost btn-sm">
+                View All →
+              </Link>
+            </div>
+            <div className="section-card-body" style={{ padding: 0 }}>
+              {recentSessions.length === 0 ? (
+                <div style={{ padding: 'var(--space-6)', color: 'var(--text-muted)', textAlign: 'center' }}>
+                  No sessions yet. Start the orchestrator or queue a bootstrap session.
+                </div>
+              ) : (
+                <table className="sessions-table">
+                  <thead>
+                    <tr>
+                      <th>Session</th>
+                      <th>Time</th>
+                      <th>Turns</th>
+                      <th>Duration</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentSessions.map((session) => {
+                      const startTime = session.start_time || session.started_at || '';
+                      const endTime = session.end_time || session.completed_at || '';
+                      return (
+                        <tr
+                          key={session.session_id}
+                          onClick={() => navigate(`/agents/${agentId}/sessions/${session.session_id}`)}
+                          style={{ cursor: 'pointer' }}
+                        >
+                          <td className="session-id-cell">{session.session_id}</td>
+                          <td className="session-timestamp">{startTime ? formatTimestamp(startTime) : '—'}</td>
+                          <td>{session.turn_count}</td>
+                          <td>{startTime && endTime ? formatDuration(startTime, endTime) : '—'}</td>
+                          <td>
+                            <Badge variant={session.status === 'completed' ? 'active' : session.status === 'error' ? 'error' : 'idle'}>
+                              {session.status}
+                            </Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+        </div>{/* end overview-left-col */}
+
+        {/* Basin State Panel — right column */}
+        <div className="section-card">
           <div className="section-card-header">
             <h2 className="section-title">Basin States</h2>
             <Link to={`/agents/${agentId}/trajectories`} className="btn btn-ghost btn-sm">
               View Trajectories →
             </Link>
           </div>
-          <div className="section-card-body">
+          <div className="section-card-body" style={{ padding: 'var(--space-4)' }}>
             {basins.length === 0 ? (
               <div style={{ padding: 'var(--space-4)', color: 'var(--text-muted)', textAlign: 'center' }}>
                 No basins configured.
@@ -297,10 +347,7 @@ export default function AgentOverview() {
                           <div className="basin-alpha-bar">
                             <div
                               className="basin-alpha-fill"
-                              style={{
-                                width: `${basin.alpha * 100}%`,
-                                background: color,
-                              }}
+                              style={{ width: `${basin.alpha * 100}%`, background: color }}
                             />
                           </div>
                           {getTrendIcon()}
@@ -324,113 +371,6 @@ export default function AgentOverview() {
           </div>
         </div>
 
-        {/* Recent Sessions Panel */}
-        <div className="section-card sessions-panel">
-          <div className="section-card-header">
-            <h2 className="section-title">Recent Sessions</h2>
-            <Link to={`/agents/${agentId}/sessions`} className="btn btn-ghost btn-sm">
-              View All →
-            </Link>
-          </div>
-          <div className="section-card-body" style={{ padding: 0 }}>
-            {recentSessions.length === 0 ? (
-              <div style={{ padding: 'var(--space-6)', color: 'var(--text-muted)', textAlign: 'center' }}>
-                No sessions yet. Start the orchestrator or queue a bootstrap session.
-              </div>
-            ) : (
-              <table className="sessions-table">
-                <thead>
-                  <tr>
-                    <th>Session</th>
-                    <th>Time</th>
-                    <th>Turns</th>
-                    <th>Duration</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentSessions.map((session) => {
-                    const startTime = session.start_time || session.started_at || '';
-                    const endTime = session.end_time || session.completed_at || '';
-                    return (
-                      <tr
-                        key={session.session_id}
-                        onClick={() => navigate(`/agents/${agentId}/sessions/${session.session_id}`)}
-                        style={{ cursor: 'pointer' }}
-                      >
-                        <td className="session-id-cell">{session.session_id}</td>
-                        <td className="session-timestamp">{startTime ? formatTimestamp(startTime) : '—'}</td>
-                        <td>{session.turn_count}</td>
-                        <td>{startTime && endTime ? formatDuration(startTime, endTime) : '—'}</td>
-                        <td>
-                          <Badge variant={session.status === 'completed' ? 'active' : session.status === 'error' ? 'error' : 'idle'}>
-                            {session.status}
-                          </Badge>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-
-        {/* Annotations */}
-        <div className="overview-section" style={{ marginTop: 'var(--space-6)' }}>
-          <div className="section-header">
-            <h3 className="section-title">
-              <MessageSquare size={16} />
-              Annotations
-            </h3>
-            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-              {annotations.length} total
-            </span>
-          </div>
-          {annotations.length === 0 ? (
-            <div style={{ padding: 'var(--space-5)', color: 'var(--text-muted)', fontSize: '14px', textAlign: 'center' }}>
-              No annotations yet. Add notes via the Session Detail view or MCP tools.
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)', padding: 'var(--space-4)' }}>
-              {annotations.slice(0, 10).map((ann) => (
-                <div key={ann.annotation_id} style={{
-                  padding: 'var(--space-3) var(--space-4)',
-                  background: 'var(--bg-raised)',
-                  borderRadius: 'var(--radius-md)',
-                  borderLeft: '3px solid var(--accent-primary)',
-                }}>
-                  <div style={{ fontSize: '14px', lineHeight: 1.6, color: 'var(--text-primary)', marginBottom: 'var(--space-2)' }}>
-                    {ann.content}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                    {ann.tags.length > 0 && ann.tags.map(tag => (
-                      <span key={tag} style={{
-                        padding: '2px var(--space-2)', background: 'var(--accent-primary-dim)',
-                        borderRadius: 'var(--radius-sm)', fontSize: '12px', color: 'var(--accent-primary)',
-                      }}>{tag}</span>
-                    ))}
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                      {ann.session_id ? (
-                        <span
-                          onClick={() => navigate(`/agents/${agentId}/sessions/${ann.session_id}`)}
-                          style={{ cursor: 'pointer', color: 'var(--accent-primary)', textDecoration: 'underline' }}
-                        >
-                          {ann.session_id}
-                        </span>
-                      ) : 'Agent-level'}
-                    </span>
-                  </div>
-                </div>
-              ))}
-              {annotations.length > 10 && (
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)', textAlign: 'center', paddingTop: 'var(--space-2)' }}>
-                  +{annotations.length - 10} more annotations
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

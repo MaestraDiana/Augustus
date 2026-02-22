@@ -1,6 +1,6 @@
 {
     "name": "augustus-electron",
-    "version": "0.9.58",
+    "version": "0.9.59",
     "description": "Augustus - Electron Shell",
     "main": "main.js",
     "scripts": {

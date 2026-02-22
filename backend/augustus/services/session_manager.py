@@ -854,10 +854,6 @@ class SessionManager:
                                             "type": "number",
                                             "description": "Suggested initial alpha value",
                                         },
-                                        "lambda": {
-                                            "type": "number",
-                                            "description": "Decay rate (for modify)",
-                                        },
                                         "eta": {
                                             "type": "number",
                                             "description": "Learning rate (for modify)",
@@ -1742,8 +1738,11 @@ class SessionManager:
                 proposed_basins = [b for b in proposed_basins if b.name != name]
 
             elif action == "modify" and name in current_map:
-                # Structural modifications (class, lambda, eta) and/or
+                # Structural modifications (class, eta) and/or
                 # rationale-only conceptual reinterpretations.
+                # Lambda is intentionally excluded — it cannot be modified
+                # through the body's write_yaml tool. Use the MCP brain
+                # interface to adjust lambda directly.
                 for i, b in enumerate(proposed_basins):
                     if b.name == name:
                         new_class = b.basin_class
@@ -1758,18 +1757,6 @@ class SessionManager:
                             except ValueError:
                                 pass
 
-                        if "lambda" in prop:
-                            proposed_lambda = float(prop["lambda"])
-                            current_lambda = b.lambda_
-                            if proposed_lambda < 0.80:
-                                logger.warning(
-                                    "Basin '%s' proposal rejected: lambda_decay %.4f is below "
-                                    "minimum threshold of 0.80 (current: %.4f). Keeping current value.",
-                                    name, proposed_lambda, current_lambda,
-                                )
-                                # Skip the invalid lambda — leave new_lambda at current value
-                            else:
-                                new_lambda = proposed_lambda
                         if "eta" in prop:
                             new_eta = float(prop["eta"])
 

@@ -167,8 +167,28 @@ class TierEnforcer:
                         result.warnings.append(
                             f"New basin '{change.basin_name}' requires approval"
                         )
-                elif change.proposed:
-                    result.allowed.append(change.proposed)
+                else:
+                    # Tier 3 modify/prune — always allowed, but record it
+                    if change.proposed:
+                        result.allowed.append(change.proposed)
+                    proposal = TierProposal(
+                        proposal_id=f"prop-{agent_id}-{change.basin_name}-{utcnow_iso()}",
+                        agent_id=agent_id,
+                        basin_name=change.basin_name,
+                        tier=change.tier,
+                        proposal_type=ProposalType(
+                            change.change_type
+                        )
+                        if change.change_type in ("modify", "create", "prune", "merge")
+                        else ProposalType.MODIFY,
+                        status=ProposalStatus.AUTO_APPROVED,
+                        rationale=change.detail or f"Tier 3 modification of '{change.basin_name}' auto-approved",
+                        created_at=utcnow_iso(),
+                        resolved_at=utcnow_iso(),
+                        resolved_by="auto",
+                        proposed_config=change.proposed,
+                    )
+                    result.proposals_created.append(proposal)
 
         # Add unchanged basins
         changed_names = {c.basin_name for c in changes}

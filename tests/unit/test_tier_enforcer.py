@@ -451,8 +451,13 @@ async def test_structural_modify_creates_tier_enforced_proposal(memory_service):
 
 
 @pytest.mark.asyncio
-async def test_modify_with_lambda_eta_changes(memory_service):
-    """A modify proposal with lambda/eta changes should be detected as structural."""
+async def test_modify_with_eta_change(memory_service):
+    """A modify proposal with eta change should be detected as structural.
+
+    Lambda is intentionally ignored in body proposals — it can only be adjusted
+    via the MCP brain interface. Even if a lambda value is present in the proposal
+    dict (e.g. from legacy data), it must not be applied.
+    """
     from augustus.models.dataclasses import AgentConfig
     from augustus.models.enums import AgentStatus
 
@@ -482,7 +487,7 @@ async def test_modify_with_lambda_eta_changes(memory_service):
             "name": "topology_as_self",
             "action": "modify",
             "rationale": "increase stability",
-            "lambda": 0.97,
+            "lambda": 0.97,  # should be silently ignored
             "eta": 0.05,
         },
     ]
@@ -494,10 +499,16 @@ async def test_modify_with_lambda_eta_changes(memory_service):
         current_basins=current_basins,
     )
 
-    # Tier 3 structural modification → allowed
-    assert len(approved) == 0  # T3 mods go through allowed, not approved_basins
-    # But the tier enforcer should have detected the change
+    # Tier 3 structural modification → auto-approved proposal created and applied
+    assert len(approved) == 1
+    assert approved[0].name == "topology_as_self"
+    # eta change applied
+    assert abs(approved[0].eta - 0.05) < 0.001
+    # lambda NOT changed — body cannot modify lambda
+    assert abs(approved[0].lambda_ - 0.90) < 0.001
+
+    # Proposal record should be stored as AUTO_APPROVED
     stored = await memory_service.get_tier_proposals("test-agent")
-    # T3 modification is auto-allowed (no proposal created for T3 mods)
-    # — the change just goes into result.allowed directly
-    # So no proposals stored, but the modification should be in the allowed list
+    assert len(stored) == 1
+    assert stored[0].basin_name == "topology_as_self"
+    assert stored[0].status.value == "auto_approved"

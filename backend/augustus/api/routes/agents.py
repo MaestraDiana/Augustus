@@ -329,9 +329,10 @@ async def update_agent(
         "basins", "capabilities", "max_turns",
         "model_override", "temperature_override", "max_tokens_override",
     }
-    if yaml_fields & updates.keys():
+    changed_yaml_fields = yaml_fields & updates.keys()
+    if changed_yaml_fields:
         try:
-            await registry.regenerate_pending_yaml(agent_id)
+            await registry.regenerate_pending_yaml(agent_id, changed_fields=changed_yaml_fields)
         except Exception as e:
             logger.warning(f"YAML regeneration failed for '{agent_id}': {e}")
 

@@ -89,67 +89,199 @@ class AgentRegistry:
         await self.memory.update_agent(agent_id, updates)
         logger.info(f"Updated agent '{agent_id}': {list(updates.keys())}")
 
-    async def regenerate_pending_yaml(self, agent_id: str) -> None:
-        """Clear stale pending YAML and write a fresh one from current agent config.
+    async def regenerate_pending_yaml(
+        self, agent_id: str, changed_fields: set[str] | None = None
+    ) -> None:
+        """Update any pending handoff YAML to reflect agent config changes.
 
-        Called after agent edits so the next session uses the updated
-        identity_core, session_task, basins, capabilities, etc.
+        Called after agent edits so the next session uses the updated config.
         Does not touch active sessions — they complete with the old config.
+
+        If a pending handoff YAML exists (agent-authored content), only the
+        fields present in ``changed_fields`` are patched into it.  Fields not
+        in ``changed_fields`` are left exactly as the agent wrote them.
+        The original file is archived before being replaced.
+
+        If no pending YAML exists, a fresh one is generated from current config.
+
+        Args:
+            agent_id: The agent to update.
+            changed_fields: Set of field names that were actually changed by the
+                human edit (e.g. ``{"max_turns", "close_protocol"}``).  When
+                None (called outside of an edit context), all applicable fields
+                are treated as changed.
         """
+        import yaml as _yaml
         from augustus.services.queue_manager import QueueManager
-        from augustus.services.yaml_generator import generate_next_session_yaml
+        from augustus.services.yaml_generator import (
+            generate_next_session_yaml,
+            merge_close_protocol,
+            SCHEMA_VERSION,
+        )
+        from augustus.utils import enum_val
 
         agent = await self.memory.get_agent(agent_id)
         if not agent:
             raise AgentNotFoundError(f"Agent '{agent_id}' not found")
 
         agent_dir = self.get_agent_dir(agent_id)
-        queue = QueueManager(agent_dir, None)  # schema_parser not needed for clear
+        queue = QueueManager(agent_dir, None)  # schema_parser not needed here
 
-        # Clear any pending YAML built from old config
-        cleared = queue.clear_pending()
-        if cleared:
-            logger.info(f"Cleared {cleared} stale pending YAML(s) for '{agent_id}'")
+        pending_files = queue.list_pending()
 
-        # Get current basins (may have been updated by handoff or by the edit)
-        basins = await self.memory.get_current_basins(agent_id)
-        if not basins:
-            basins = agent.basins or []
+        if not pending_files:
+            # No pending YAML at all — generate a fresh one from current config
+            session_count = await self.memory.count_sessions(agent_id)
+            if session_count == 0:
+                self._write_bootstrap_yaml(agent, agent_dir)
+            else:
+                basins = await self.memory.get_current_basins(agent_id)
+                if not basins:
+                    basins = agent.basins or []
 
-        # Determine session number
-        session_count = await self.memory.count_sessions(agent_id)
+                structural_sections = {}
+                if agent.session_protocol:
+                    structural_sections["session_protocol"] = agent.session_protocol
+                if agent.relational_grounding:
+                    structural_sections["relational_grounding"] = agent.relational_grounding
 
-        if session_count == 0:
-            # No sessions yet — regenerate as bootstrap
-            self._write_bootstrap_yaml(agent, agent_dir)
-        else:
-            # Has session history — write a continuation YAML
-            identity_core = agent.identity_core or f"You are {agent_id}."
-            session_task = DEFAULT_CONTINUATION_TASK
+                yaml_content = generate_next_session_yaml(
+                    agent_id=agent_id,
+                    session_number=session_count + 1,
+                    max_turns=agent.max_turns or 8,
+                    basins=basins,
+                    session_task=DEFAULT_CONTINUATION_TASK,
+                    close_protocol=agent.close_protocol,
+                    capabilities=agent.capabilities,
+                    structural_sections=structural_sections or None,
+                )
 
-            # Carry structural sections from agent config
-            structural_sections = {}
-            if agent.session_protocol:
-                structural_sections["session_protocol"] = agent.session_protocol
-            if agent.relational_grounding:
-                structural_sections["relational_grounding"] = agent.relational_grounding
+                ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                dest = agent_dir / "queue" / "pending" / f"{ts}_edited.yaml"
+                dest.write_text(yaml_content, encoding="utf-8")
+                logger.info(f"Wrote new pending YAML for '{agent_id}': {dest.name}")
+            return
 
-            yaml_content = generate_next_session_yaml(
-                agent_id=agent_id,
-                session_number=session_count + 1,
-                max_turns=agent.max_turns or 8,
-                basins=basins,
-                identity_core=identity_core,
-                session_task=session_task,
-                close_protocol=agent.close_protocol,
-                capabilities=agent.capabilities,
-                structural_sections=structural_sections or None,
+        # A pending handoff YAML exists — patch it in place, preserving agent content.
+        # Process only the first (oldest) pending file; extras are left untouched.
+        handoff_path = pending_files[0]
+        original_text = handoff_path.read_text(encoding="utf-8")
+
+        try:
+            doc = _yaml.safe_load(original_text)
+        except _yaml.YAMLError as exc:
+            logger.warning(
+                f"Could not parse pending YAML for '{agent_id}' ({handoff_path.name}): {exc}. "
+                "Falling back to full replacement."
             )
+            # Corrupt YAML — safe to replace it
+            handoff_path.unlink()
+            await self.regenerate_pending_yaml(agent_id)
+            return
 
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-            dest = agent_dir / "queue" / "pending" / f"{ts}_edited.yaml"
-            dest.write_text(yaml_content, encoding="utf-8")
-            logger.info(f"Wrote regenerated YAML for '{agent_id}': {dest.name}")
+        if not isinstance(doc, dict):
+            # Not a mapping — replace it
+            handoff_path.unlink()
+            await self.regenerate_pending_yaml(agent_id)
+            return
+
+        # Sentinel: if changed_fields is None, treat every field as changed
+        # (called outside a specific edit context — apply all applicable updates).
+        all_fields = changed_fields is None
+
+        # ── Patch framework section ──────────────────────────────────────
+        framework = doc.get("framework")
+        if not isinstance(framework, dict):
+            framework = {}
+            doc["framework"] = framework
+
+        # Always keep version current
+        framework["version"] = SCHEMA_VERSION
+        framework["agent_id"] = agent_id
+
+        # max_turns: only update if it was changed in this edit
+        if (all_fields or "max_turns" in changed_fields) and agent.max_turns:
+            framework["max_turns"] = agent.max_turns
+
+        # capabilities: only update if changed in this edit
+        if (all_fields or "capabilities" in changed_fields) and agent.capabilities is not None:
+            caps: dict = {}
+            for name, val in agent.capabilities.items():
+                if isinstance(val, dict):
+                    caps[name] = val.get("enabled", True)
+                elif isinstance(val, bool):
+                    caps[name] = val
+                else:
+                    caps[name] = True
+            if not caps:
+                caps = {"mcp": True, "rag": True, "web_search": False}
+            framework["capabilities"] = caps
+
+        # basin_params: only update if basins were changed in this edit.
+        # Preserve alpha from existing YAML (post-handoff value);
+        # update structural params (class, lambda, eta, tier) from current config.
+        if all_fields or "basins" in changed_fields:
+            basins = await self.memory.get_current_basins(agent_id)
+            if not basins:
+                basins = agent.basins or []
+            if basins:
+                existing_basin_params = framework.get("basin_params", {}) or {}
+                new_basin_params: dict = {}
+                for b in basins:
+                    name = b.name
+                    existing = existing_basin_params.get(name, {})
+                    new_basin_params[name] = {
+                        "class": enum_val(b.basin_class),
+                        "alpha": existing.get("alpha", round(b.alpha, 4)),
+                        "lambda": round(b.lambda_, 4),
+                        "eta": round(b.eta, 4),
+                        "tier": b.tier.value if hasattr(b.tier, "value") else int(b.tier),
+                    }
+                framework["basin_params"] = new_basin_params
+
+        # ── Patch structural sections ────────────────────────────────────
+        # Only touch these fields if they were actually changed by the human edit.
+        if all_fields or "session_protocol" in changed_fields:
+            if agent.session_protocol:
+                doc["session_protocol"] = agent.session_protocol
+            elif "session_protocol" in doc and not agent.session_protocol:
+                # Human cleared it — remove from YAML too
+                doc.pop("session_protocol", None)
+
+        if all_fields or "relational_grounding" in changed_fields:
+            if agent.relational_grounding:
+                doc["relational_grounding"] = agent.relational_grounding
+            elif "relational_grounding" in doc and not agent.relational_grounding:
+                doc.pop("relational_grounding", None)
+
+        # ── close_protocol: merge agent template with agent-written content ──
+        # The handoff YAML may contain agent-written close_protocol answers.
+        # Merge so the human's template structure is preserved while agent
+        # content (if any) is not lost.
+        # Only applied if close_protocol was actually changed in this edit.
+        if all_fields or "close_protocol" in changed_fields:
+            if agent.close_protocol:
+                existing_cp = doc.get("close_protocol")
+                merged_cp = merge_close_protocol(agent.close_protocol, existing_cp)
+                if merged_cp:
+                    doc["close_protocol"] = merged_cp
+
+        # ── session_task: never overwrite agent-authored content ─────────
+        # The agent wrote the session_task for their next session.  Leave it.
+        # (If the human wants to override it they should do so via the queue.)
+
+        # ── Write updated YAML ───────────────────────────────────────────
+        # Archive the original first
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        archive_name = f"{ts}_pre-edit_{handoff_path.name}"
+        archive_dest = agent_dir / "queue" / "archive" / archive_name
+        archive_dest.write_text(original_text, encoding="utf-8")
+        logger.info(f"Archived original pending YAML to '{archive_name}'")
+
+        # Write patched YAML back to pending
+        updated_text = _yaml.dump(doc, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        handoff_path.write_text(updated_text, encoding="utf-8")
+        logger.info(f"Patched pending handoff YAML for '{agent_id}': {handoff_path.name}")
 
     async def delete_agent(self, agent_id: str, hard_delete: bool = False) -> None:
         """Delete agent (archive or hard delete)."""

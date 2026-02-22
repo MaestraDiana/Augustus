@@ -66,6 +66,9 @@ htmlcov/
 # Build outputs
 frontend/dist/
 
+# Runtime
+.backend.pid
+
 # Augustus data
 data/
 agents/

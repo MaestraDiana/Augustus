@@ -22,7 +22,9 @@
       "Bash(gh run rerun:*)",
       "Bash(gh run watch:*)",
       "Skill(keybindings-help)",
-      "Skill(keybindings-help:*)"
+      "Skill(keybindings-help:*)",
+      "Bash(set -x)",
+      "Bash(bash -x:*)"
     ]
   }
 }

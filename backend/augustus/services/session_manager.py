@@ -938,7 +938,7 @@ class SessionManager:
                             "n_results": {
                                 "type": "integer",
                                 "description": "Maximum results to return",
-                                "default": 10,
+                                "default": 3,
                             },
                         },
                     },
@@ -1244,7 +1244,7 @@ class SessionManager:
     ) -> tuple[str, str]:
         """Handle get_observations tool call -- retrieve observer annotations and emergence data."""
         query = tool_input.get("query") or None
-        n = tool_input.get("n_results", 10)
+        n = tool_input.get("n_results", 3)
 
         results = await self.memory.search_observations(agent_id, query, n)
 

@@ -21,6 +21,7 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 let mainWindow = null;
 let pythonProcess = null;
 let updateCheckTimer = null;
+let pythonStderr = [];
 
 function getPort() {
     return process.env.AUGUSTUS_PORT || DEFAULT_PORT;
@@ -76,12 +77,18 @@ async function startPythonBackend(port) {
         });
     }
 
+    pythonStderr = [];
+
     pythonProcess.stdout.on('data', (data) => {
         console.log(`[Python] ${data.toString().trim()}`);
     });
 
     pythonProcess.stderr.on('data', (data) => {
-        console.error(`[Python] ${data.toString().trim()}`);
+        const text = data.toString().trim();
+        console.error(`[Python] ${text}`);
+        pythonStderr.push(...text.split('\n'));
+        // Keep last 50 lines to avoid unbounded growth
+        if (pythonStderr.length > 50) pythonStderr.splice(0, pythonStderr.length - 50);
     });
 
     pythonProcess.on('exit', (code) => {
@@ -301,10 +308,18 @@ app.on('ready', async () => {
         const ready = await waitForBackend(port);
 
         if (!ready) {
-            dialog.showErrorBox(
-                'Backend Error',
-                'Could not start the Augustus backend. Please check the logs.'
-            );
+            const logDir = app.getPath('logs');
+            const stderrTail = pythonStderr.slice(-10).join('\n').trim();
+            const detail = stderrTail
+                ? `Last error output:\n${stderrTail}\n\nLog directory:\n${logDir}`
+                : `Log directory:\n${logDir}`;
+            dialog.showMessageBoxSync({
+                type: 'error',
+                title: 'Backend Error',
+                message: 'Could not start the Augustus backend.',
+                detail,
+                buttons: ['OK'],
+            });
             app.quit();
             return;
         }

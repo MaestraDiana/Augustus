@@ -269,6 +269,14 @@ class MCPServer:
                 for a in annotations
             ])
 
+        @self.mcp.tool(description="Delete a specific annotation by its ID. Returns not_found if the annotation does not exist for the given agent.")
+        async def delete_annotation(agent_id: str, annotation_id: str) -> str:
+            deleted = await memory.delete_annotation(agent_id, annotation_id)
+            if deleted:
+                await memory.emit_event("annotation_deleted", agent_id, {"annotation_id": annotation_id})
+                return json.dumps({"status": "deleted", "annotation_id": annotation_id})
+            return json.dumps({"status": "not_found", "annotation_id": annotation_id})
+
         @self.mcp.tool(description="Approve a pending tier modification proposal.")
         async def approve_tier_proposal(proposal_id: str) -> str:
             await memory.update_proposal_status(

@@ -2325,6 +2325,41 @@ class MemoryService:
             )
         return [self._row_to_annotation(r) for r in rows]
 
+    async def delete_annotation(self, agent_id: str, annotation_id: str) -> bool:
+        """Delete an annotation from SQLite and ChromaDB.
+
+        Args:
+            agent_id: Agent the annotation belongs to (used for ownership check).
+            annotation_id: Annotation to delete.
+
+        Returns:
+            True if a row was deleted, False if not found.
+        """
+        # Check existence first so we can report accurately
+        row = await self._run_sync(
+            self.sqlite.fetch_one,
+            "SELECT annotation_id FROM annotations WHERE annotation_id = ? AND agent_id = ?",
+            (annotation_id, agent_id),
+        )
+        if row is None:
+            return False
+
+        await self._run_sync(
+            self.sqlite.execute,
+            "DELETE FROM annotations WHERE annotation_id = ? AND agent_id = ?",
+            (annotation_id, agent_id),
+        )
+
+        # Remove from ChromaDB — ignore errors if doc was never indexed
+        doc_id = f"{agent_id}:annotation:{annotation_id}"
+        try:
+            await self._run_sync(self.chroma.delete, "annotations", doc_id)
+        except Exception:
+            pass
+
+        logger.debug("Deleted annotation %s for agent %s", annotation_id, agent_id)
+        return True
+
     async def search_observations(
         self,
         agent_id: str,

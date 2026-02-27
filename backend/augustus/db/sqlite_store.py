@@ -139,6 +139,8 @@ class SQLiteStore:
 )""",
             "CREATE INDEX IF NOT EXISTS idx_event_bus_id ON event_bus(id)",
             "CREATE INDEX IF NOT EXISTS idx_event_bus_created ON event_bus(created_at)",
+            # v0.9.63: Store full error message on failed sessions
+            "ALTER TABLE sessions ADD COLUMN error_message TEXT DEFAULT NULL",
         ]
         for sql in migrations:
             try:

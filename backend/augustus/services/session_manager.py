@@ -513,6 +513,7 @@ class SessionManager:
             record.end_time = utcnow_iso()
             record.turn_count = turns_completed
             record.transcript = conversation
+            record.error_message = "Session halted: budget exceeded"
             await self.memory.store_session_record(record)
 
             # Still log partial usage so costs are tracked
@@ -549,6 +550,7 @@ class SessionManager:
             record.end_time = utcnow_iso()
             record.turn_count = turns_completed
             record.transcript = conversation
+            record.error_message = str(e)
             await self.memory.store_session_record(record)
 
             # Still log partial usage so costs are tracked
@@ -1332,6 +1334,16 @@ class SessionManager:
                 }
                 if tools:
                     kwargs["tools"] = tools
+                    # Enable the server-side web search beta when the web_search
+                    # tool is active. Without this header the API returns only
+                    # the server_tool_use block (the search request) with no
+                    # web_search_tool_result, and the next turn's API call fails
+                    # with a 400 because the assistant message has an unmatched
+                    # server_tool_use.
+                    if any(
+                        t.get("type") == "web_search_20250305" for t in tools
+                    ):
+                        kwargs["betas"] = ["web-search-2025-03-05"]
 
                 return await self.client.messages.create(**kwargs)
 

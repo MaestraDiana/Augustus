@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     close_report_json TEXT DEFAULT '{}',
     yaml_raw TEXT DEFAULT '',
     status TEXT DEFAULT 'complete',
+    error_message TEXT DEFAULT NULL,
     FOREIGN KEY (agent_id) REFERENCES agents(agent_id) ON DELETE CASCADE
 );
 

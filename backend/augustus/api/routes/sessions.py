@@ -57,6 +57,13 @@ async def get_session_detail(
 
     result = session.to_dict(include_transcript=True)
 
+    # For error sessions that predate the error_message column, fall back to
+    # the activity_feed entry so the session detail can show the cause.
+    if session.status == "error" and not session.error_message:
+        feed_error = await memory.get_session_error_from_feed(agent_id, session_id)
+        if feed_error:
+            result["error_message"] = feed_error
+
     # Attach evaluator output if available
     eval_output = await memory.get_evaluator_output(session_id)
     if eval_output:

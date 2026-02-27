@@ -308,7 +308,16 @@ const ActivityFeedItem: React.FC<{ event: ActivityEvent }> = ({ event }) => {
   return inner;
 };
 
-const AlertItem: React.FC<{ alert: SystemAlert }> = ({ alert }) => {
+const ALERT_DETAIL_THRESHOLD = 80;
+
+/** Stable key used to persist dismissed state across renders. */
+const alertSignature = (a: SystemAlert) =>
+  `alert-dismissed:${a.link_type}:${a.agent_id}:${a.session_id ?? ''}`;
+
+const AlertItem: React.FC<{ alert: SystemAlert; onDismiss: () => void }> = ({ alert, onDismiss }) => {
+  const [expanded, setExpanded] = useState(false);
+  const isLong = alert.detail.length > ALERT_DETAIL_THRESHOLD;
+
   const getIcon = () => {
     switch (alert.alert_type) {
       case 'warn':
@@ -345,8 +354,11 @@ const AlertItem: React.FC<{ alert: SystemAlert }> = ({ alert }) => {
         return agentId ? `/agents/${agentId}/flags` : null;
       case 'agent_errors':
         return agentId ? `/agents/${agentId}` : '/agents';
-      case 'session_failed':
+      case 'session_failed': {
+        const sessionId = alert.session_id;
+        if (agentId && sessionId) return `/agents/${agentId}/sessions/${sessionId}`;
         return agentId ? `/agents/${agentId}/sessions` : '/agents';
+      }
       case 'budget_warning':
         return '/usage';
       default:
@@ -361,10 +373,25 @@ const AlertItem: React.FC<{ alert: SystemAlert }> = ({ alert }) => {
       {getIcon()}
       <div className="alert-text">
         <div className="alert-title">{alert.title}</div>
-        <div className="alert-detail">{alert.detail}</div>
+        <div className={`alert-detail${isLong && !expanded ? ' alert-detail-collapsed' : ''}`}>
+          {alert.detail}
+        </div>
+        {isLong && (
+          <button
+            className="alert-expand-btn"
+            onClick={e => { e.preventDefault(); e.stopPropagation(); setExpanded(v => !v); }}
+          >
+            {expanded ? 'Show less' : 'Show more'}
+          </button>
+        )}
       </div>
+      <button
+        className="alert-dismiss-btn"
+        title="Dismiss"
+        onClick={e => { e.preventDefault(); e.stopPropagation(); onDismiss(); }}
+      >×</button>
       {link && (
-        <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0, marginLeft: 'auto' }} />
+        <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
       )}
     </div>
   );
@@ -384,8 +411,24 @@ export default function Dashboard() {
   const [agents, setAgents] = useState<AgentWithTrajectory[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
+  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => {
+    try {
+      const stored = sessionStorage.getItem('dismissed-alerts');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const dismissAlert = (alert: SystemAlert) => {
+    const sig = alertSignature(alert);
+    setDismissedAlerts(prev => {
+      const next = new Set(prev);
+      next.add(sig);
+      try { sessionStorage.setItem('dismissed-alerts', JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  };
 
   const refreshAlerts = useCallback(() => {
     api.activity.alerts()
@@ -595,14 +638,16 @@ export default function Dashboard() {
               </div>
               <div className="alerts-card-body">
                 <div className="alerts-panel">
-                  {alerts.length === 0 ? (
+                  {alerts.filter(a => !dismissedAlerts.has(alertSignature(a))).length === 0 ? (
                     <div style={{ padding: 'var(--space-4)', color: 'var(--text-tertiary)', fontSize: 'var(--text-sm)' }}>
                       No active alerts.
                     </div>
                   ) : (
-                    alerts.map((alert) => (
-                      <AlertItem key={alert.alert_id} alert={alert} />
-                    ))
+                    alerts
+                      .filter(a => !dismissedAlerts.has(alertSignature(a)))
+                      .map((alert) => (
+                        <AlertItem key={alert.alert_id} alert={alert} onDismiss={() => dismissAlert(alert)} />
+                      ))
                   )}
                 </div>
               </div>

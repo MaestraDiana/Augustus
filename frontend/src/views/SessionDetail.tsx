@@ -31,6 +31,7 @@ interface SessionDetailData {
     tool_call_id?: string;
   }>;
   close_report?: string | null;
+  error_message?: string | null;
   basin_snapshots?: Array<{
     basin_name: string;
     alpha_start: number;
@@ -66,6 +67,14 @@ export default function SessionDetail() {
   const [error, setError] = useState<string | null>(null);
   const [sessionData, setSessionData] = useState<SessionDetailData | null>(null);
   const [adjacentSessions, setAdjacentSessions] = useState<{ prev: string | null; next: string | null }>({ prev: null, next: null });
+  const [errorBannerDismissed, setErrorBannerDismissed] = useState(
+    () => sessionStorage.getItem(`error-banner-dismissed:${sessionId}`) === '1'
+  );
+
+  const dismissErrorBanner = () => {
+    sessionStorage.setItem(`error-banner-dismissed:${sessionId}`, '1');
+    setErrorBannerDismissed(true);
+  };
 
   useEffect(() => {
     async function fetchSessionData() {
@@ -297,6 +306,26 @@ export default function SessionDetail() {
           </button>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {sessionData.status === 'error' && !errorBannerDismissed && (
+        <div className="session-error-banner">
+          <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div className="session-error-body">
+            <span className="session-error-label">Session failed</span>
+            {sessionData.error_message && (
+              <span className="session-error-message">{sessionData.error_message}</span>
+            )}
+          </div>
+          <button
+            className="session-error-dismiss"
+            onClick={dismissErrorBanner}
+            title="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="session-main">

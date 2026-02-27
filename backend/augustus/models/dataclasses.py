@@ -218,6 +218,7 @@ class SessionRecord:
     capabilities_used: list[str] = field(default_factory=list)
     status: str = "complete"
     yaml_raw: str = ""
+    error_message: str | None = None
 
     def to_dict(self, include_transcript: bool = False) -> dict[str, Any]:
         """Serialize to JSON-friendly dict."""
@@ -232,6 +233,7 @@ class SessionRecord:
             "status": self.status,
             "capabilities_used": self.capabilities_used,
             "yaml_raw": self.yaml_raw,
+            "error_message": self.error_message,
         }
         if include_transcript:
             result["transcript"] = self.transcript

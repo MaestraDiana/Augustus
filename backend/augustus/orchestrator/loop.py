@@ -358,8 +358,6 @@ class Orchestrator:
                         from augustus.models.dataclasses import ActivityEvent as AE
                         import uuid as _uuid
                         error_msg = str(e)
-                        if len(error_msg) > 200:
-                            error_msg = error_msg[:200] + "…"
                         await self.memory.log_activity(AE(
                             event_id=f"evt-{_uuid.uuid4().hex[:12]}",
                             event_type="session_failed",

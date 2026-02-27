@@ -78,6 +78,7 @@ export interface SessionRecord {
   basin_snapshots_start?: Record<string, BasinSnapshot>; // Legacy - for components still using old format
   basin_snapshots_end?: Record<string, BasinSnapshot>; // Legacy - for components still using old format
   evaluator_output?: EvaluatorOutput | null;
+  error_message?: string | null;
 }
 
 // SessionListItem is the shape returned by /agents/{id}/sessions (without transcript)
@@ -187,6 +188,7 @@ export interface SystemAlert {
   detail: string;
   link_type?: string;
   agent_id?: string;
+  session_id?: string;
   timestamp: string;
   dismissed: boolean;
 }

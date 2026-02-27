@@ -52,6 +52,7 @@ async def get_system_alerts(
             "detail": alert.get("detail", ""),
             "link_type": alert.get("type", ""),
             "agent_id": alert.get("agent_id", ""),
+            "session_id": alert.get("session_id", ""),
             # System alerts are computed on demand from live state — no stored timestamp.
             # Omit rather than fake utcnow which would always show "just now".
             "timestamp": None,

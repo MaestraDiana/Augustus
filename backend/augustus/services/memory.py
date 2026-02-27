@@ -128,8 +128,8 @@ class MemoryService:
             INSERT OR REPLACE INTO sessions
                 (session_id, agent_id, start_time, end_time, turn_count,
                  model, temperature, transcript_json, close_report_json,
-                 yaml_raw, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 yaml_raw, status, error_message)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         params = (
             record.session_id,
@@ -143,6 +143,7 @@ class MemoryService:
             close_report_json,
             record.yaml_raw,
             record.status,
+            record.error_message,
         )
         await self._run_sync(self.sqlite.execute, sql, params)
 
@@ -186,6 +187,23 @@ class MemoryService:
         if not row:
             return None
         return self._row_to_session_record(row)
+
+    async def get_session_error_from_feed(
+        self, agent_id: str, session_id: str
+    ) -> str | None:
+        """Look up the error detail for a failed session from the activity feed.
+
+        Used as a fallback for sessions that predate the error_message column.
+        """
+        sql = """
+            SELECT detail FROM activity_feed
+            WHERE session_id = ? AND agent_id = ? AND event_type = 'session_failed'
+            ORDER BY timestamp DESC LIMIT 1
+        """
+        row = await self._run_sync(
+            self.sqlite.fetch_one, sql, (session_id, agent_id)
+        )
+        return row["detail"] if row else None
 
     async def list_sessions(
         self, agent_id: str, limit: int = 50, offset: int = 0
@@ -264,6 +282,7 @@ class MemoryService:
             close_report=close_report,
             status=row.get("status", "complete"),
             yaml_raw=row.get("yaml_raw", ""),
+            error_message=row.get("error_message"),
         )
 
     # ------------------------------------------------------------------
@@ -3047,6 +3066,15 @@ class MemoryService:
         if fail_row and fail_row["count"] > 0:
             count = fail_row["count"]
             detail = fail_row.get("last_detail", "")
+            # Fetch the session_id of the most recent failure for direct linking
+            last_fail_sql = """
+                SELECT session_id, agent_id FROM activity_feed
+                WHERE event_type = 'session_failed' AND timestamp >= ?
+                ORDER BY timestamp DESC LIMIT 1
+            """
+            last_fail_row = await self._run_sync(
+                self.sqlite.fetch_one, last_fail_sql, (fail_cutoff,)
+            )
             alerts.append(
                 {
                     "type": "session_failed",
@@ -3057,7 +3085,8 @@ class MemoryService:
                         else "Session failure in the last 24 hours"
                     ),
                     "detail": detail or "Check session logs for details.",
-                    "agent_id": fail_row.get("first_agent", ""),
+                    "agent_id": last_fail_row["agent_id"] if last_fail_row else fail_row.get("first_agent", ""),
+                    "session_id": last_fail_row["session_id"] if last_fail_row else "",
                 }
             )
 

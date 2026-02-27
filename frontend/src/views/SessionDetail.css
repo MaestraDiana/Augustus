@@ -120,6 +120,52 @@
   font-size: 11px;
 }
 
+/* Error Banner */
+.session-error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-2) var(--space-4);
+  background: var(--accent-alert-dim);
+  border-bottom: 1px solid rgba(199, 93, 93, 0.3);
+  color: var(--accent-alert);
+  font-size: var(--text-sm);
+  flex-shrink: 0;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.session-error-body {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.session-error-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.session-error-message {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  word-break: break-all;
+}
+.session-error-dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent-alert);
+  opacity: 0.6;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.session-error-dismiss:hover { opacity: 1; }
+
 /* Main Content Area (Transcript + Side Panel) */
 .session-main {
   flex: 1;

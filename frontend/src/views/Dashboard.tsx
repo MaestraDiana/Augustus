@@ -376,20 +376,23 @@ const AlertItem: React.FC<{ alert: SystemAlert; onDismiss: () => void }> = ({ al
         <div className={`alert-detail${isLong && !expanded ? ' alert-detail-collapsed' : ''}`}>
           {alert.detail}
         </div>
-        {isLong && (
+        <div className="alert-actions">
+          {isLong && (
+            <button
+              className="alert-expand-btn"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); setExpanded(v => !v); }}
+            >
+              {expanded ? 'Show less' : 'Show more'}
+            </button>
+          )}
           <button
-            className="alert-expand-btn"
-            onClick={e => { e.preventDefault(); e.stopPropagation(); setExpanded(v => !v); }}
+            className="alert-dismiss-link"
+            onClick={e => { e.preventDefault(); e.stopPropagation(); onDismiss(); }}
           >
-            {expanded ? 'Show less' : 'Show more'}
+            Dismiss
           </button>
-        )}
+        </div>
       </div>
-      <button
-        className="alert-dismiss-btn"
-        title="Dismiss"
-        onClick={e => { e.preventDefault(); e.stopPropagation(); onDismiss(); }}
-      >×</button>
       {link && (
         <ChevronRight size={16} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
       )}

@@ -30,23 +30,24 @@ export default function SessionList() {
   const limit = 50;
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
-  const [localSessions, setLocalSessions] = useState<SessionItem[] | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const { data, loading } = useApi<SessionListResponse>(
+  const { data, loading, refetch } = useApi<SessionListResponse>(
     () => api.sessions.list(agentId!, limit, offset),
     [agentId, offset],
   );
 
-  const sessions = localSessions ?? data?.sessions ?? [];
+  const sessions = data?.sessions ?? [];
   const total = data?.total ?? 0;
 
   const handleDelete = async (sessionId: string) => {
     setDeleting(sessionId);
+    setDeleteError(null);
     try {
       await api.sessions.delete(agentId!, sessionId);
-      setLocalSessions((data?.sessions ?? []).filter(s => s.session_id !== sessionId));
+      refetch();
     } catch (e) {
-      console.error('Failed to delete session', e);
+      setDeleteError(e instanceof Error ? e.message : 'Delete failed. Please try again.');
     } finally {
       setDeleting(null);
       setConfirmDeleteId(null);
@@ -66,6 +67,25 @@ export default function SessionList() {
 
   return (
     <div>
+      {deleteError && (
+        <div style={{
+          margin: 'var(--space-4) var(--space-4) 0',
+          padding: 'var(--space-3) var(--space-4)',
+          background: 'var(--accent-alert-dim)',
+          color: 'var(--accent-alert)',
+          borderRadius: 'var(--radius-md)',
+          fontSize: '14px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <span>{deleteError}</span>
+          <button
+            onClick={() => setDeleteError(null)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', padding: '0 0 0 var(--space-3)', fontSize: '16px', lineHeight: 1 }}
+          >×</button>
+        </div>
+      )}
       <div className="section-card">
         <div className="section-card-header">
           <h2 className="section-title">Sessions</h2>

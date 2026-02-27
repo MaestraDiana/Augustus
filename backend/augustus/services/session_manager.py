@@ -1344,7 +1344,7 @@ class SessionManager:
                     if any(
                         t.get("type") == "web_search_20250305" for t in tools
                     ):
-                        kwargs["betas"] = ["web-search-2025-03-05"]
+                        kwargs.setdefault("extra_headers", {})["anthropic-beta"] = "web-search-2025-03-05"
 
                 return await self.client.messages.create(**kwargs)
 

@@ -271,7 +271,9 @@ class SessionManager:
             {"session_id": session_id, "model": model, "max_turns": max_turns},
         )
 
-        # Snapshot the initial basin state before any handoff mutations
+        # Snapshot the initial basin state before any handoff mutations.
+        # Prefer alpha from basin_definitions (authoritative, brain-modifiable)
+        # over the YAML value so that brain overrides are not silently lost.
         initial_basins = [
             BasinConfig(
                 name=b.name,
@@ -283,6 +285,20 @@ class SessionManager:
             )
             for b in fw.basin_params
         ]
+        try:
+            _basin_source = await self.memory.get_agent_basin_source(agent_id)
+            if _basin_source == "database":
+                _defs = await self.memory.get_basin_definitions(agent_id)
+                if _defs:
+                    _def_alpha = {bd.name: bd.alpha for bd in _defs}
+                    for _b in initial_basins:
+                        if _b.name in _def_alpha:
+                            _b.alpha = _def_alpha[_b.name]
+        except Exception as _e:
+            logger.warning(
+                "Session %s: could not sync initial_basins from basin_definitions: %s",
+                session_id, _e,
+            )
 
         conversation: list[dict] = []
         total_tokens_in = 0
@@ -1523,6 +1539,43 @@ class SessionManager:
             self_assessment=record.close_report,
             co_activation_entries=co_activation_entries or None,
         )
+
+        # 6b. Apply per-basin alpha bounds (floor/ceiling from basin_definitions)
+        # to the handoff output BEFORE writing snapshots or the next YAML.
+        # This ensures the trajectory table and handoff file both respect
+        # brain-set bounds, not just basin_current.
+        try:
+            _bounds_defs = await self.memory.get_basin_definitions(agent_id)
+            if _bounds_defs:
+                _bounds_map: dict[str, tuple] = {
+                    bd.name: (bd.alpha_floor, bd.alpha_ceiling)
+                    for bd in _bounds_defs
+                }
+                _clamped_alpha: dict[str, float] = {}
+                for _basin in handoff_result.updated_basins:
+                    _floor, _ceil = _bounds_map.get(_basin.name, (None, None))
+                    _a = _basin.alpha
+                    if _floor is not None and _a < _floor:
+                        logger.info(
+                            "Basin %s alpha %.4f clamped to floor %.4f (agent %s)",
+                            _basin.name, _a, _floor, agent_id,
+                        )
+                        _a = _floor
+                    if _ceil is not None and _a > _ceil:
+                        _a = _ceil
+                    _basin.alpha = round(_a, 6)
+                    _clamped_alpha[_basin.name] = _basin.alpha
+                # Sync snapshot alpha_end and delta to match clamped values
+                for _snap in handoff_result.basin_snapshots:
+                    if _snap.basin_name in _clamped_alpha:
+                        _new_end = _clamped_alpha[_snap.basin_name]
+                        _snap.delta = round(_new_end - _snap.alpha_start, 6)
+                        _snap.alpha_end = _new_end
+        except Exception as _e:
+            logger.warning(
+                "Could not apply per-basin bounds to handoff result for agent %s: %s",
+                agent_id, _e,
+            )
 
         # 7. Persist basin snapshots
         for snap in handoff_result.basin_snapshots:

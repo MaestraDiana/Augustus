@@ -624,7 +624,9 @@ export default function Dashboard() {
             <div className="section-card">
               <div className="section-card-header">
                 <span className="section-title">System Alerts</span>
-                {alerts.length > 0 && <Badge variant="paused">{alerts.length}</Badge>}
+                {alerts.filter(a => !dismissedAlerts.has(alertSignature(a))).length > 0 && (
+                  <Badge variant="paused">{alerts.filter(a => !dismissedAlerts.has(alertSignature(a))).length}</Badge>
+                )}
               </div>
               <div className="alerts-card-body">
                 <div className="alerts-panel">

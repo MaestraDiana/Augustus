@@ -23,6 +23,7 @@ import { api } from '../api/client';
 import { timeAgo } from '../utils/time';
 import { getAgentColor, DEFAULT_MODEL } from '../utils/constants';
 import { useDataEvents } from '../hooks/useEventStream';
+import { useAlertDismissals, alertDismissKey } from '../hooks/useAlertDismissals';
 import type { Agent, ActivityEvent, SystemAlert, BasinClass } from '../types';
 
 interface TrajectoryResponse {
@@ -310,9 +311,8 @@ const ActivityFeedItem: React.FC<{ event: ActivityEvent }> = ({ event }) => {
 
 const ALERT_DETAIL_THRESHOLD = 80;
 
-/** Stable key used to persist dismissed state across renders. */
 const alertSignature = (a: SystemAlert) =>
-  `alert-dismissed:${a.link_type}:${a.agent_id}:${a.session_id ?? ''}`;
+  alertDismissKey(a.link_type, a.agent_id, a.session_id);
 
 const AlertItem: React.FC<{ alert: SystemAlert; onDismiss: () => void }> = ({ alert, onDismiss }) => {
   const [expanded, setExpanded] = useState(false);
@@ -414,24 +414,11 @@ export default function Dashboard() {
   const [agents, setAgents] = useState<AgentWithTrajectory[]>([]);
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [alerts, setAlerts] = useState<SystemAlert[]>([]);
-  const [dismissedAlerts, setDismissedAlerts] = useState<Set<string>>(() => {
-    try {
-      const stored = sessionStorage.getItem('dismissed-alerts');
-      return stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch { return new Set(); }
-  });
+  const { dismissed: dismissedAlerts, dismiss } = useAlertDismissals();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const dismissAlert = (alert: SystemAlert) => {
-    const sig = alertSignature(alert);
-    setDismissedAlerts(prev => {
-      const next = new Set(prev);
-      next.add(sig);
-      try { sessionStorage.setItem('dismissed-alerts', JSON.stringify([...next])); } catch {}
-      return next;
-    });
-  };
+  const dismissAlert = (alert: SystemAlert) => dismiss(alertSignature(alert));
 
   const refreshAlerts = useCallback(() => {
     api.activity.alerts()

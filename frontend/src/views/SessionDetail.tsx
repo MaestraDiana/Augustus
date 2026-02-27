@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, FileText, Download, AlertCircle, GitCompareArrows } from 'lucide-react';
 import { api } from '../api/client';
+import { dismissAlertKey, alertDismissKey } from '../hooks/useAlertDismissals';
 import { formatDuration } from '../utils/time';
 import type { SessionRecord, Annotation } from '../types';
 import TranscriptPanel from '../components/TranscriptPanel';
@@ -74,6 +75,10 @@ export default function SessionDetail() {
   const dismissErrorBanner = () => {
     sessionStorage.setItem(`error-banner-dismissed:${sessionId}`, '1');
     setErrorBannerDismissed(true);
+    // Also dismiss the corresponding system alert so dashboard + bell stay in sync.
+    if (agentId && sessionId) {
+      dismissAlertKey(alertDismissKey('session_failed', agentId, sessionId));
+    }
   };
 
   useEffect(() => {

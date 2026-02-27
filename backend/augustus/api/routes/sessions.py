@@ -120,3 +120,20 @@ async def get_session_yaml_diff(
         "previous_yaml_raw": previous.yaml_raw if previous else "",
         "is_first_session": previous is None,
     }
+
+
+@router.delete("/sessions/{session_id}", status_code=200)
+async def delete_session(
+    agent_id: str,
+    session_id: str,
+    agent: AgentConfig = Depends(require_agent),
+    memory: MemoryService = Depends(get_memory),
+) -> dict:
+    """Delete a session and all associated data (annotations, flags, vectors)."""
+    deleted = await memory.delete_session(agent_id, session_id)
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Session '{session_id}' not found for agent '{agent_id}'",
+        )
+    return {"deleted": session_id}

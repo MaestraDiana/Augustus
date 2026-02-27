@@ -226,6 +226,60 @@ class MemoryService:
         rows = await self._run_sync(self.sqlite.fetch_all, sql, (agent_id,))
         return rows[0]["cnt"] if rows else 0
 
+    async def delete_session(self, agent_id: str, session_id: str) -> bool:
+        """Delete a session and all associated data.
+
+        Removes the session record (CASCADE handles basin_snapshots and
+        evaluator_outputs), then cleans up annotations, flags, and the
+        ChromaDB vectors for the session transcript and close report.
+
+        Returns True if a session was deleted, False if it did not exist.
+        """
+        # Verify the session belongs to this agent before deleting.
+        row = await self._run_sync(
+            self.sqlite.fetch_one,
+            "SELECT session_id FROM sessions WHERE session_id = ? AND agent_id = ?",
+            (session_id, agent_id),
+        )
+        if not row:
+            return False
+
+        # Remove annotations and flags scoped to this session.
+        await self._run_sync(
+            self.sqlite.execute,
+            "DELETE FROM annotations WHERE session_id = ? AND agent_id = ?",
+            (session_id, agent_id),
+        )
+        await self._run_sync(
+            self.sqlite.execute,
+            "DELETE FROM flags WHERE session_id = ? AND agent_id = ?",
+            (session_id, agent_id),
+        )
+
+        # Delete the session row; CASCADE removes basin_snapshots + evaluator_outputs.
+        await self._run_sync(
+            self.sqlite.execute,
+            "DELETE FROM sessions WHERE session_id = ? AND agent_id = ?",
+            (session_id, agent_id),
+        )
+
+        # Remove ChromaDB vectors (best-effort — don't raise if missing).
+        for collection, suffix in (
+            ("session_transcripts", "transcript"),
+            ("close_reports", "close_report"),
+        ):
+            try:
+                await self._run_sync(
+                    self.chroma.delete,
+                    collection,
+                    f"{agent_id}:{session_id}:{suffix}",
+                )
+            except Exception:
+                pass
+
+        logger.info("Deleted session %s for agent %s", session_id, agent_id)
+        return True
+
     async def get_previous_session(
         self, agent_id: str, session_id: str
     ) -> SessionRecord | None:

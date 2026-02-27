@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { FileText } from 'lucide-react';
+import { FileText, Trash2 } from 'lucide-react';
 import Badge from '../components/ui/Badge';
 import EmptyState from '../components/ui/EmptyState';
 import { api } from '../api/client';
@@ -28,14 +28,30 @@ export default function SessionList() {
   const { agentId } = useParams<{ agentId: string }>();
   const [offset, setOffset] = useState(0);
   const limit = 50;
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [localSessions, setLocalSessions] = useState<SessionItem[] | null>(null);
 
   const { data, loading } = useApi<SessionListResponse>(
     () => api.sessions.list(agentId!, limit, offset),
     [agentId, offset],
   );
 
-  const sessions = data?.sessions ?? [];
+  const sessions = localSessions ?? data?.sessions ?? [];
   const total = data?.total ?? 0;
+
+  const handleDelete = async (sessionId: string) => {
+    setDeleting(sessionId);
+    try {
+      await api.sessions.delete(agentId!, sessionId);
+      setLocalSessions((data?.sessions ?? []).filter(s => s.session_id !== sessionId));
+    } catch (e) {
+      console.error('Failed to delete session', e);
+    } finally {
+      setDeleting(null);
+      setConfirmDeleteId(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -77,6 +93,7 @@ export default function SessionList() {
                     <th>Turns</th>
                     <th>Model</th>
                     <th>Status</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -107,6 +124,36 @@ export default function SessionList() {
                         >
                           {session.status}
                         </Badge>
+                      </td>
+                      <td style={{ width: '1%', whiteSpace: 'nowrap', paddingRight: 'var(--space-4)' }}>
+                        {confirmDeleteId === session.session_id ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: '13px' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>Delete?</span>
+                            <button
+                              className="btn btn-sm"
+                              style={{ color: 'var(--accent-alert)', background: 'var(--accent-alert-dim)', border: 'none', padding: '2px 8px' }}
+                              disabled={deleting === session.session_id}
+                              onClick={() => handleDelete(session.session_id)}
+                            >
+                              {deleting === session.session_id ? '…' : 'Yes'}
+                            </button>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setConfirmDeleteId(null)}
+                            >
+                              No
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            title="Delete session"
+                            onClick={() => setConfirmDeleteId(session.session_id)}
+                            style={{ color: 'var(--text-muted)', padding: '2px 4px' }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

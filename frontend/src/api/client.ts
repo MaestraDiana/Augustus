@@ -134,6 +134,8 @@ export const api = {
       get<SessionDetailResponse>(`/agents/${agentId}/sessions/${sessionId}`),
     getYamlDiff: (agentId: string, sessionId: string) =>
       get<YamlDiffResponse>(`/agents/${agentId}/sessions/${sessionId}/yaml-diff`),
+    delete: (agentId: string, sessionId: string) =>
+      del<{ deleted: string }>(`/agents/${agentId}/sessions/${sessionId}`),
   },
 
   trajectories: {

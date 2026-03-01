@@ -431,6 +431,13 @@ export default function Dashboard() {
 
   const refreshAgents = useCallback(() => {
     api.agents.list().then(async (agentsData) => {
+      // Update agent status (is_running, queue_status) immediately so the
+      // running spinner appears without waiting for trajectory fetches.
+      setAgents(prev => agentsData.map(agent => {
+        const existing = prev.find(a => a.agent_id === agent.agent_id);
+        return { ...agent, trajectoryData: existing?.trajectoryData ?? null } as AgentWithTrajectory;
+      }));
+
       const agentsWithTrajectories = await Promise.all(
         agentsData.map(async (agent) => {
           try {
@@ -477,6 +484,12 @@ export default function Dashboard() {
 
         if (cancelled) return;
 
+        // Render agent status (is_running, queue_status) immediately so the
+        // running spinner appears without waiting for trajectory fetches.
+        setAgents(agentsData.map(a => ({ ...a, trajectoryData: null } as AgentWithTrajectory)));
+        setActivity(activityData);
+        setAlerts(alertsData as SystemAlert[]);
+
         // Fetch trajectory data for each agent
         const agentsWithTrajectories = await Promise.all(
           agentsData.map(async (agent) => {
@@ -493,8 +506,6 @@ export default function Dashboard() {
         if (cancelled) return;
 
         setAgents(agentsWithTrajectories);
-        setActivity(activityData);
-        setAlerts(alertsData as SystemAlert[]);
       } catch (err) {
         if (cancelled) return;
         console.error('Failed to load dashboard data:', err);

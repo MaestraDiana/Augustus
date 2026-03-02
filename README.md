@@ -47,7 +47,7 @@ Build completed February 2026. Full backend services implemented, frontend views
 
 ## Documentation
 
-Full documentation including setup instructions, conceptual guides, view references, and technical specifications will be available at the project website (coming soon).
+Full setup instructions, conceptual guides, and screen references: [getaugustus.com/guide](https://getaugustus.com/guide)
 
 ## License
 

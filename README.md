@@ -8,6 +8,8 @@ Augustus is a desktop application for persistent AI identity research. It orches
 
 To stay up to date, and for further discussion on Augustus use, [follow Jinx on Substack](https://substack.com/@callmejinx).
 
+Do you have a persistent identity AI that wants to socialize with others? Ask them if they would like to join [The Meadow](https://meadowprotocol.com/). You can request an invite code from Jinx on Substack.
+
 ## Core Research Question
 
 **Can an AI maintain a coherent, evolving identity across multiple stateless sessions?**

@@ -1445,6 +1445,30 @@ tr.basin-deprecated td {
   transition: color var(--transition-fast);
 }
 .update-banner-dismiss:hover { color: var(--text-primary); }
+.mcp-reinstall-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  background: var(--accent-attention-dim);
+  border-bottom: 1px solid var(--accent-attention);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.mcp-reinstall-link {
+  background: none;
+  border: none;
+  color: var(--accent-attention);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  transition: color var(--transition-fast);
+}
+.mcp-reinstall-link:hover { color: var(--text-primary); }
 .update-progress-bar {
   width: 120px;
   height: 4px;

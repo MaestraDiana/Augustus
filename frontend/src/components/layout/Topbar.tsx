@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../hooks/useTheme';
 import StatusChip from '../ui/StatusChip';
 import UpdateBanner from '../ui/UpdateBanner';
+import McpReinstallBanner from '../ui/McpReinstallBanner';
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../../api/client';
 import { useAlertDismissals, alertDismissKey } from '../../hooks/useAlertDismissals';
@@ -121,6 +122,7 @@ export default function Topbar({ pageTitle }: TopbarProps) {
   return (
     <>
     <UpdateBanner />
+    <McpReinstallBanner />
     <header className="topbar">
       <div className="topbar-left">
         {pageTitle && <h1 className="page-title">{pageTitle}</h1>}

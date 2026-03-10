@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Check, X, AlertCircle, Copy, Loader2, FileText, Download, Trash2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff, Check, X, AlertCircle, Loader2, FileText, Download, Trash2 } from 'lucide-react';
 import { api } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import type { Settings as SettingsType } from '../types';
@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 
 export default function Settings() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [settings, setSettings] = useState<SettingsType | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
@@ -15,7 +16,6 @@ export default function Settings() {
   const [apiKeyDirty, setApiKeyDirty] = useState(false);
   const [activeSection, setActiveSection] = useState('api');
   const [saveIndicator, setSaveIndicator] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetConfirm, setResetConfirm] = useState('');
   const [mcpStatus, setMcpStatus] = useState<'running' | 'stopped' | 'checking'>('checking');
@@ -41,6 +41,20 @@ export default function Settings() {
     checkMcpStatus();
     checkClaudeExtension();
   }, []);
+
+  // Scroll to section if URL hash is present (e.g. /settings#integration)
+  useEffect(() => {
+    if (!settings) return; // Wait for settings to render sections
+    const hash = location.hash.replace('#', '');
+    if (hash && sectionRefs.current[hash]) {
+      // Small delay to ensure DOM is laid out
+      const timer = setTimeout(() => {
+        sectionRefs.current[hash]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        setActiveSection(hash);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [settings, location.hash]);
 
   useEffect(() => {
     // Intersection observer for active section highlighting
@@ -120,25 +134,6 @@ export default function Settings() {
     }
   }
 
-  function getMcpConfigSnippet(dataDir: string): string {
-    return JSON.stringify({
-      mcpServers: {
-        augustus: {
-          command: 'python',
-          args: ['-m', 'augustus.mcp.server'],
-          env: {
-            AUGUSTUS_DATA_DIR: dataDir,
-          },
-        },
-      },
-    }, null, 2);
-  }
-
-  const mcpConfigSnippet = useMemo(
-    () => getMcpConfigSnippet(settings?.data_directory ?? '/path/to/augustus/data'),
-    [settings?.data_directory],
-  );
-
   async function validateApiKey() {
     if (!apiKeyInput) return;
     setApiKeyStatus('validating');
@@ -188,12 +183,6 @@ export default function Settings() {
   function showSaveIndicator() {
     setSaveIndicator(true);
     setTimeout(() => setSaveIndicator(false), 2000);
-  }
-
-  function copyMcpConfig() {
-    navigator.clipboard.writeText(mcpConfigSnippet);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   }
 
   function scrollToSection(sectionId: string) {
@@ -716,30 +705,21 @@ export default function Settings() {
                   )}
                 </div>
               ) : (
-                /* Fallback: manual config for non-Electron environments */
-                <div className="form-group">
-                  <label className="form-label">Claude Desktop Configuration</label>
-                  <p className="form-hint">
-                    Add this to your Claude Desktop configuration file to enable Augustus integration.
-                  </p>
-                  <div className="code-snippet">
-                    <div className="code-snippet-header">
-                      <span className="code-snippet-label">claude_desktop_config.json</span>
-                      <button className={`code-snippet-copy ${copied ? 'copied' : ''}`} onClick={copyMcpConfig}>
-                        {copied ? (
-                          <>
-                            <Check size={14} />
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={14} />
-                            Copy
-                          </>
-                        )}
-                      </button>
+                /* Non-Electron: show connected status (extension managed outside app) */
+                <div className="form-group" style={{ paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
+                  <label className="form-label">Claude Desktop Extension</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                      <div className={`mcp-status ${settings.mcp_enabled && mcpStatus === 'running' ? 'running' : 'stopped'}`}>
+                        <span className="status-indicator" />
+                        {settings.mcp_enabled && mcpStatus === 'running'
+                          ? 'Connected via MCP'
+                          : 'MCP not running'}
+                      </div>
                     </div>
-                    <div className="code-snippet-body">{mcpConfigSnippet}</div>
+                    <p className="form-hint">
+                      Extension management is available in the packaged Electron app. In development mode, configure the MCP server manually or install the extension via the Electron build.
+                    </p>
                   </div>
                 </div>
               )}

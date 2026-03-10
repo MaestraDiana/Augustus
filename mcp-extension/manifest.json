@@ -1,0 +1,171 @@
+{
+  "manifest_version": "0.3",
+  "name": "augustus",
+  "display_name": "Augustus",
+  "version": "0.9.2",
+  "description": "Persistent AI identity research platform. Observe agent sessions, manage attractor basins, review tier proposals and evaluator flags, search semantic memory, and annotate agent behavior.",
+  "long_description": "Augustus is a research platform for studying persistent AI identity through attractor basin dynamics. This extension exposes the full Augustus observation and management toolkit to Claude Desktop, enabling you to query session transcripts, track basin trajectories, review tier modification proposals, resolve evaluator flags, manage annotations, and perform semantic search across agent data — all without leaving the conversation.",
+  "author": {
+    "name": "Machine Pareidolia",
+    "url": "https://getaugustus.com"
+  },
+  "homepage": "https://getaugustus.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TheFeloniousMonk/Augustus"
+  },
+  "license": "MIT",
+  "icon": "icon.png",
+  "keywords": [
+    "ai-identity",
+    "research",
+    "attractor-basins",
+    "agent-observation",
+    "semantic-search",
+    "session-analysis"
+  ],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/augustus/augustus",
+    "mcp_config": {
+      "command": "${__dirname}/server/augustus/augustus",
+      "args": ["--mcp"],
+      "env": {
+        "AUGUSTUS_DATA_DIR": "${user_config.data_dir}"
+      }
+    }
+  },
+  "user_config": {
+    "data_dir": {
+      "type": "directory",
+      "title": "Augustus Data Directory",
+      "description": "Directory containing your Augustus databases (augustus.db and chromadb/). This is the same data directory used by the Augustus desktop app.",
+      "required": true
+    }
+  },
+  "tools": [
+    {
+      "name": "get_session_summary",
+      "description": "Get a structured summary of a specific session."
+    },
+    {
+      "name": "get_session_transcript",
+      "description": "Retrieve the complete transcript for a session."
+    },
+    {
+      "name": "get_close_report",
+      "description": "Retrieve the close report for a session."
+    },
+    {
+      "name": "get_basin_trajectory",
+      "description": "Get alpha trajectory for a specific basin over recent sessions."
+    },
+    {
+      "name": "get_all_trajectories",
+      "description": "Get all basin trajectories for an agent."
+    },
+    {
+      "name": "search_sessions",
+      "description": "Semantic search across session content for an agent."
+    },
+    {
+      "name": "get_evaluator_flags",
+      "description": "Get flagged sessions for an agent."
+    },
+    {
+      "name": "get_tier_proposals",
+      "description": "Get tier modification proposals for an agent."
+    },
+    {
+      "name": "list_agents",
+      "description": "List all registered agents with summary statistics."
+    },
+    {
+      "name": "list_sessions",
+      "description": "List recent sessions for an agent with pending review counts."
+    },
+    {
+      "name": "search_all",
+      "description": "Cross-agent semantic search."
+    },
+    {
+      "name": "add_observation",
+      "description": "Add a human evaluation note or observation."
+    },
+    {
+      "name": "search_observations",
+      "description": "Search observations and annotations for an agent."
+    },
+    {
+      "name": "get_agent_annotations",
+      "description": "Get annotations for an agent, optionally filtered to a specific session."
+    },
+    {
+      "name": "delete_annotation",
+      "description": "Delete a specific annotation by its ID."
+    },
+    {
+      "name": "approve_tier_proposal",
+      "description": "Approve a pending tier modification proposal."
+    },
+    {
+      "name": "flag_session",
+      "description": "Flag a session for attention."
+    },
+    {
+      "name": "reject_tier_proposal",
+      "description": "Reject a pending tier proposal with rationale."
+    },
+    {
+      "name": "modify_tier_proposal",
+      "description": "Approve a proposal with modified parameters."
+    },
+    {
+      "name": "get_pending_review_items",
+      "description": "Get all items awaiting brain review for an agent."
+    },
+    {
+      "name": "resolve_flag",
+      "description": "Resolve an evaluator flag."
+    },
+    {
+      "name": "create_basin",
+      "description": "Brain-initiated basin creation (bypasses proposal flow)."
+    },
+    {
+      "name": "modify_basin",
+      "description": "Direct basin parameter adjustment (bypasses proposal flow)."
+    },
+    {
+      "name": "deprecate_basin",
+      "description": "Soft-deprecate a basin."
+    },
+    {
+      "name": "undeprecate_basin",
+      "description": "Restore a deprecated basin to active tracking."
+    },
+    {
+      "name": "lock_basin",
+      "description": "Lock a basin so body cannot modify it."
+    },
+    {
+      "name": "unlock_basin",
+      "description": "Remove brain lock from a basin."
+    },
+    {
+      "name": "set_basin_bounds",
+      "description": "Set alpha bounds that body must respect."
+    },
+    {
+      "name": "get_basin_history",
+      "description": "Get recent modifications for a specific basin (audit trail)."
+    },
+    {
+      "name": "create_proposal",
+      "description": "Create a proposal that sits in the pending queue for later review."
+    }
+  ],
+  "compatibility": {
+    "platforms": ["win32", "darwin", "linux"]
+  }
+}

@@ -21,12 +21,30 @@ interface AugustusUpdates {
   removeAllListeners(): void;
 }
 
+interface ClaudeExtensionStatus {
+  installed: boolean;
+  enabled: boolean;
+  claudeDesktopFound: boolean;
+}
+
+interface ClaudeExtensionResult {
+  success: boolean;
+  error?: string;
+}
+
+interface AugustusClaudeExtension {
+  check(): Promise<ClaudeExtensionStatus>;
+  install(dataDir: string): Promise<ClaudeExtensionResult>;
+  uninstall(): Promise<ClaudeExtensionResult>;
+}
+
 interface AugustusAPI {
   platform: string;
   version: string;
   isElectron: boolean;
   getDataDir(): Promise<string>;
   getAppVersion(): Promise<string>;
+  claudeExtension: AugustusClaudeExtension;
   updates: AugustusUpdates;
 }
 

@@ -6,6 +6,11 @@ contextBridge.exposeInMainWorld('augustus', {
     isElectron: true,
     getDataDir: () => ipcRenderer.invoke('get-data-dir'),
     getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+    claudeExtension: {
+        check: () => ipcRenderer.invoke('check-claude-extension'),
+        install: (dataDir) => ipcRenderer.invoke('install-claude-extension', dataDir),
+        uninstall: () => ipcRenderer.invoke('uninstall-claude-extension'),
+    },
     updates: {
         checkForUpdate: () => ipcRenderer.invoke('check-for-update'),
         downloadUpdate: () => ipcRenderer.invoke('download-update'),

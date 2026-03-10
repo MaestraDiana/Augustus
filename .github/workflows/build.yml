@@ -84,6 +84,10 @@ jobs:
           # CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           # CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
 
+      # Build .mcpb Desktop Extension
+      - name: Build MCP Desktop Extension (.mcpb)
+        run: python mcp-extension/build-mcpb.py
+
       # Collect built artifacts into a staging directory
       - name: Collect artifacts
         shell: bash
@@ -96,6 +100,8 @@ jobs:
             -o -name "*.AppImage" \
             -o -name "latest*.yml" \
           \) -exec cp {} staging/ \;
+          # Copy .mcpb Desktop Extension
+          cp mcp-extension/*.mcpb staging/ 2>/dev/null || true
           echo "Staged files:"
           ls -lh staging/
 

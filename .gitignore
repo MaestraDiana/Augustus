@@ -65,6 +65,7 @@ htmlcov/
 
 # Build outputs
 frontend/dist/
+*.mcpb
 
 # Runtime
 .backend.pid

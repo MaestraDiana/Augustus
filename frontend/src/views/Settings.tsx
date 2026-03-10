@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Check, X, AlertCircle, Copy, Loader2, FileText } from 'lucide-react';
+import { Eye, EyeOff, Check, X, AlertCircle, Copy, Loader2, FileText, Download, Trash2 } from 'lucide-react';
 import { api } from '../api/client';
 import { useApi } from '../hooks/useApi';
 import type { Settings as SettingsType } from '../types';
@@ -19,6 +19,9 @@ export default function Settings() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetConfirm, setResetConfirm] = useState('');
   const [mcpStatus, setMcpStatus] = useState<'running' | 'stopped' | 'checking'>('checking');
+  const [claudeExtStatus, setClaudeExtStatus] = useState<{ installed: boolean; enabled: boolean; claudeDesktopFound: boolean } | null>(null);
+  const [claudeExtBusy, setClaudeExtBusy] = useState(false);
+  const [claudeExtError, setClaudeExtError] = useState<string | null>(null);
 
   // Section refs for intersection observer
   const sectionRefs = useRef<{ [key: string]: HTMLElement | null }>({});
@@ -36,6 +39,7 @@ export default function Settings() {
 
   useEffect(() => {
     checkMcpStatus();
+    checkClaudeExtension();
   }, []);
 
   useEffect(() => {
@@ -67,6 +71,52 @@ export default function Settings() {
       setMcpStatus(status ? 'running' : 'stopped');
     } catch {
       setMcpStatus('stopped');
+    }
+  }
+
+  async function checkClaudeExtension() {
+    if (!window.augustus?.claudeExtension) return;
+    try {
+      const status = await window.augustus.claudeExtension.check();
+      setClaudeExtStatus(status);
+    } catch {
+      setClaudeExtStatus(null);
+    }
+  }
+
+  async function handleInstallClaudeExtension() {
+    if (!window.augustus?.claudeExtension || !settings) return;
+    setClaudeExtBusy(true);
+    setClaudeExtError(null);
+    try {
+      const result = await window.augustus.claudeExtension.install(settings.data_directory);
+      if (result.success) {
+        await checkClaudeExtension();
+      } else {
+        setClaudeExtError(result.error || 'Installation failed');
+      }
+    } catch (err) {
+      setClaudeExtError(err instanceof Error ? err.message : 'Installation failed');
+    } finally {
+      setClaudeExtBusy(false);
+    }
+  }
+
+  async function handleUninstallClaudeExtension() {
+    if (!window.augustus?.claudeExtension) return;
+    setClaudeExtBusy(true);
+    setClaudeExtError(null);
+    try {
+      const result = await window.augustus.claudeExtension.uninstall();
+      if (result.success) {
+        await checkClaudeExtension();
+      } else {
+        setClaudeExtError(result.error || 'Uninstall failed');
+      }
+    } catch (err) {
+      setClaudeExtError(err instanceof Error ? err.message : 'Uninstall failed');
+    } finally {
+      setClaudeExtBusy(false);
     }
   }
 
@@ -600,31 +650,99 @@ export default function Settings() {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Claude Desktop Configuration</label>
-                <p className="form-hint">
-                  Add this to your Claude Desktop configuration file to enable Augustus integration.
-                </p>
-                <div className="code-snippet">
-                  <div className="code-snippet-header">
-                    <span className="code-snippet-label">claude_desktop_config.json</span>
-                    <button className={`code-snippet-copy ${copied ? 'copied' : ''}`} onClick={copyMcpConfig}>
-                      {copied ? (
-                        <>
-                          <Check size={14} />
-                          Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy size={14} />
-                          Copy
-                        </>
-                      )}
-                    </button>
-                  </div>
-                  <div className="code-snippet-body">{mcpConfigSnippet}</div>
+              {/* Claude Desktop Extension — one-click install */}
+              {window.augustus?.claudeExtension ? (
+                <div className="form-group" style={{ paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
+                  <label className="form-label">Claude Desktop Extension</label>
+                  {claudeExtStatus === null ? (
+                    <p className="form-hint">Checking extension status...</p>
+                  ) : !claudeExtStatus.claudeDesktopFound ? (
+                    <p className="form-hint" style={{ color: 'var(--text-tertiary)' }}>
+                      Claude Desktop is not installed. Install it from claude.ai to enable one-click integration.
+                    </p>
+                  ) : claudeExtStatus.installed ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+                        <div className={`mcp-status ${claudeExtStatus.enabled ? 'running' : 'stopped'}`}>
+                          <span className="status-indicator" />
+                          {claudeExtStatus.enabled ? 'Installed and enabled' : 'Installed but disabled'}
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 'var(--space-3)' }}>
+                        <Button
+                          variant="secondary"
+                          onClick={handleInstallClaudeExtension}
+                          disabled={claudeExtBusy}
+                        >
+                          {claudeExtBusy ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={16} />}
+                          Reinstall
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={handleUninstallClaudeExtension}
+                          disabled={claudeExtBusy}
+                        >
+                          <Trash2 size={16} />
+                          Uninstall
+                        </Button>
+                      </div>
+                      <p className="form-hint">
+                        Restart Claude Desktop after changes for them to take effect.
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
+                      <p className="form-hint">
+                        Install the Augustus extension into Claude Desktop for direct MCP tool access. Your data directory will be configured automatically.
+                      </p>
+                      <Button
+                        variant="primary"
+                        onClick={handleInstallClaudeExtension}
+                        disabled={claudeExtBusy}
+                      >
+                        {claudeExtBusy ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={16} />}
+                        Install Claude Desktop Extension
+                      </Button>
+                      <p className="form-hint">
+                        Restart Claude Desktop after installing for the extension to appear.
+                      </p>
+                    </div>
+                  )}
+                  {claudeExtError && (
+                    <div style={{ marginTop: 'var(--space-2)', color: 'var(--accent-alert)', fontSize: 'var(--font-size-sm)' }}>
+                      <AlertCircle size={14} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                      {claudeExtError}
+                    </div>
+                  )}
                 </div>
-              </div>
+              ) : (
+                /* Fallback: manual config for non-Electron environments */
+                <div className="form-group">
+                  <label className="form-label">Claude Desktop Configuration</label>
+                  <p className="form-hint">
+                    Add this to your Claude Desktop configuration file to enable Augustus integration.
+                  </p>
+                  <div className="code-snippet">
+                    <div className="code-snippet-header">
+                      <span className="code-snippet-label">claude_desktop_config.json</span>
+                      <button className={`code-snippet-copy ${copied ? 'copied' : ''}`} onClick={copyMcpConfig}>
+                        {copied ? (
+                          <>
+                            <Check size={14} />
+                            Copied
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} />
+                            Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    <div className="code-snippet-body">{mcpConfigSnippet}</div>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 

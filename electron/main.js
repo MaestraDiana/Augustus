@@ -2,6 +2,7 @@ const { app, BrowserWindow, Menu, dialog, ipcMain } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const http = require('http');
 
 // Auto-updater — only import if available (won't be in dev without npm install)
@@ -266,6 +267,249 @@ function writeFirstLaunchFlag() {
     }
 }
 
+// --- Claude Desktop Extension management ---
+
+const CLAUDE_EXT_ID = 'local.mcpb.machine-pareidolia.augustus';
+
+function getClaudeDir() {
+    return path.join(app.getPath('appData'), 'Claude');
+}
+
+function isClaudeDesktopInstalled() {
+    return fs.existsSync(getClaudeDir());
+}
+
+function getBackendBinaryPath() {
+    const binaryName = 'augustus' + (process.platform === 'win32' ? '.exe' : '');
+    if (app.isPackaged) {
+        return path.join(process.resourcesPath, 'backend', binaryName);
+    }
+    // Dev mode: use the PyInstaller output if available, else fall back to python
+    const devBinary = path.join(__dirname, '..', 'backend', 'dist', 'augustus', binaryName);
+    if (fs.existsSync(devBinary)) return devBinary;
+    return null;
+}
+
+function buildExtensionManifest(binaryPath) {
+    return {
+        manifest_version: '0.3',
+        name: 'augustus',
+        display_name: 'Augustus',
+        version: app.getVersion(),
+        description: 'Persistent AI identity research platform. Observe agent sessions, manage attractor basins, review tier proposals and evaluator flags, search semantic memory, and annotate agent behavior.',
+        author: { name: 'Machine Pareidolia', url: 'https://getaugustus.com' },
+        homepage: 'https://getaugustus.com',
+        icon: 'icon.png',
+        license: 'MIT',
+        server: {
+            type: 'binary',
+            entry_point: binaryPath,
+            mcp_config: {
+                command: binaryPath,
+                args: ['--mcp'],
+                env: { AUGUSTUS_DATA_DIR: '${user_config.data_dir}' },
+            },
+        },
+        user_config: {
+            data_dir: {
+                type: 'directory',
+                title: 'Augustus Data Directory',
+                description: 'Directory containing your Augustus databases. Auto-configured by the Augustus app.',
+                required: true,
+            },
+        },
+        tools: [
+            { name: 'get_session_summary', description: 'Get a structured summary of a specific session.' },
+            { name: 'get_session_transcript', description: 'Retrieve the complete transcript for a session.' },
+            { name: 'get_close_report', description: 'Retrieve the close report for a session.' },
+            { name: 'get_basin_trajectory', description: 'Get alpha trajectory for a specific basin over recent sessions.' },
+            { name: 'get_all_trajectories', description: 'Get all basin trajectories for an agent.' },
+            { name: 'search_sessions', description: 'Semantic search across session content for an agent.' },
+            { name: 'get_evaluator_flags', description: 'Get flagged sessions for an agent.' },
+            { name: 'get_tier_proposals', description: 'Get tier modification proposals for an agent.' },
+            { name: 'list_agents', description: 'List all registered agents with summary statistics.' },
+            { name: 'list_sessions', description: 'List recent sessions for an agent with pending review counts.' },
+            { name: 'search_all', description: 'Cross-agent semantic search.' },
+            { name: 'add_observation', description: 'Add a human evaluation note or observation.' },
+            { name: 'search_observations', description: 'Search observations and annotations for an agent.' },
+            { name: 'get_agent_annotations', description: 'Get annotations for an agent.' },
+            { name: 'delete_annotation', description: 'Delete a specific annotation by its ID.' },
+            { name: 'approve_tier_proposal', description: 'Approve a pending tier modification proposal.' },
+            { name: 'flag_session', description: 'Flag a session for attention.' },
+            { name: 'reject_tier_proposal', description: 'Reject a pending tier proposal with rationale.' },
+            { name: 'modify_tier_proposal', description: 'Approve a proposal with modified parameters.' },
+            { name: 'get_pending_review_items', description: 'Get all items awaiting brain review for an agent.' },
+            { name: 'resolve_flag', description: 'Resolve an evaluator flag.' },
+            { name: 'create_basin', description: 'Brain-initiated basin creation (bypasses proposal flow).' },
+            { name: 'modify_basin', description: 'Direct basin parameter adjustment (bypasses proposal flow).' },
+            { name: 'deprecate_basin', description: 'Soft-deprecate a basin.' },
+            { name: 'undeprecate_basin', description: 'Restore a deprecated basin to active tracking.' },
+            { name: 'lock_basin', description: 'Lock a basin so body cannot modify it.' },
+            { name: 'unlock_basin', description: 'Remove brain lock from a basin.' },
+            { name: 'set_basin_bounds', description: 'Set alpha bounds that body must respect.' },
+            { name: 'get_basin_history', description: 'Get recent modifications for a specific basin (audit trail).' },
+            { name: 'create_proposal', description: 'Create a proposal that sits in the pending queue for later review.' },
+        ],
+        compatibility: { platforms: ['win32', 'darwin', 'linux'] },
+    };
+}
+
+function checkClaudeExtensionStatus() {
+    if (!isClaudeDesktopInstalled()) {
+        return { installed: false, enabled: false, claudeDesktopFound: false };
+    }
+
+    const claudeDir = getClaudeDir();
+    const registryPath = path.join(claudeDir, 'extensions-installations.json');
+    const settingsPath = path.join(claudeDir, 'Claude Extensions Settings', `${CLAUDE_EXT_ID}.json`);
+
+    let installed = false;
+    let enabled = false;
+
+    if (fs.existsSync(registryPath)) {
+        try {
+            const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+            installed = !!(registry.extensions && registry.extensions[CLAUDE_EXT_ID]);
+        } catch { /* corrupt file */ }
+    }
+
+    if (installed && fs.existsSync(settingsPath)) {
+        try {
+            const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+            enabled = settings.isEnabled === true;
+        } catch { /* corrupt file */ }
+    }
+
+    return { installed, enabled, claudeDesktopFound: true };
+}
+
+function installClaudeExtension(dataDir) {
+    const binaryPath = getBackendBinaryPath();
+    if (!binaryPath) {
+        return { success: false, error: 'Backend binary not found. Build the backend first.' };
+    }
+    if (!fs.existsSync(binaryPath)) {
+        return { success: false, error: `Backend binary not found at ${binaryPath}` };
+    }
+    if (!isClaudeDesktopInstalled()) {
+        return { success: false, error: 'Claude Desktop not found. Install Claude Desktop first.' };
+    }
+
+    const claudeDir = getClaudeDir();
+    const extDir = path.join(claudeDir, 'Claude Extensions', CLAUDE_EXT_ID);
+    const settingsDir = path.join(claudeDir, 'Claude Extensions Settings');
+    const registryPath = path.join(claudeDir, 'extensions-installations.json');
+
+    try {
+        // 1. Create extension directory and write manifest
+        fs.mkdirSync(extDir, { recursive: true });
+        const manifest = buildExtensionManifest(binaryPath);
+        const manifestJson = JSON.stringify(manifest, null, 2);
+        fs.writeFileSync(path.join(extDir, 'manifest.json'), manifestJson, 'utf-8');
+
+        // 2. Copy icon
+        const iconSrc = app.isPackaged
+            ? path.join(process.resourcesPath, 'app.asar.unpacked', 'icons', 'augustus-icon-512.png')
+            : path.join(__dirname, '..', 'icons', 'augustus-icon-512.png');
+        // Try multiple icon locations
+        const iconCandidates = [
+            iconSrc,
+            path.join(__dirname, '..', 'icons', 'augustus-icon-512.png'),
+            path.join(process.resourcesPath || '', 'icons', 'augustus-icon-512.png'),
+        ];
+        for (const candidate of iconCandidates) {
+            if (fs.existsSync(candidate)) {
+                fs.copyFileSync(candidate, path.join(extDir, 'icon.png'));
+                break;
+            }
+        }
+
+        // 3. Update registry
+        let registry = { extensions: {} };
+        if (fs.existsSync(registryPath)) {
+            try {
+                registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+                if (!registry.extensions) registry.extensions = {};
+            } catch { /* start fresh */ }
+        }
+
+        const hash = crypto.createHash('sha256').update(manifestJson).digest('hex');
+        registry.extensions[CLAUDE_EXT_ID] = {
+            id: CLAUDE_EXT_ID,
+            version: app.getVersion(),
+            hash,
+            installedAt: new Date().toISOString(),
+            manifest,
+            signatureInfo: { status: 'unsigned' },
+            source: 'local',
+        };
+        fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2), 'utf-8');
+
+        // 4. Create settings with data_dir pre-populated
+        fs.mkdirSync(settingsDir, { recursive: true });
+        const extSettings = {
+            isEnabled: true,
+            userConfig: { data_dir: dataDir },
+        };
+        fs.writeFileSync(
+            path.join(settingsDir, `${CLAUDE_EXT_ID}.json`),
+            JSON.stringify(extSettings, null, 2),
+            'utf-8'
+        );
+
+        console.log(`Claude Desktop extension installed: ${extDir}`);
+        return { success: true };
+    } catch (err) {
+        console.error('Failed to install Claude extension:', err);
+        return { success: false, error: err.message };
+    }
+}
+
+function uninstallClaudeExtension() {
+    if (!isClaudeDesktopInstalled()) {
+        return { success: false, error: 'Claude Desktop not found.' };
+    }
+
+    const claudeDir = getClaudeDir();
+    const extDir = path.join(claudeDir, 'Claude Extensions', CLAUDE_EXT_ID);
+    const settingsPath = path.join(claudeDir, 'Claude Extensions Settings', `${CLAUDE_EXT_ID}.json`);
+    const registryPath = path.join(claudeDir, 'extensions-installations.json');
+
+    try {
+        // Remove from registry first (always works even if files are locked)
+        if (fs.existsSync(registryPath)) {
+            try {
+                const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
+                if (registry.extensions && registry.extensions[CLAUDE_EXT_ID]) {
+                    delete registry.extensions[CLAUDE_EXT_ID];
+                    fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2), 'utf-8');
+                }
+            } catch { /* ignore */ }
+        }
+
+        // Remove settings file
+        if (fs.existsSync(settingsPath)) {
+            try { fs.unlinkSync(settingsPath); } catch { /* may be locked */ }
+        }
+
+        // Remove extension directory (may fail if Claude Desktop has files locked)
+        if (fs.existsSync(extDir)) {
+            try {
+                fs.rmSync(extDir, { recursive: true, force: true });
+            } catch (rmErr) {
+                console.warn('Could not fully remove extension dir (files may be locked by Claude Desktop):', rmErr.message);
+                // Still counts as success — registry entry is gone, so Claude won't load it
+            }
+        }
+
+        console.log('Claude Desktop extension uninstalled');
+        return { success: true };
+    } catch (err) {
+        console.error('Failed to uninstall Claude extension:', err);
+        return { success: false, error: err.message };
+    }
+}
+
 // --- IPC handlers ---
 
 ipcMain.handle('get-data-dir', () => {
@@ -294,6 +538,18 @@ ipcMain.handle('install-update', () => {
     if (autoUpdater && app.isPackaged) {
         autoUpdater.quitAndInstall();
     }
+});
+
+ipcMain.handle('check-claude-extension', () => {
+    return checkClaudeExtensionStatus();
+});
+
+ipcMain.handle('install-claude-extension', (_, dataDir) => {
+    return installClaudeExtension(dataDir);
+});
+
+ipcMain.handle('uninstall-claude-extension', () => {
+    return uninstallClaudeExtension();
 });
 
 // --- App lifecycle ---

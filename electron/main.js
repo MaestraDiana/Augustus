@@ -356,22 +356,40 @@ function buildExtensionManifest(binaryPath) {
 
 function checkClaudeExtensionStatus() {
     if (!isClaudeDesktopInstalled()) {
-        return { installed: false, enabled: false, claudeDesktopFound: false };
+        return { installed: false, enabled: false, claudeDesktopFound: false, needsReinstall: false };
     }
 
     const claudeDir = getClaudeDir();
     const registryPath = path.join(claudeDir, 'extensions-installations.json');
     const settingsPath = path.join(claudeDir, 'Claude Extensions Settings', `${CLAUDE_EXT_ID}.json`);
+    const manifestPath = path.join(claudeDir, 'Claude Extensions', CLAUDE_EXT_ID, 'manifest.json');
 
-    let installed = false;
+    let registryEntry = false;
+    let manifestExists = false;
+    let versionMatch = false;
     let enabled = false;
 
+    // Check registry
     if (fs.existsSync(registryPath)) {
         try {
             const registry = JSON.parse(fs.readFileSync(registryPath, 'utf-8'));
-            installed = !!(registry.extensions && registry.extensions[CLAUDE_EXT_ID]);
+            registryEntry = !!(registry.extensions && registry.extensions[CLAUDE_EXT_ID]);
         } catch { /* corrupt file */ }
     }
+
+    // Check manifest actually exists on disk
+    if (fs.existsSync(manifestPath)) {
+        manifestExists = true;
+        try {
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+            versionMatch = manifest.version === app.getVersion();
+        } catch { /* corrupt file */ }
+    }
+
+    // Only consider "installed" if both registry AND manifest exist on disk
+    const installed = registryEntry && manifestExists;
+    // Flag reinstall needed if registry exists but manifest is missing or version mismatches
+    const needsReinstall = registryEntry && (!manifestExists || !versionMatch);
 
     if (installed && fs.existsSync(settingsPath)) {
         try {
@@ -380,7 +398,7 @@ function checkClaudeExtensionStatus() {
         } catch { /* corrupt file */ }
     }
 
-    return { installed, enabled, claudeDesktopFound: true };
+    return { installed, enabled, claudeDesktopFound: true, needsReinstall };
 }
 
 function installClaudeExtension(dataDir) {

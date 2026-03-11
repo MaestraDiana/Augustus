@@ -19,7 +19,7 @@ export default function Settings() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetConfirm, setResetConfirm] = useState('');
   const [mcpStatus, setMcpStatus] = useState<'running' | 'stopped' | 'checking'>('checking');
-  const [claudeExtStatus, setClaudeExtStatus] = useState<{ installed: boolean; enabled: boolean; claudeDesktopFound: boolean } | null>(null);
+  const [claudeExtStatus, setClaudeExtStatus] = useState<{ installed: boolean; enabled: boolean; claudeDesktopFound: boolean; needsReinstall?: boolean } | null>(null);
   const [claudeExtBusy, setClaudeExtBusy] = useState(false);
   const [claudeExtError, setClaudeExtError] = useState<string | null>(null);
 
@@ -649,7 +649,7 @@ export default function Settings() {
                     <p className="form-hint" style={{ color: 'var(--text-tertiary)' }}>
                       Claude Desktop is not installed. Install it from claude.ai to enable one-click integration.
                     </p>
-                  ) : claudeExtStatus.installed ? (
+                  ) : claudeExtStatus.installed && !claudeExtStatus.needsReinstall ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
                         <div className={`mcp-status ${claudeExtStatus.enabled ? 'running' : 'stopped'}`}>
@@ -682,7 +682,9 @@ export default function Settings() {
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
                       <p className="form-hint">
-                        Install the Augustus extension into Claude Desktop for direct MCP tool access. Your data directory will be configured automatically.
+                        {claudeExtStatus.needsReinstall
+                          ? 'The Augustus extension needs to be reinstalled for this version. Click below to update it.'
+                          : 'Install the Augustus extension into Claude Desktop for direct MCP tool access. Your data directory will be configured automatically.'}
                       </p>
                       <Button
                         variant="primary"
@@ -690,7 +692,7 @@ export default function Settings() {
                         disabled={claudeExtBusy}
                       >
                         {claudeExtBusy ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={16} />}
-                        Install Claude Desktop Extension
+                        {claudeExtStatus.needsReinstall ? 'Reinstall Extension' : 'Install Claude Desktop Extension'}
                       </Button>
                       <p className="form-hint">
                         Restart Claude Desktop after installing for the extension to appear.
@@ -705,20 +707,16 @@ export default function Settings() {
                   )}
                 </div>
               ) : (
-                /* Non-Electron: show connected status (extension managed outside app) */
+                /* Non-Electron: extension status cannot be verified */
                 <div className="form-group" style={{ paddingTop: 'var(--space-3)', borderTop: '1px solid var(--border-subtle)' }}>
                   <label className="form-label">Claude Desktop Extension</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-                      <div className={`mcp-status ${settings.mcp_enabled && mcpStatus === 'running' ? 'running' : 'stopped'}`}>
-                        <span className="status-indicator" />
-                        {settings.mcp_enabled && mcpStatus === 'running'
-                          ? 'Connected via MCP'
-                          : 'MCP not running'}
-                      </div>
+                    <div className="mcp-status stopped">
+                      <span className="status-indicator" />
+                      Not verified
                     </div>
                     <p className="form-hint">
-                      Extension management is available in the packaged Electron app. In development mode, configure the MCP server manually or install the extension via the Electron build.
+                      Extension status cannot be checked in development mode. Use the packaged Electron app to install and manage the Claude Desktop extension, or configure MCP manually.
                     </p>
                   </div>
                 </div>

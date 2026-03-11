@@ -20,7 +20,7 @@ export default function McpReinstallBanner() {
     if (!window.augustus?.claudeExtension) return;
 
     window.augustus.claudeExtension.check().then((status) => {
-      if (status.claudeDesktopFound && !status.installed) {
+      if (status.claudeDesktopFound && (!status.installed || status.needsReinstall)) {
         setNeedsReinstall(true);
       }
     }).catch(() => {

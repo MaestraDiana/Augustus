@@ -25,6 +25,7 @@ interface ClaudeExtensionStatus {
   installed: boolean;
   enabled: boolean;
   claudeDesktopFound: boolean;
+  needsReinstall: boolean;
 }
 
 interface ClaudeExtensionResult {

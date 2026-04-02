@@ -10,10 +10,17 @@ export default function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
   const [settings, setSettings] = useState<SettingsType | null>(null);
+  // Anthropic Key State
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState<'unchecked' | 'validating' | 'valid' | 'invalid'>('unchecked');
   const [apiKeyDirty, setApiKeyDirty] = useState(false);
+
+  // Gemini Key State
+  const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('');
+  const [geminiApiKeyVisible, setGeminiApiKeyVisible] = useState(false);
+  const [geminiApiKeyStatus, setGeminiApiKeyStatus] = useState<'unchecked' | 'validating' | 'valid' | 'invalid'>('unchecked');
+  const [geminiApiKeyDirty, setGeminiApiKeyDirty] = useState(false);
   const [activeSection, setActiveSection] = useState('api');
   const [saveIndicator, setSaveIndicator] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -134,27 +141,48 @@ export default function Settings() {
     }
   }
 
-  async function validateApiKey() {
-    if (!apiKeyInput) return;
-    setApiKeyStatus('validating');
+  async function validateKey(provider: 'anthropic' | 'gemini') {
+    const input = provider === 'anthropic' ? apiKeyInput : geminiApiKeyInput;
+    if (!input) return;
+    
+    if (provider === 'anthropic') setApiKeyStatus('validating');
+    else setGeminiApiKeyStatus('validating');
+
     try {
-      const result = await api.settings.validateKey(apiKeyInput);
-      setApiKeyStatus(result.valid ? 'valid' : 'invalid');
+      const result = await api.settings.validateKey(input, provider);
+      if (provider === 'anthropic') setApiKeyStatus(result.valid ? 'valid' : 'invalid');
+      else setGeminiApiKeyStatus(result.valid ? 'valid' : 'invalid');
     } catch {
-      setApiKeyStatus('invalid');
+      if (provider === 'anthropic') setApiKeyStatus('invalid');
+      else setGeminiApiKeyStatus('invalid');
     }
   }
 
-  async function saveApiKey() {
-    if (!apiKeyInput) return;
+  async function saveKey(provider: 'anthropic' | 'gemini') {
+    const input = provider === 'anthropic' ? apiKeyInput : geminiApiKeyInput;
+    if (!input) return;
+    
     try {
-      await api.settings.update({ api_key: apiKeyInput } as any);
-      setSettings((prev) => prev ? { ...prev, has_api_key: true } : prev);
-      setApiKeyDirty(false);
+      const payload = provider === 'anthropic' 
+        ? { api_key: input } 
+        : { gemini_api_key: input };
+        
+      await api.settings.update(payload as any);
+      
+      setSettings((prev) => {
+        if (!prev) return prev;
+        return provider === 'anthropic' 
+          ? { ...prev, has_api_key: true } 
+          : { ...prev, has_gemini_api_key: true };
+      });
+      
+      if (provider === 'anthropic') setApiKeyDirty(false);
+      else setGeminiApiKeyDirty(false);
+      
       showSaveIndicator();
     } catch (err) {
-      console.error('Failed to save API key:', err);
-      alert(`Failed to save API key: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      console.error(`Failed to save ${provider} API key:`, err);
+      alert(`Failed to save key: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   }
 
@@ -300,8 +328,7 @@ export default function Settings() {
 
         {/* Main content */}
         <div className="settings-content">
-          {/* API Configuration */}
-          <section
+          {/* API Configuration */          <section
             className="settings-section"
             id="api"
             ref={(el) => (sectionRefs.current.api = el)}
@@ -317,6 +344,28 @@ export default function Settings() {
             </div>
             <div className="settings-section-body">
               <div className="form-group">
+                <label className="form-label">Preferred Provider</label>
+                <div className="provider-select-group" style={{ display: 'flex', gap: 'var(--space-2)', marginTop: 'var(--space-1)' }}>
+                  <Button 
+                    variant={settings.preferred_provider === 'anthropic' ? 'primary' : 'secondary'}
+                    size="sm"
+                    onClick={() => updateSetting('preferred_provider', 'anthropic')}
+                    style={{ flex: 1 }}
+                  >
+                    Anthropic
+                  </Button>
+                  <Button 
+                    variant={settings.preferred_provider === 'gemini' ? 'primary' : 'secondary'}
+                    size="sm"
+                    onClick={() => updateSetting('preferred_provider', 'gemini')}
+                    style={{ flex: 1 }}
+                  >
+                    Google Gemini
+                  </Button>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 'var(--space-6)' }}>
                 <label className="form-label">Anthropic API Key</label>
                 <div className="input-with-button">
                   <div className="input-with-icon">
@@ -339,13 +388,13 @@ export default function Settings() {
                     </span>
                   </div>
                   {apiKeyDirty ? (
-                    <Button variant="primary" onClick={saveApiKey}>Save Key</Button>
+                    <Button variant="primary" onClick={() => saveKey('anthropic')}>Save Key</Button>
                   ) : apiKeyStatus === 'valid' || (settings.has_api_key && !apiKeyInput) ? (
                     <Button variant="primary" disabled>
                       <Check size={16} /> Valid
                     </Button>
                   ) : (
-                    <Button variant="secondary" onClick={validateApiKey} disabled={!apiKeyInput && !settings.has_api_key}>
+                    <Button variant="secondary" onClick={() => validateKey('anthropic')} disabled={!apiKeyInput && !settings.has_api_key}>
                       {apiKeyStatus === 'validating' ? <Loader2 size={16} /> : 'Validate'}
                     </Button>
                   )}
@@ -356,28 +405,58 @@ export default function Settings() {
                   </div>
                 )}
                 {apiKeyStatus !== 'unchecked' && (
-                  <div
-                    className={`api-key-status ${apiKeyStatus}`}
-                    style={{ marginTop: 'var(--space-2)' }}
-                  >
-                    {apiKeyStatus === 'validating' && (
-                      <>
-                        <Loader2 size={16} />
-                        Validating...
-                      </>
-                    )}
-                    {apiKeyStatus === 'valid' && (
-                      <>
-                        <Check size={16} />
-                        API key is valid
-                      </>
-                    )}
-                    {apiKeyStatus === 'invalid' && (
-                      <>
-                        <X size={16} />
-                        Invalid API key
-                      </>
-                    )}
+                  <div className={`api-key-status ${apiKeyStatus}`} style={{ marginTop: 'var(--space-2)' }}>
+                    {apiKeyStatus === 'validating' && <><Loader2 size={16} /> Validating...</>}
+                    {apiKeyStatus === 'valid' && <><Check size={16} /> API key is valid</>}
+                    {apiKeyStatus === 'invalid' && <><X size={16} /> Invalid API key</>}
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group" style={{ marginTop: 'var(--space-6)' }}>
+                <label className="form-label">Gemini API Key</label>
+                <div className="input-with-button">
+                  <div className="input-with-icon">
+                    <input
+                      type={geminiApiKeyVisible ? 'text' : 'password'}
+                      className="form-input mono"
+                      value={geminiApiKeyInput}
+                      onChange={(e) => {
+                        setGeminiApiKeyInput(e.target.value);
+                        setGeminiApiKeyDirty(true);
+                        setGeminiApiKeyStatus('unchecked');
+                      }}
+                      placeholder={settings.has_gemini_api_key ? '••••••••••••••••' : 'AIza...'}
+                    />
+                    <span
+                      className="input-icon-right"
+                      onClick={() => setGeminiApiKeyVisible(!geminiApiKeyVisible)}
+                    >
+                      {geminiApiKeyVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </span>
+                  </div>
+                  {geminiApiKeyDirty ? (
+                    <Button variant="primary" onClick={() => saveKey('gemini')}>Save Key</Button>
+                  ) : geminiApiKeyStatus === 'valid' || (settings.has_gemini_api_key && !geminiApiKeyInput) ? (
+                    <Button variant="primary" disabled>
+                      <Check size={16} /> Valid
+                    </Button>
+                  ) : (
+                    <Button variant="secondary" onClick={() => validateKey('gemini')} disabled={!geminiApiKeyInput && !settings.has_gemini_api_key}>
+                      {geminiApiKeyStatus === 'validating' ? <Loader2 size={16} /> : 'Validate'}
+                    </Button>
+                  )}
+                </div>
+                {settings.has_gemini_api_key && !geminiApiKeyDirty && (
+                  <div className="form-hint" style={{ marginTop: 'var(--space-2)' }}>
+                    Gemini key is stored (encrypted). Enter a new key to replace it.
+                  </div>
+                )}
+                {geminiApiKeyStatus !== 'unchecked' && (
+                  <div className={`api-key-status ${geminiApiKeyStatus}`} style={{ marginTop: 'var(--space-2)' }}>
+                    {geminiApiKeyStatus === 'validating' && <><Loader2 size={16} /> Validating...</>}
+                    {geminiApiKeyStatus === 'valid' && <><Check size={16} /> API key is valid</>}
+                    {geminiApiKeyStatus === 'invalid' && <><X size={16} /> Invalid API key</>}
                   </div>
                 )}
               </div>
@@ -401,11 +480,15 @@ export default function Settings() {
                   value={settings.default_model}
                   onChange={(e) => updateSetting('default_model', e.target.value)}
                 >
-                  <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
-                  <option value="claude-sonnet-4-20250514">claude-sonnet-4-20250514</option>
-                  <option value="claude-sonnet-4-5-20250929">claude-sonnet-4-5-20250929</option>
-                  <option value="claude-opus-4-5-20251101">claude-opus-4-5-20251101</option>
-                  <option value="claude-opus-4-6">claude-opus-4-6</option>
+                  <optgroup label="Anthropic">
+                    <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet-20241022</option>
+                    <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022</option>
+                    <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
+                  </optgroup>
+                  <optgroup label="Google Gemini">
+                    <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                    <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                  </optgroup>
                 </select>
               </div>
 

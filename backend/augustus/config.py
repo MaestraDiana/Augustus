@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 class Settings:
     """Application settings."""
     api_key_encrypted: str = ""
+    gemini_api_key_encrypted: str = ""
+    preferred_provider: str = "anthropic"  # 'anthropic' or 'gemini'
     default_model: str = "claude-sonnet-4-6"
     default_temperature: float = 1.0
     default_max_tokens: int = 4096
@@ -35,22 +37,27 @@ class Settings:
 
     _fernet_key: str = field(default="", repr=False)
 
-    def get_api_key(self) -> str:
-        """Decrypt and return the stored API key."""
-        if not self.api_key_encrypted or not self._fernet_key:
+    def get_api_key(self, provider: str = "anthropic") -> str:
+        """Decrypt and return the stored API key for a provider."""
+        target = self.api_key_encrypted if provider == "anthropic" else self.gemini_api_key_encrypted
+        if not target or not self._fernet_key:
             return ""
         try:
             f = Fernet(self._fernet_key.encode())
-            return f.decrypt(self.api_key_encrypted.encode()).decode()
+            return f.decrypt(target.encode()).decode()
         except Exception:
             return ""
 
-    def set_api_key(self, key: str) -> None:
-        """Encrypt and store an API key."""
+    def set_api_key(self, key: str, provider: str = "anthropic") -> None:
+        """Encrypt and store an API key for a provider."""
         if not self._fernet_key:
             self._fernet_key = Fernet.generate_key().decode()
         f = Fernet(self._fernet_key.encode())
-        self.api_key_encrypted = f.encrypt(key.encode()).decode()
+        encrypted = f.encrypt(key.encode()).decode()
+        if provider == "anthropic":
+            self.api_key_encrypted = encrypted
+        else:
+            self.gemini_api_key_encrypted = encrypted
 
 
 class ConfigManager:

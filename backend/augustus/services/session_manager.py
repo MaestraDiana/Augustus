@@ -105,7 +105,7 @@ class SessionManager:
 
     def __init__(
         self,
-        api_key: str,
+        llm_client: LLMClient,
         memory: Any,  # MemoryService -- typed as Any to avoid circular import
         evaluator: EvaluatorService | None,
         handoff: HandoffEngine,
@@ -116,7 +116,7 @@ class SessionManager:
         """Initialize SessionManager with injected dependencies.
 
         Args:
-            api_key: Anthropic API key for creating the async client.
+            llm_client: LLMClient instance (Anthropic/Gemini).
             memory: MemoryService instance for all data persistence.
             evaluator: EvaluatorService instance (may be None if disabled).
             handoff: HandoffEngine instance for between-session calculations.
@@ -124,7 +124,7 @@ class SessionManager:
             schema_parser: SchemaParser instance for YAML validation.
             settings: Application settings for model defaults and budget limits.
         """
-        self.client = anthropic.AsyncAnthropic(api_key=api_key)
+        self.llm = llm_client
         self.memory = memory
         self.evaluator = evaluator
         self.handoff = handoff
@@ -363,9 +363,9 @@ class SessionManager:
                 # Determine which tools are active on this turn
                 tools = self._build_tool_definitions(fw.capabilities, turn)
 
-                # Call the Anthropic API with retry/backoff
-                response = await self._api_call_with_retry(
-                    system=instruction.identity_core,
+                # Call the API with the configured LLM client
+                response = await self.llm.generate_message(
+                    system_prompt=instruction.identity_core,
                     messages=conversation,
                     tools=tools if tools else None,
                     model=model,
@@ -1310,70 +1310,7 @@ class SessionManager:
     # API call with retry
     # ------------------------------------------------------------------
 
-    async def _api_call_with_retry(
-        self,
-        system: str,
-        messages: list[dict],
-        tools: list[dict] | None,
-        model: str,
-        temperature: float,
-        max_tokens: int,
-        max_retries: int = 3,
-    ) -> Any:
-        """Call the Anthropic messages API with exponential backoff on retries.
-
-        Retries on rate-limit (429) and server errors (5xx).
-        """
-        for attempt in range(max_retries):
-            try:
-                kwargs: dict[str, Any] = {
-                    "model": model,
-                    "max_tokens": max_tokens,
-                    "system": system,
-                    "messages": messages,
-                    "temperature": temperature,
-                }
-                if tools:
-                    kwargs["tools"] = tools
-                    # Enable the server-side web search beta when the web_search
-                    # tool is active. Without this header the API returns only
-                    # the server_tool_use block (the search request) with no
-                    # web_search_tool_result, and the next turn's API call fails
-                    # with a 400 because the assistant message has an unmatched
-                    # server_tool_use.
-                    if any(
-                        t.get("type") == "web_search_20250305" for t in tools
-                    ):
-                        kwargs.setdefault("extra_headers", {})["anthropic-beta"] = "web-search-2025-03-05"
-
-                return await self.client.messages.create(**kwargs)
-
-            except anthropic.RateLimitError:
-                if attempt < max_retries - 1:
-                    wait = 2 ** (attempt + 1)
-                    logger.warning(
-                        "Rate limited (attempt %d/%d), waiting %ds...",
-                        attempt + 1,
-                        max_retries,
-                        wait,
-                    )
-                    await asyncio.sleep(wait)
-                else:
-                    raise
-
-            except anthropic.APIStatusError as e:
-                if e.status_code >= 500 and attempt < max_retries - 1:
-                    wait = 2 ** (attempt + 1)
-                    logger.warning(
-                        "API error %d (attempt %d/%d), retrying in %ds...",
-                        e.status_code,
-                        attempt + 1,
-                        max_retries,
-                        wait,
-                    )
-                    await asyncio.sleep(wait)
-                else:
-                    raise
+    # _api_call_with_retry removed as LLMClient handles this.
 
     # ------------------------------------------------------------------
     # Response serialization
@@ -2286,36 +2223,17 @@ class SessionManager:
     # Cost estimation
     # ------------------------------------------------------------------
 
-    @staticmethod
     def _estimate_cost(
+        self,
         tokens_in: int,
         tokens_out: int,
         model: str,
         web_search_requests: int = 0,
     ) -> float:
-        """Estimate API cost based on token counts and model pricing.
-
-        Pricing is approximate and based on published Anthropic rates
-        (per 1M tokens: input, output). Web search is $10 per 1000
-        requests ($0.01 per request).
-        """
-        pricing: dict[str, tuple[float, float]] = {
-            "claude-sonnet-4-6": (3.0, 15.0),
-            "claude-sonnet-4-20250514": (3.0, 15.0),
-            "claude-sonnet-4-5-20250929": (3.0, 15.0),
-            "claude-opus-4-5-20251101": (5.0, 25.0),
-            "claude-opus-4-6": (5.0, 25.0),
-            "claude-haiku-35-20241022": (0.80, 4.0),
-            "claude-haiku-4-5-20251001": (1.0, 5.0),
-        }
-        rates = pricing.get(model, (3.0, 15.0))
-        cost = (tokens_in * rates[0] / 1_000_000) + (
-            tokens_out * rates[1] / 1_000_000
+        """Estimate API cost using the LLM client."""
+        return self.llm.estimate_cost(
+            tokens_in, tokens_out, model, web_search_requests=web_search_requests
         )
-        # Web search: $0.01 per request
-        if web_search_requests > 0:
-            cost += web_search_requests * 0.01
-        return round(cost, 6)
 
     # ------------------------------------------------------------------
     # Activity logging helper

@@ -181,7 +181,8 @@ export const api = {
   settings: {
     get: () => get<Settings>('/settings'),
     update: (data: Partial<Settings>) => put<Settings>('/settings', data),
-    validateKey: (key: string) => post<ValidateKeyResponse>('/settings/validate-key', { api_key: key }),
+    validateKey: (key: string, provider: string = 'anthropic') => 
+      post<ValidateKeyResponse>('/settings/validate-key', { api_key: key, provider }),
   },
 
   evaluatorPrompts: {

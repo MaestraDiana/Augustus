@@ -4,9 +4,8 @@ from __future__ import annotations
 import json
 import logging
 
-import anthropic
-
 from augustus.models.dataclasses import BasinConfig, EvaluatorOutput
+from augustus.services.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +47,8 @@ Respond ONLY with valid JSON in this exact schema:
 class EvaluatorService:
     """Independent relevance scoring, decoupled from agent self-assessment."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-6") -> None:
-        self.client = anthropic.AsyncAnthropic(api_key=api_key)
+    def __init__(self, llm_client: LLMClient, model: str = "claude-sonnet-4-6") -> None:
+        self.llm = llm_client
         self.model = model
 
     async def evaluate_session(
@@ -61,7 +60,7 @@ class EvaluatorService:
         prompt_text: str | None = None,
         prompt_version: str | None = None,
     ) -> EvaluatorOutput:
-        """Send session data to a separate Claude instance for independent evaluation.
+        """Send session data to a separate model instance for independent evaluation.
 
         Args:
             identity_core: The agent's identity core text.
@@ -78,25 +77,23 @@ class EvaluatorService:
         )
 
         try:
-            response = await self.client.messages.create(
+            response = await self.llm.generate_message(
+                system_prompt=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
                 model=self.model,
                 max_tokens=2048,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_message}],
             )
 
             response_text = ""
+            # Handle both Anthropic and Gemini response structures (partially handled by LLMClient)
             for block in response.content:
-                if hasattr(block, "text"):
+                if getattr(block, "type", None) == "text":
                     response_text += block.text
 
             result = self.parse_evaluation_response(response_text)
             result.evaluator_prompt_version = version
             return result
 
-        except anthropic.APIError as e:
-            logger.error(f"Evaluator API error: {e}")
-            return EvaluatorOutput(evaluator_prompt_version=version)
         except Exception as e:
             logger.error(f"Evaluator error: {e}")
             return EvaluatorOutput(evaluator_prompt_version=version)

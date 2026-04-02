@@ -16,6 +16,7 @@ from augustus.services.schema_parser import SchemaParser
 from augustus.services.handoff_engine import HandoffEngine
 from augustus.services.evaluator import EvaluatorService
 from augustus.services.tier_enforcer import TierEnforcer
+from augustus.services.llm import LLMClient, AnthropicClient, GeminiClient
 from augustus.utils import normalize_model
 
 logger = logging.getLogger(__name__)
@@ -109,11 +110,20 @@ def init_services(config_dir: Path | None = None) -> ServiceContainer:
     _container.handoff = HandoffEngine()
     _container.tier_enforcer = TierEnforcer(_container.memory)
 
-    api_key = _container.config_manager.settings.get_api_key()
+    settings = _container.config_manager.settings
+    provider = settings.preferred_provider
+    api_key = settings.get_api_key(provider)
+
     if api_key:
+        llm_client: LLMClient
+        if provider == "gemini":
+            llm_client = GeminiClient(api_key=api_key)
+        else:
+            llm_client = AnthropicClient(api_key=api_key)
+
         _container.evaluator = EvaluatorService(
-            api_key=api_key,
-            model=normalize_model(_container.config_manager.settings.evaluator_model),
+            llm_client=llm_client,
+            model=normalize_model(settings.evaluator_model),
         )
 
     logger.info("All services initialized (data_dir=%s)", data_dir)
@@ -129,26 +139,26 @@ def create_orchestrator() -> object | None:
     from augustus.orchestrator.loop import Orchestrator
     from augustus.services.session_manager import SessionManager
 
-    api_key = (
-        _container.config_manager.settings.get_api_key()
-        if _container.config_manager
-        else ""
-    )
+    settings = _container.config_manager.settings
+    provider = settings.preferred_provider
+    api_key = settings.get_api_key(provider)
 
     session_mgr = None
     if api_key:
+        llm_client: LLMClient
+        if provider == "gemini":
+            llm_client = GeminiClient(api_key=api_key)
+        else:
+            llm_client = AnthropicClient(api_key=api_key)
+
         session_mgr = SessionManager(
-            api_key=api_key,
+            llm_client=llm_client,
             memory=_container.memory,
             evaluator=_container.evaluator,
             handoff=_container.handoff,
             tier_enforcer=_container.tier_enforcer,
             schema_parser=_container.schema_parser,
-            settings=(
-                _container.config_manager.settings
-                if _container.config_manager
-                else None
-            ),
+            settings=settings,
         )
     else:
         logger.warning("No API key configured — orchestrator will not start sessions")

@@ -202,6 +202,8 @@ export interface CoActivationEntry {
 
 export interface Settings {
   has_api_key: boolean;
+  has_gemini_api_key: boolean;
+  preferred_provider: 'anthropic' | 'gemini';
   default_model: string;
   default_temperature: number;
   default_max_tokens: number;

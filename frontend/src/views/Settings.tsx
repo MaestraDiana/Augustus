@@ -328,7 +328,8 @@ export default function Settings() {
 
         {/* Main content */}
         <div className="settings-content">
-          {/* API Configuration */          <section
+          {/* API Configuration */}
+          <section
             className="settings-section"
             id="api"
             ref={(el) => (sectionRefs.current.api = el)}

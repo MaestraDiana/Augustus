@@ -655,11 +655,15 @@ export default function Settings() {
                   onChange={(e) => updateSetting('evaluator_model', e.target.value)}
                   disabled={!settings.evaluator_enabled}
                 >
-                  <option value="claude-sonnet-4-6">claude-sonnet-4-6</option>
-                  <option value="claude-sonnet-4-20250514">claude-sonnet-4-20250514</option>
-                  <option value="claude-sonnet-4-5-20250929">claude-sonnet-4-5-20250929</option>
-                  <option value="claude-opus-4-5-20251101">claude-opus-4-5-20251101</option>
-                  <option value="claude-opus-4-6">claude-opus-4-6</option>
+                  <optgroup label="Anthropic">
+                    <option value="claude-3-5-sonnet-20241022">claude-3-5-sonnet-20241022</option>
+                    <option value="claude-3-5-haiku-20241022">claude-3-5-haiku-20241022</option>
+                    <option value="claude-3-opus-20240229">claude-3-opus-20240229</option>
+                  </optgroup>
+                  <optgroup label="Google Gemini">
+                    <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+                    <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+                  </optgroup>
                 </select>
               </div>
 

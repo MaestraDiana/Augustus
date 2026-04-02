@@ -611,13 +611,16 @@ export default function AgentForm({ mode = 'create' }: AgentFormProps) {
                   value={formData.model_override || ''}
                   onChange={(e) => updateField('model_override', e.target.value || null)}
                 >
-                  <option value="">Use default (Claude Sonnet 4.6)</option>
-                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                  <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
-                  <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5</option>
-                  <option value="claude-opus-4-5-20251101">Claude Opus 4.5</option>
-                  <option value="claude-opus-4-6">Claude Opus 4.6</option>
-                  <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                  <optgroup label="Anthropic">
+                    <option value="claude-3-5-sonnet-20241022">Claude Sonnet 3.5</option>
+                    <option value="claude-3-5-haiku-20241022">Claude Haiku 3.5</option>
+                    <option value="claude-3-opus-20240229">Claude Opus 3</option>
+                  </optgroup>
+                  <optgroup label="Google Gemini">
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                  </optgroup>
                 </select>
                 <div className="form-hint">Leave blank to use global default.</div>
               </div>
